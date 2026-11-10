@@ -166,6 +166,73 @@ I18n.init().then(() => {
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   3a. SCROLL-REVEAL ANIMATIONS  (IntersectionObserver)
+   ─────────────────────────────────────────────────────────────────────────── */
+
+(function initScrollReveal() {
+  /* Tag every major section with .reveal so they animate in on scroll */
+  const revealSelectors = [
+    ".section",
+    ".page-hero",
+    ".empty-directory",
+    ".notfound-section",
+    ".admin-section",
+  ];
+  revealSelectors.forEach(sel =>
+    document.querySelectorAll(sel).forEach(el => el.classList.add("reveal"))
+  );
+
+  /* Tag staggered children groups */
+  document.querySelectorAll(".portal-grid, .heritage-grid, .chapter-list, .flow-list")
+    .forEach(el => el.classList.add("reveal-stagger"));
+
+  /* Skip if IntersectionObserver is unavailable or reduced-motion is set */
+  if (!("IntersectionObserver" in window)) {
+    document.querySelectorAll(".reveal, .reveal-stagger")
+      .forEach(el => el.classList.add("revealed"));
+    return;
+  }
+
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    document.querySelectorAll(".reveal, .reveal-stagger")
+      .forEach(el => el.classList.add("revealed"));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("revealed");
+        obs.unobserve(entry.target);
+      }
+    });
+  }, {
+    threshold: 0.12,
+    rootMargin: "0px 0px -40px 0px",
+  });
+
+  document.querySelectorAll(".reveal, .reveal-stagger").forEach(el => observer.observe(el));
+}());
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   3b. STICKY HEADER SHADOW ON SCROLL
+   ─────────────────────────────────────────────────────────────────────────── */
+
+(function initHeaderScroll() {
+  const header = document.querySelector(".site-header");
+  if (!header) return;
+  let ticking = false;
+  window.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      header.classList.toggle("scrolled", window.scrollY > 8);
+      ticking = false;
+    });
+  }, { passive: true });
+}());
+
+/* ─────────────────────────────────────────────────────────────────────────────
    4. SEARCH PAGE
    ─────────────────────────────────────────────────────────────────────────── */
 

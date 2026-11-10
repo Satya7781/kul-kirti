@@ -333,3 +333,510 @@ button:disabled,
   cursor: not-allowed;
   pointer-events: none;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UI/UX ENHANCEMENT LAYER
+   ─────────────────────────────────────────────────────────────────────────
+   Refines the existing design without replacing it.  All rules here are
+   additive — they layer on top of the base styles above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Design token refinements ─────────────────────────────────────────────── */
+:root {
+  --shadow-soft:   0 4px 20px rgba(53,37,28,.06);
+  --shadow-medium: 0 12px 40px rgba(53,37,28,.10);
+  --shadow-deep:   0 24px 60px rgba(53,37,28,.14);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --transition-fast: .18s cubic-bezier(.4,0,.2,1);
+  --transition-base: .28s cubic-bezier(.4,0,.2,1);
+  --transition-slow: .5s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── 1. HEADER — refined sticky with blur and shadow ────────────────────── */
+
+.site-header {
+  backdrop-filter: blur(12px);
+  background: rgba(247,240,227,.92);
+  transition: box-shadow var(--transition-base), background var(--transition-base);
+}
+
+.site-header.scrolled {
+  box-shadow: 0 2px 20px rgba(53,37,28,.08);
+  background: rgba(247,240,227,.96);
+}
+
+/* Nav links — underline animation */
+.main-nav a {
+  position: relative;
+  border-bottom: none;
+  transition: color var(--transition-fast);
+}
+
+.main-nav a::after {
+  content: "";
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--gold);
+  transition: width var(--transition-base), left var(--transition-base);
+}
+
+.main-nav a:hover::after,
+.main-nav a.active::after {
+  width: 60%;
+  left: 20%;
+}
+
+/* Brand mark — subtle hover */
+.brand {
+  transition: opacity var(--transition-fast);
+}
+.brand:hover { opacity: .85; }
+
+.brand-mark {
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.brand:hover .brand-mark {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 4px rgba(196,154,69,.12);
+}
+
+/* ── 2. MOBILE MENU — smooth slide-down ──────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .main-nav {
+    display: block;
+    position: absolute;
+    top: 70px;
+    left: 0;
+    right: 0;
+    background: rgba(247,240,227,.98);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--line);
+    box-shadow: var(--shadow-medium);
+    padding: 8px 16px;
+    transform: translateY(-12px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform var(--transition-base), opacity var(--transition-base);
+  }
+
+  .main-nav.open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .main-nav a {
+    height: auto;
+    padding: 14px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .main-nav a:last-child { border-bottom: none; }
+
+  .main-nav a::after { display: none; }
+
+  /* Menu toggle animation */
+  .menu-toggle {
+    transition: transform var(--transition-base);
+  }
+  .menu-toggle[aria-expanded="true"] {
+    transform: rotate(90deg);
+  }
+}
+
+/* ── 3. HERO — entrance animations ───────────────────────────────────────── */
+
+.hero-content > * {
+  animation: heroFadeUp .7s cubic-bezier(.16,.84,.44,1) both;
+}
+.hero-content > *:nth-child(1) { animation-delay: .05s; }
+.hero-content > *:nth-child(2) { animation-delay: .15s; }
+.hero-content > *:nth-child(3) { animation-delay: .25s; }
+.hero-content > *:nth-child(4) { animation-delay: .35s; }
+.hero-content > *:nth-child(5) { animation-delay: .45s; }
+.hero-content > *:nth-child(6) { animation-delay: .55s; }
+.hero-content > *:nth-child(7) { animation-delay: .65s; }
+
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero seal — gentle float */
+.hero-seal {
+  animation: sealFloat 4s ease-in-out infinite;
+}
+@keyframes sealFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* Hero pattern — slow drift */
+.hero-pattern {
+  animation: patternDrift 60s linear infinite;
+}
+@keyframes patternDrift {
+  from { background-position: 0 0; }
+  to   { background-position: 27px 27px; }
+}
+
+/* ── 4. BUTTONS — micro-interactions ─────────────────────────────────────── */
+
+.button {
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+              background var(--transition-fast), color var(--transition-fast);
+}
+
+/* Arrow slide on hover */
+.button span:last-child {
+  transition: transform var(--transition-base);
+  display: inline-block;
+}
+.button:hover span:last-child {
+  transform: translateX(4px);
+}
+
+/* Press feedback */
+.button:active {
+  transform: scale(.97);
+}
+
+.button-gold {
+  box-shadow: 0 4px 14px rgba(196,154,69,.3);
+}
+.button-gold:hover {
+  box-shadow: 0 6px 20px rgba(196,154,69,.4);
+  transform: translateY(-1px);
+}
+
+.button-maroon {
+  box-shadow: 0 4px 14px rgba(109,23,37,.2);
+}
+.button-maroon:hover {
+  box-shadow: 0 6px 20px rgba(109,23,37,.3);
+  transform: translateY(-1px);
+}
+
+.button-outline {
+  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,.05);
+  transition: background var(--transition-base), color var(--transition-base), transform var(--transition-fast);
+}
+.button-outline:hover {
+  background: rgba(255,255,255,.15);
+  transform: translateY(-1px);
+}
+
+/* Text link — arrow slide */
+.text-link {
+  display: inline-flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+.text-link span {
+  transition: transform var(--transition-base);
+}
+.text-link:hover {
+  color: var(--maroon-dark);
+}
+.text-link:hover span {
+  transform: translate(3px,-3px);
+}
+
+/* ── 5. ORNAMENT — subtle pulse ─────────────────────────────────────────── */
+
+.ornament span {
+  animation: ornamentPulse 3s ease-in-out infinite;
+}
+@keyframes ornamentPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .6; transform: scale(.85); }
+}
+
+/* ── 6. CARDS & SECTIONS — hover and entrance ────────────────────────────── */
+
+/* Heritage cards — image zoom on hover */
+.heritage-card {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.heritage-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-medium);
+}
+.heritage-card .card-image {
+  overflow: hidden;
+  transition: transform var(--transition-slow);
+}
+.heritage-card:hover .card-image {
+  transform: scale(1.04);
+}
+
+/* Feature image — subtle zoom */
+.feature-image {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.feature-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,transparent 40%,rgba(196,154,69,.06));
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+.feature-image:hover::after {
+  opacity: 1;
+}
+
+/* Image label — refined */
+.image-label {
+  border-radius: var(--radius-sm);
+  letter-spacing: .14em;
+}
+
+/* ── 7. FORMS — focus glow and transitions ──────────────────────────────── */
+
+.record-form input,
+.record-form select,
+.record-form textarea,
+.admin-form input,
+.admin-form textarea,
+.admin-login input,
+.search-form input {
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.record-form input:focus,
+.record-form select:focus,
+.record-form textarea:focus,
+.admin-form input:focus,
+.admin-form textarea:focus,
+.admin-login input:focus,
+.search-form input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(196,154,69,.15);
+  outline: none;
+}
+
+/* Form message — slide-in */
+.form-message:not(:empty) {
+  animation: messageSlide .3s ease both;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
+}
+.form-message:not(.error) {
+  border-left-color: #5a9d4e;
+}
+.form-message.error {
+  border-left-color: #c42d2d;
+}
+@keyframes messageSlide {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Search form — refined */
+.search-form {
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.search-form:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(196,154,69,.12);
+}
+
+/* Search icon — subtle bounce */
+.search-icon {
+  animation: searchIconBounce .4s ease;
+}
+@keyframes searchIconBounce {
+  from { transform: scale(.8); opacity: .5; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── 8. SEARCH TABS — smooth indicator ──────────────────────────────────── */
+
+.search-tab {
+  position: relative;
+  transition: color var(--transition-fast);
+}
+.search-tab::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--gold);
+  transition: width var(--transition-base), left var(--transition-base);
+}
+.search-tab.active::after {
+  width: 100%;
+  left: 0;
+}
+
+/* ── 9. RESULT CARDS — hover lift ────────────────────────────────────────── */
+
+.result-card {
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.result-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-soft);
+  transform: translateX(2px);
+}
+
+.result-tag {
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.result-card:hover .result-tag {
+  background: var(--gold);
+  color: #fff;
+}
+
+/* ── 10. EMPTY STATES — refined ──────────────────────────────────────────── */
+
+.empty-state {
+  border-radius: var(--radius-md);
+}
+.empty-icon {
+  animation: emptyPulse 2.5s ease-in-out infinite;
+}
+@keyframes emptyPulse {
+  0%, 100% { opacity: .7; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.08); }
+}
+
+/* ── 11. FOOTER — refined ───────────────────────────────────────────────── */
+
+.site-footer {
+  border-top: 2px solid var(--gold);
+}
+.footer-inner {
+  transition: opacity var(--transition-fast);
+}
+.footer-brand strong {
+  transition: color var(--transition-fast);
+}
+.footer-brand:hover strong {
+  color: var(--gold-light);
+}
+.footer-meta a {
+  transition: color var(--transition-fast);
+}
+.footer-meta a:hover {
+  color: #fff;
+}
+
+/* ── 12. SCROLL REVEAL — entrance animation classes ─────────────────────── */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1);
+}
+.reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children */
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1);
+}
+.reveal-stagger.revealed > *:nth-child(1) { transition-delay: .05s; }
+.reveal-stagger.revealed > *:nth-child(2) { transition-delay: .12s; }
+.reveal-stagger.revealed > *:nth-child(3) { transition-delay: .19s; }
+.reveal-stagger.revealed > *:nth-child(4) { transition-delay: .26s; }
+.reveal-stagger.revealed > *:nth-child(5) { transition-delay: .33s; }
+.reveal-stagger.revealed > *:nth-child(6) { transition-delay: .40s; }
+.reveal-stagger.revealed > * {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── 13. SECTION SPACING RHYTHM ──────────────────────────────────────────── */
+
+.section + .section { padding-top: 0; }
+
+/* ── 14. LANGUAGE SWITCHER — refined ────────────────────────────────────── */
+
+.language-switch {
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+.language-switch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--gold), var(--gold-light));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: -1;
+}
+.language-switch:hover::before {
+  opacity: .1;
+}
+.language-switch .lang-char {
+  transition: transform var(--transition-base);
+}
+.language-switch:hover .lang-char {
+  transform: rotate(360deg);
+}
+
+/* ── 15. SCROLLBAR — refined (webkit) ───────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--ivory);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(109,23,37,.2);
+  border-radius: 5px;
+  border: 2px solid var(--ivory);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(109,23,37,.35);
+}
+
+/* ── 16. SELECTION COLOR ────────────────────────────────────────────────── */
+
+::selection {
+  background: rgba(196,154,69,.25);
+  color: var(--maroon-dark);
+}
+
+/* ── 17. REDUCED MOTION — respect user preference ────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-content > *,
+  .hero-seal,
+  .hero-pattern,
+  .ornament span,
+  .empty-icon {
+    animation: none !important;
+  }
+  .reveal,
+  .reveal-stagger > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
