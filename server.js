@@ -50,11 +50,24 @@ function validateSubmission(input) {
 app.get("/api/records", async (request, response, next) => {
   try {
     const type = clean(request.query.type, 20); const query = clean(request.query.q, 120);
+    if (type === "gotra") {
+      const result = await pool.query(`SELECT g.id, 'gotra' AS type, g.name, g.origin_place AS "originPlace", g.origin_period AS "originPeriod", g.founder_name AS "founderName", g.founder_notes AS "founderNotes", g.historical_details AS "historicalDetails", g.source_references AS "sourceReferences", COUNT(m.id)::int AS "memberCount" FROM gotras g LEFT JOIN gotra_members m ON m.gotra_id = g.id WHERE g.status = 'verified' AND ($1 = '' OR g.name ILIKE $2 OR g.origin_place ILIKE $2 OR g.founder_name ILIKE $2) GROUP BY g.id ORDER BY g.name LIMIT 100`, [query, `%${query}%`]);
+      return response.json({ records: result.rows });
+    }
     const values = []; const conditions = [];
     if (type) { values.push(type); conditions.push(`type = $${values.length}`); }
     if (query) { values.push(`%${query}%`); conditions.push(`(name ILIKE $${values.length} OR village ILIKE $${values.length} OR district ILIKE $${values.length} OR state ILIKE $${values.length})`); }
     const result = await pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", verified_at AS "verifiedAt" FROM published_records ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""} ORDER BY name LIMIT 100`, values);
     response.json({ records: result.rows });
+  } catch (error) { next(error); }
+});
+
+app.get("/api/gotras/:id", async (request, response, next) => {
+  try {
+    const result = await pool.query(`SELECT id, name, origin_place AS "originPlace", origin_period AS "originPeriod", founder_name AS "founderName", founder_notes AS "founderNotes", historical_details AS "historicalDetails", source_references AS "sourceReferences" FROM gotras WHERE id = $1 AND status = 'verified'`, [request.params.id]);
+    if (!result.rows[0]) return response.status(404).json({ error: "Verified Gotra not found." });
+    const members = await pool.query(`SELECT id, person_name AS "personName", relation_or_role AS "relationOrRole", village, district, state, notes FROM gotra_members WHERE gotra_id = $1 ORDER BY person_name`, [request.params.id]);
+    response.json({ gotra: result.rows[0], members: members.rows });
   } catch (error) { next(error); }
 });
 
@@ -95,6 +108,31 @@ app.post("/api/admin/login", async (request, response, next) => {
   } catch (error) { next(error); }
 });
 app.post("/api/admin/logout", (request, response) => { response.clearCookie("kulkirti_admin"); response.json({ ok: true }); });
+
+app.get("/api/admin/gotras", auth, async (request, response, next) => {
+  try {
+    const result = await pool.query(`SELECT g.id, g.name, g.origin_place AS "originPlace", g.origin_period AS "originPeriod", g.founder_name AS "founderName", g.founder_notes AS "founderNotes", g.historical_details AS "historicalDetails", g.source_references AS "sourceReferences", g.status, COUNT(m.id)::int AS "memberCount" FROM gotras g LEFT JOIN gotra_members m ON m.gotra_id = g.id GROUP BY g.id ORDER BY g.created_at DESC`);
+    response.json({ gotras: result.rows });
+  } catch (error) { next(error); }
+});
+
+app.post("/api/admin/gotras", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const name = clean(input.name, 120);
+    const members = Array.isArray(input.members) ? input.members.slice(0, 1000).map((member) => ({
+      personName: clean(member.personName, 120), relationOrRole: clean(member.relationOrRole, 120),
+      village: clean(member.village, 120), district: clean(member.district, 120), state: clean(member.state, 120), notes: clean(member.notes, 300)
+    })).filter((member) => member.personName) : [];
+    if (!name) return response.status(400).json({ error: "गोत्र नाम आवश्यक है।" });
+    await client.query("BEGIN");
+    const gotra = await client.query(`INSERT INTO gotras (name, origin_place, origin_period, founder_name, founder_notes, historical_details, source_references, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [name, clean(input.originPlace, 200), clean(input.originPeriod, 120), clean(input.founderName, 120), clean(input.founderNotes), clean(input.historicalDetails), clean(input.sourceReferences), request.admin.id]);
+    for (const member of members) await client.query(`INSERT INTO gotra_members (gotra_id, person_name, relation_or_role, village, district, state, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [gotra.rows[0].id, member.personName, member.relationOrRole, member.village, member.district, member.state, member.notes]);
+    await client.query("COMMIT");
+    response.status(201).json({ id: gotra.rows[0].id, message: "गोत्र और सदस्य प्रकाशित सत्यापन सूची में जोड़ दिए गए हैं।" });
+  } catch (error) { await client.query("ROLLBACK"); if (error.code === "23505") return response.status(409).json({ error: "यह गोत्र पहले से मौजूद है।" }); next(error); } finally { client.release(); }
+});
 
 app.get("/api/admin/submissions", auth, async (request, response, next) => {
   try {

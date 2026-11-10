@@ -70,6 +70,43 @@ if (adminLogin) {
   document.querySelector("#admin-logout")?.addEventListener("click", async () => { await fetch("/api/admin/logout", { method: "POST", credentials: "include" }); adminPanel.hidden = true; adminLoginBox.hidden = false; });
 }
 
+const adminTabs = document.querySelectorAll(".admin-tab");
+const adminViews = { submissions: document.querySelector("#admin-submissions"), gotras: document.querySelector("#admin-gotras") };
+adminTabs.forEach((tab) => tab.addEventListener("click", () => {
+  adminTabs.forEach((item) => item.classList.remove("active"));
+  tab.classList.add("active");
+  Object.entries(adminViews).forEach(([name, view]) => { if (view) view.hidden = name !== tab.dataset.adminView; });
+  if (tab.dataset.adminView === "gotras") loadGotras();
+}));
+
+const gotraForm = document.querySelector("#gotra-form");
+const gotraMembers = [];
+function renderGotraMembers() {
+  const list = document.querySelector("#gotra-member-list");
+  if (!list) return;
+  list.innerHTML = gotraMembers.map((member, index) => `<div class="member-row" data-gotra-member="${member.clientId}"><div class="member-row-heading"><strong>सदस्य ${index + 1}</strong><button class="remove-member" type="button" data-remove-gotra-member="${member.clientId}">हटाएं</button></div><div class="form-row"><label>नाम *<input data-gotra-field="personName" value="${member.personName || ""}" required></label><label>भूमिका / संबंध<input data-gotra-field="relationOrRole" value="${member.relationOrRole || ""}" placeholder="संस्थापक, शाखा, ऐतिहासिक व्यक्ति"></label></div><div class="form-row"><label>गांव<input data-gotra-field="village" value="${member.village || ""}"></label><label>जिला<input data-gotra-field="district" value="${member.district || ""}"></label></div><label>राज्य<input data-gotra-field="state" value="${member.state || ""}"></label><label>नोट्स<input data-gotra-field="notes" value="${member.notes || ""}></label></div>`).join("");
+  list.querySelectorAll("[data-gotra-field]").forEach((input) => input.addEventListener("input", () => { const member = gotraMembers.find((item) => item.clientId === input.closest("[data-gotra-member]").dataset.gotraMember); member[input.dataset.gotraField] = input.value; }));
+  list.querySelectorAll("[data-remove-gotra-member]").forEach((button) => button.addEventListener("click", () => { gotraMembers.splice(gotraMembers.findIndex((item) => item.clientId === button.dataset.removeGotraMember), 1); renderGotraMembers(); }));
+}
+document.querySelector("#add-gotra-member")?.addEventListener("click", () => { gotraMembers.push({ clientId: crypto.randomUUID() }); renderGotraMembers(); });
+async function loadGotras() {
+  const response = await fetch("/api/admin/gotras", { credentials: "include" });
+  if (!response.ok) return;
+  const gotras = (await response.json()).gotras;
+  document.querySelector("#gotra-list").innerHTML = gotras.length ? gotras.map((gotra) => `<article class="admin-submission"><h3>${gotra.name}</h3><p>उद्गम: ${gotra.originPlace || "उल्लेखित नहीं"} · स्थापक: ${gotra.founderName || "उल्लेखित नहीं"}</p><p>${gotra.memberCount} ज्ञात सदस्य · स्थिति: ${gotra.status}</p><p>${gotra.sourceReferences || "स्रोत संदर्भ उपलब्ध नहीं"}</p></article>`).join("") : '<div class="admin-empty">अभी कोई गोत्र नहीं जोड़ा गया है।</div>';
+}
+gotraForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(gotraForm));
+  payload.members = gotraMembers;
+  const response = await fetch("/api/admin/gotras", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+  const result = await response.json();
+  const message = document.querySelector("#gotra-message");
+  message.textContent = response.ok ? result.message : result.error;
+  message.classList.toggle("error", !response.ok);
+  if (response.ok) { gotraForm.reset(); gotraMembers.splice(0); renderGotraMembers(); loadGotras(); }
+});
+
 const treeRoot = document.querySelector("#published-tree");
 if (treeRoot) {
   const treeId = new URLSearchParams(location.search).get("id");
