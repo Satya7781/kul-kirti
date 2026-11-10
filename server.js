@@ -122,4 +122,4 @@ app.patch("/api/admin/submissions/:id", auth, async (request, response, next) =>
 
 app.use(express.static(root));
 app.use((error, request, response, next) => { console.error(error); response.status(500).json({ error: "Server error." }); });
-app.listen(port, "127.0.0.1", () => console.log(`Kul-Kirti running at http://localhost:${port}`));
+app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`));
