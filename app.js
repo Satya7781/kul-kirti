@@ -8,6 +8,45 @@ const mainNav = document.querySelector(".main-nav");
 menuToggle?.addEventListener("click", () => { const open = mainNav.classList.toggle("open"); menuToggle.setAttribute("aria-expanded", String(open)); });
 mainNav?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => { mainNav.classList.remove("open"); }));
 
+const languageButton = document.querySelector(".language-switch");
+const languageCopy = {
+  hi: {
+    topline: ["इतिहास प्रमाणों के साथ", "वंशावली पीढ़ियों के साथ", "संबंध सत्यापित अभिलेखों के साथ"],
+    nav: ["होम", "वंश इतिहास", "गोत्र खोज", "गांव खोज", "वंशावली", "समिति निर्देशिका", "रिकॉर्ड भेजें"],
+    admin: "Admin",
+    language: "English",
+    footer: "एक ऐतिहासिक और वंशावली अभिलेखागार।<br>स्रोत, सम्मान और सत्यापन के साथ।",
+    home: "कुलकीर्ति होम"
+  },
+  en: {
+    topline: ["History with evidence", "Genealogy across generations", "Relationships from verified records"],
+    nav: ["Home", "Vansh History", "Gotra Search", "Village Search", "Vanshawali", "Samiti Directory", "Submit a Record"],
+    admin: "Admin",
+    language: "हिन्दी",
+    footer: "A historical and genealogical archive.<br>With sources, respect, and verification.",
+    home: "Kul-Kirti Home"
+  }
+};
+function applyLanguage(language) {
+  const copy = languageCopy[language] || languageCopy.hi;
+  document.documentElement.lang = language;
+  document.querySelectorAll(".topline-inner > span:not(.topline-rule)").forEach((item, index) => { item.textContent = copy.topline[index]; });
+  document.querySelectorAll(".main-nav a").forEach((item, index) => { item.textContent = copy.nav[index]; });
+  document.querySelectorAll(".admin-link").forEach((item) => { item.textContent = copy.admin; });
+  document.querySelectorAll(".language-switch").forEach((item) => {
+    item.innerHTML = `<span>${language === "hi" ? "अ" : "A"}</span> ${copy.language} <i>⌄</i>`;
+    item.setAttribute("aria-label", language === "hi" ? "Switch to English" : "हिन्दी में बदलें");
+  });
+  document.querySelectorAll(".footer-inner > p").forEach((item) => { item.innerHTML = copy.footer; });
+  document.querySelectorAll(".brand[aria-label]").forEach((item) => { item.setAttribute("aria-label", copy.home); });
+  localStorage.setItem("kulkirti-language", language);
+}
+const savedLanguage = localStorage.getItem("kulkirti-language");
+applyLanguage(savedLanguage === "en" ? "en" : "hi");
+document.querySelectorAll(".language-switch").forEach((button) => button.addEventListener("click", () => {
+  applyLanguage(document.documentElement.lang === "hi" ? "en" : "hi");
+}));
+
 const searchInput = document.querySelector("#search-input");
 const searchResults = document.querySelector("#search-results");
 const searchForm = document.querySelector("#record-search");
