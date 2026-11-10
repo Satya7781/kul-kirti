@@ -71,7 +71,7 @@ if (adminLogin) {
 }
 
 const adminTabs = document.querySelectorAll(".admin-tab");
-const adminViews = { submissions: document.querySelector("#admin-submissions"), gotras: document.querySelector("#admin-gotras") };
+const adminViews = { submissions: document.querySelector("#admin-submissions"), gotras: document.querySelector("#admin-gotras"), "family-builder": document.querySelector("#admin-family-builder") };
 adminTabs.forEach((tab) => tab.addEventListener("click", () => {
   adminTabs.forEach((item) => item.classList.remove("active"));
   tab.classList.add("active");
@@ -105,6 +105,49 @@ gotraForm?.addEventListener("submit", async (event) => {
   message.textContent = response.ok ? result.message : result.error;
   message.classList.toggle("error", !response.ok);
   if (response.ok) { gotraForm.reset(); gotraMembers.splice(0); renderGotraMembers(); loadGotras(); }
+});
+
+const adminFamilyForm = document.querySelector("#admin-family-form");
+const adminFamilyMembers = [];
+function renderAdminFamilyMembers() {
+  const list = document.querySelector("#admin-member-list");
+  if (!list) return;
+  const options = (selected) => `<option value="">अज्ञात / नहीं चुना</option>${adminFamilyMembers.map((member) => `<option value="${member.clientId}" ${member.clientId === selected ? "selected" : ""}>${member.name || "नया व्यक्ति"}</option>`).join("")}`;
+  list.innerHTML = adminFamilyMembers.map((member, index) => `<div class="member-row admin-member-box" data-admin-member="${member.clientId}"><div class="member-row-heading"><strong>व्यक्ति ${index + 1}</strong><button class="remove-member" type="button" data-remove-admin-member="${member.clientId}">हटाएं</button></div><div class="form-row"><label>पूरा नाम *<input data-admin-field="name" value="${member.name || ""}" required maxlength="120" placeholder="जैसे: मोहन सिंह"></label><label>संबंध / भूमिका<input data-admin-field="relation" value="${member.relation || ""}" maxlength="80" placeholder="दादा, पिता, भाई, पुत्री"></label></div><div class="form-row"><label>पिता<select data-admin-field="fatherId">${options(member.fatherId)}</select></label><label>माता<select data-admin-field="motherId">${options(member.motherId)}</select></label></div><div class="form-row"><label>जन्म वर्ष<input data-admin-field="birthYear" value="${member.birthYear || ""}" maxlength="20" placeholder="उदा. 1945"></label><label>मृत्यु वर्ष<input data-admin-field="deathYear" value="${member.deathYear || ""}" maxlength="20" placeholder="यदि ज्ञात हो"></label></div><div class="form-row"><label>लिंग<input data-admin-field="gender" value="${member.gender || ""}" maxlength="30"></label><label>नोट्स<input data-admin-field="notes" value="${member.notes || ""}" maxlength="300" placeholder="स्रोत या सत्यापन टिप्पणी"></label></div></div>`).join("");
+  list.querySelectorAll("[data-admin-field]").forEach((input) => input.addEventListener("input", () => {
+    const member = adminFamilyMembers.find((item) => item.clientId === input.closest("[data-admin-member]").dataset.adminMember);
+    member[input.dataset.adminField] = input.value;
+    if (input.dataset.adminField === "name") renderAdminFamilyMembers();
+  }));
+  list.querySelectorAll("[data-remove-admin-member]").forEach((button) => button.addEventListener("click", () => {
+    const index = adminFamilyMembers.findIndex((item) => item.clientId === button.dataset.removeAdminMember);
+    adminFamilyMembers.splice(index, 1);
+    renderAdminFamilyMembers();
+  }));
+}
+document.querySelector("#add-admin-member")?.addEventListener("click", () => {
+  adminFamilyMembers.push({ clientId: crypto.randomUUID() });
+  renderAdminFamilyMembers();
+});
+if (adminFamilyForm) document.querySelector("#add-admin-member")?.click();
+adminFamilyForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#admin-family-message");
+  const payload = Object.fromEntries(new FormData(adminFamilyForm));
+  payload.familyDetails = adminFamilyMembers;
+  try {
+    const response = await fetch("/api/admin/family-records", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "परिवार वृक्ष सुरक्षित नहीं हो सका।");
+    message.innerHTML = `${result.message} <a href="/vanshawali.html?id=${encodeURIComponent(result.id)}">वृक्ष देखें →</a>`;
+    message.classList.remove("error");
+    adminFamilyForm.reset();
+    adminFamilyMembers.splice(0);
+    document.querySelector("#add-admin-member")?.click();
+  } catch (error) {
+    message.textContent = error.message;
+    message.classList.add("error");
+  }
 });
 
 const treeRoot = document.querySelector("#published-tree");

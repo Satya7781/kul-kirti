@@ -150,6 +150,34 @@ app.post("/api/admin/gotras", auth, async (request, response, next) => {
   } catch (error) { await client.query("ROLLBACK"); if (error.code === "23505") return response.status(409).json({ error: "यह गोत्र पहले से मौजूद है।" }); next(error); } finally { client.release(); }
 });
 
+app.post("/api/admin/family-records", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const data = validateSubmission({ ...request.body, type: "family", contributorName: request.admin.email });
+    if (!data.name || !data.gotra || !data.state || !data.familyDetails.length) {
+      return response.status(400).json({ error: "गोत्र, राज्य और कम से कम एक परिवार सदस्य आवश्यक है।" });
+    }
+    await client.query("BEGIN");
+    const submission = await client.query(
+      `INSERT INTO submissions (type, name, village, district, state, family_branch, notes, family_details, contributor_name, status, reviewed_by, review_notes, reviewed_at)
+       VALUES ('family',$1,$2,$3,$4,$5,$6,$7,$8,'approved',$9,'Admin-created verified record',NOW()) RETURNING id`,
+      [data.name, data.village, data.district, data.state, data.familyBranch, `${data.gotra}${data.notes ? ` | ${data.notes}` : ""}`, JSON.stringify(data.familyDetails), data.contributorName, request.admin.id]
+    );
+    const published = await client.query(
+      `INSERT INTO published_records (submission_id, type, name, village, district, state, family_branch, notes, family_details, verified_by)
+       VALUES ($1,'family',$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [submission.rows[0].id, data.name, data.village, data.district, data.state, data.familyBranch, `${data.gotra}${data.notes ? ` | ${data.notes}` : ""}`, JSON.stringify(data.familyDetails), request.admin.id]
+    );
+    await client.query("COMMIT");
+    response.status(201).json({ id: published.rows[0].id, message: "परिवार वृक्ष सत्यापित होकर प्रकाशित हो गया है।" });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
 app.get("/api/admin/submissions", auth, async (request, response, next) => {
   try {
     const result = await pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", contributor_name AS "contributorName", contributor_contact AS "contributorContact", status, submitted_at AS "submittedAt", review_notes AS "reviewNotes" FROM submissions ORDER BY submitted_at DESC`);
