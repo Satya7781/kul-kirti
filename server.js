@@ -1,4 +1,6 @@
 require("dotenv").config({ path: process.env.DOTENV_CONFIG_PATH || ".env.local" });
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -22,6 +24,20 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+
+async function initializeDatabase() {
+  const schema = fs.readFileSync(path.join(root, "db", "schema.sql"), "utf8");
+  await pool.query(schema);
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are required to initialize the admin account.");
+  }
+  const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
+  await pool.query(
+    "INSERT INTO admins (email, password_hash) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+    [process.env.ADMIN_EMAIL.trim().toLowerCase(), passwordHash]
+  );
+  console.log(`Database schema ready; admin account synchronized for ${process.env.ADMIN_EMAIL.trim().toLowerCase()}.`);
+}
 
 function clean(value, max = 500) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 function auth(request, response, next) {
@@ -160,4 +176,9 @@ app.patch("/api/admin/submissions/:id", auth, async (request, response, next) =>
 
 app.use(express.static(root));
 app.use((error, request, response, next) => { console.error(error); response.status(500).json({ error: "Server error." }); });
-app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`));
+initializeDatabase()
+  .then(() => app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`)))
+  .catch((error) => {
+    console.error("Startup initialization failed:", error.message);
+    process.exit(1);
+  });
