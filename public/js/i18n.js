@@ -117,6 +117,7 @@
     if (path.endsWith("vanshawali.html")) return "vanshawali";
     if (path.endsWith("samiti.html"))  return "samiti";
     if (path.endsWith("admin.html"))   return "admin";
+    if (path.endsWith("404.html"))     return "index"; /* fallback to index meta */
     return "index";
   }
 

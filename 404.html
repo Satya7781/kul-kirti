@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>पृष्ठ नहीं मिला | कुलकीर्ति</title>
+    <meta name="robots" content="noindex" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Serif+Devanagari:wght@600;700&family=Playfair+Display:wght@600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+
+    <style>
+      .notfound-section {
+        min-height: calc(100vh - 180px);
+        display: grid;
+        place-items: center;
+        padding: 60px 24px;
+        text-align: center;
+      }
+      .notfound-code {
+        font: 700 96px/1 "Playfair Display", "Noto Serif Devanagari", serif;
+        color: var(--gold);
+        margin: 0 0 8px;
+        letter-spacing: -4px;
+      }
+      .notfound-section h1 {
+        font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+        font-size: clamp(26px, 5vw, 38px);
+        color: var(--maroon);
+        margin: 0 0 16px;
+      }
+      .notfound-section p {
+        color: var(--muted);
+        font-size: 15px;
+        max-width: 460px;
+        margin: 0 auto 32px;
+        font-family: "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+        line-height: 1.75;
+      }
+      .notfound-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <section class="notfound-section">
+      <div>
+        <p class="notfound-code" aria-hidden="true">404</p>
+        <h1 id="notfound-heading" data-i18n="notfound.h1">यह पृष्ठ नहीं मिला</h1>
+        <p data-i18n="notfound.body">आप जिस पृष्ठ की तलाश कर रहे हैं वह हटा दिया गया है, नाम बदल दिया गया है, या अस्थायी रूप से अनुपलब्ध है।</p>
+        <div class="notfound-actions">
+          <a class="button button-gold" href="/" data-i18n="notfound.home">होम पर जाएं</a>
+          <a class="button button-outline-dark" href="/search.html" data-i18n="notfound.search">गोत्र खोजें</a>
+        </div>
+      </div>
+    </section>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

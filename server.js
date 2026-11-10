@@ -40,6 +40,21 @@ async function initializeDatabase() {
 }
 
 function clean(value, max = 500) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
+
+/** Return "hi" if the request prefers Hindi, "en" otherwise. */
+function reqLocale(request) {
+  const lang = clean(request.query.lang || request.headers["x-lang"] || "", 5);
+  if (lang === "en") return "en";
+  const accept = request.headers["accept-language"] || "";
+  if (accept.startsWith("en")) return "en";
+  return "hi"; /* Hindi-first default */
+}
+
+/** Bilingual error/success message helper. */
+function msg(request, hi, en) {
+  return reqLocale(request) === "en" ? en : hi;
+}
+
 function auth(request, response, next) {
   const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
   try { request.admin = jwt.verify(token, jwtSecret); next(); }
@@ -106,10 +121,10 @@ app.post("/api/realtime/published-records", async (request, response, next) => {
 app.post("/api/submissions", async (request, response, next) => {
   try {
     const data = validateSubmission(request.body);
-    if (!data.name || !data.state || !data.contributorName) return response.status(400).json({ error: "नाम, राज्य और योगदानकर्ता का नाम आवश्यक है।" });
-    if (data.type === "family" && !data.gotra) return response.status(400).json({ error: "परिवार रिकॉर्ड के लिए गोत्र आवश्यक है।" });
+    if (!data.name || !data.state || !data.contributorName) return response.status(400).json({ error: msg(request, "नाम, राज्य और योगदानकर्ता का नाम आवश्यक है।", "Name, state, and contributor name are required.") });
+    if (data.type === "family" && !data.gotra) return response.status(400).json({ error: msg(request, "परिवार रिकॉर्ड के लिए गोत्र आवश्यक है।", "Gotra is required for a family record.") });
     const result = await pool.query(`INSERT INTO submissions (type, name, village, district, state, family_branch, notes, family_details, contributor_name, contributor_contact) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, [data.type, data.gotra ? `${data.gotra} | ${data.name}` : data.name, data.village, data.district, data.state, data.familyBranch, data.notes, JSON.stringify(data.familyDetails), data.contributorName, data.contributorContact]);
-    response.status(201).json({ message: "आपका रिकॉर्ड सत्यापन के लिए भेज दिया गया है।", id: result.rows[0].id });
+    response.status(201).json({ message: msg(request, "आपका रिकॉर्ड सत्यापन के लिए भेज दिया गया है।", "Your record has been submitted for verification."), id: result.rows[0].id });
   } catch (error) { next(error); }
 });
 
@@ -117,7 +132,7 @@ app.post("/api/admin/login", async (request, response, next) => {
   try {
     const email = clean(request.body.email, 200).toLowerCase(); const password = request.body.password;
     const result = await pool.query("SELECT id, email, password_hash, role FROM admins WHERE email = $1", [email]);
-    if (!result.rows[0] || !(await bcrypt.compare(password || "", result.rows[0].password_hash))) return response.status(401).json({ error: "ईमेल या पासवर्ड गलत है।" });
+    if (!result.rows[0] || !(await bcrypt.compare(password || "", result.rows[0].password_hash))) return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
     const admin = result.rows[0]; const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h" });
     response.cookie("kulkirti_admin", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 8 * 60 * 60 * 1000 });
     response.json({ admin: { email: admin.email, role: admin.role } });
@@ -141,13 +156,13 @@ app.post("/api/admin/gotras", auth, async (request, response, next) => {
       personName: clean(member.personName, 120), relationOrRole: clean(member.relationOrRole, 120),
       village: clean(member.village, 120), district: clean(member.district, 120), state: clean(member.state, 120), notes: clean(member.notes, 300)
     })).filter((member) => member.personName) : [];
-    if (!name) return response.status(400).json({ error: "गोत्र नाम आवश्यक है।" });
+    if (!name) return response.status(400).json({ error: msg(request, "गोत्र नाम आवश्यक है।", "Gotra name is required.") });
     await client.query("BEGIN");
     const gotra = await client.query(`INSERT INTO gotras (name, origin_place, origin_period, founder_name, founder_notes, historical_details, source_references, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, [name, clean(input.originPlace, 200), clean(input.originPeriod, 120), clean(input.founderName, 120), clean(input.founderNotes), clean(input.historicalDetails), clean(input.sourceReferences), request.admin.id]);
     for (const member of members) await client.query(`INSERT INTO gotra_members (gotra_id, person_name, relation_or_role, village, district, state, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [gotra.rows[0].id, member.personName, member.relationOrRole, member.village, member.district, member.state, member.notes]);
     await client.query("COMMIT");
-    response.status(201).json({ id: gotra.rows[0].id, message: "गोत्र और सदस्य प्रकाशित सत्यापन सूची में जोड़ दिए गए हैं।" });
-  } catch (error) { await client.query("ROLLBACK"); if (error.code === "23505") return response.status(409).json({ error: "यह गोत्र पहले से मौजूद है।" }); next(error); } finally { client.release(); }
+    response.status(201).json({ id: gotra.rows[0].id, message: msg(request, "गोत्र और सदस्य प्रकाशित सत्यापन सूची में जोड़ दिए गए हैं।", "Gotra and members have been added to the verified list.") });
+  } catch (error) { await client.query("ROLLBACK"); if (error.code === "23505") return response.status(409).json({ error: msg(request, "यह गोत्र पहले से मौजूद है।", "This Gotra already exists.") }); next(error); } finally { client.release(); }
 });
 
 app.post("/api/admin/family-records", auth, async (request, response, next) => {
@@ -155,7 +170,7 @@ app.post("/api/admin/family-records", auth, async (request, response, next) => {
   try {
     const data = validateSubmission({ ...request.body, type: "family", contributorName: request.admin.email });
     if (!data.name || !data.gotra || !data.state || !data.familyDetails.length) {
-      return response.status(400).json({ error: "गोत्र, राज्य और कम से कम एक परिवार सदस्य आवश्यक है।" });
+      return response.status(400).json({ error: msg(request, "गोत्र, राज्य और कम से कम एक परिवार सदस्य आवश्यक है।", "Gotra, state, and at least one family member are required.") });
     }
     await client.query("BEGIN");
     const submission = await client.query(
@@ -169,7 +184,7 @@ app.post("/api/admin/family-records", auth, async (request, response, next) => {
       [submission.rows[0].id, data.name, data.village, data.district, data.state, data.familyBranch, `${data.gotra}${data.notes ? ` | ${data.notes}` : ""}`, JSON.stringify(data.familyDetails), request.admin.id]
     );
     await client.query("COMMIT");
-    response.status(201).json({ id: published.rows[0].id, message: "परिवार वृक्ष सत्यापित होकर प्रकाशित हो गया है।" });
+    response.status(201).json({ id: published.rows[0].id, message: msg(request, "परिवार वृक्ष सत्यापित होकर प्रकाशित हो गया है।", "The family tree has been verified and published.") });
   } catch (error) {
     await client.query("ROLLBACK");
     next(error);
@@ -203,6 +218,10 @@ app.patch("/api/admin/submissions/:id", auth, async (request, response, next) =>
 });
 
 app.use(express.static(root));
+/* Custom 404 — served for any URL that doesn't match a static file or API route */
+app.use((request, response) => {
+  response.status(404).sendFile(path.join(root, "404.html"));
+});
 app.use((error, request, response, next) => { console.error(error); response.status(500).json({ error: "Server error." }); });
 initializeDatabase()
   .then(() => app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`)))

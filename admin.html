@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Admin Review | कुलकीर्ति</title>
     <meta name="description" content="कुलकीर्ति प्रशासन पैनल।" />
     <!-- Admin not indexed -->
@@ -20,7 +20,7 @@
   <body class="admin-page">
     <div id="shared-header"></div>
 
-    <main>
+    <main id="main-content">
       <section class="page-hero compact">
         <div class="shell">
           <p class="eyebrow light" data-i18n="admin.heroEyebrow">सुरक्षित प्रशासन</p>
@@ -61,6 +61,8 @@
               <button id="admin-logout" class="button button-outline-dark" type="button"
                 data-i18n="admin.logoutBtn">लॉगआउट</button>
             </div>
+            <!-- Panel-level error display (task 5) -->
+            <p id="admin-panel-error" class="form-message error" role="alert" hidden></p>
 
             <!-- tabs -->
             <div class="admin-tabs">

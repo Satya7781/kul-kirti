@@ -25,7 +25,8 @@
     "admin":       "Admin",
     "ariaLabel":   "Kul-Kirti Home",
     "menuOpen":    "Open menu",
-    "mainNav":     "Main navigation"
+    "mainNav":     "Main navigation",
+    "skipToMain":  "Skip to main content"
   },
 
   "langSwitch": {
@@ -241,6 +242,8 @@
     "statusLabel": "Status",
     "approveBtn":  "Approve",
     "rejectBtn":   "Reject",
+    "confirmApprove": "Are you sure you want to approve this submission?",
+    "confirmReject":  "Are you sure you want to reject this submission?",
     "gotraFormH2": "Add a new verified Gotra",
     "gotraFormNote": "Enter history and founder information only from documented sources.",
     "gotraName":   "Gotra name *",
@@ -300,6 +303,13 @@
     "village":     "Village",
     "district":    "District",
     "state":       "State"
+  },
+
+  "notfound": {
+    "h1":     "Page not found",
+    "body":   "The page you are looking for has been removed, renamed, or is temporarily unavailable.",
+    "home":   "Go to homepage",
+    "search": "Search Gotra"
   },
 
   "common": {

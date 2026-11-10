@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>गोत्र एवं गांव खोज | कुलकीर्ति</title>
     <meta name="description" content="कुलकीर्ति के सत्यापित अभिलेखों में अपने गोत्र या गांव को खोजें।" />
 
@@ -29,7 +29,7 @@
   <body>
     <div id="shared-header"></div>
 
-    <main>
+    <main id="main-content">
       <section class="page-hero compact">
         <div class="shell">
           <p class="eyebrow light" data-i18n="search.heroEyebrow">अभिलेख खोज</p>
@@ -62,8 +62,8 @@
 
             <p class="search-hint">
               <span data-i18n="search.hint">उदाहरण:</span>
-              <button type="button" class="hint-link" data-query="सिसोदिया">सिसोदिया</button>,
-              <button type="button" class="hint-link" data-query="उदयपुर">उदयपुर</button>
+              <button type="button" class="hint-link" data-query="सिसोदिया" data-search-type="gotra">सिसोदिया</button>,
+              <button type="button" class="hint-link" data-query="उदयपुर" data-search-type="village">उदयपुर</button>
             </p>
 
             <div id="search-results" class="search-results" aria-live="polite">
