@@ -9,6 +9,7 @@ menuToggle?.addEventListener("click", () => { const open = mainNav.classList.tog
 mainNav?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => { mainNav.classList.remove("open"); }));
 
 const languageButton = document.querySelector(".language-switch");
+let currentLanguage = "hi";
 const languageCopy = {
   hi: {
     topline: ["इतिहास प्रमाणों के साथ", "वंशावली पीढ़ियों के साथ", "संबंध सत्यापित अभिलेखों के साथ"],
@@ -29,6 +30,7 @@ const languageCopy = {
 };
 function applyLanguage(language) {
   const copy = languageCopy[language] || languageCopy.hi;
+  currentLanguage = language;
   document.documentElement.lang = language;
   document.querySelectorAll(".topline-inner > span:not(.topline-rule)").forEach((item, index) => { item.textContent = copy.topline[index]; });
   document.querySelectorAll(".main-nav a").forEach((item, index) => { item.textContent = copy.nav[index]; });
@@ -39,13 +41,87 @@ function applyLanguage(language) {
   });
   document.querySelectorAll(".footer-inner > p").forEach((item) => { item.innerHTML = copy.footer; });
   document.querySelectorAll(".brand[aria-label]").forEach((item) => { item.setAttribute("aria-label", copy.home); });
+  translatePage(language);
   localStorage.setItem("kulkirti-language", language);
 }
 const savedLanguage = localStorage.getItem("kulkirti-language");
 applyLanguage(savedLanguage === "en" ? "en" : "hi");
 document.querySelectorAll(".language-switch").forEach((button) => button.addEventListener("click", () => {
-  applyLanguage(document.documentElement.lang === "hi" ? "en" : "hi");
+  localStorage.setItem("kulkirti-language", document.documentElement.lang === "hi" ? "en" : "hi");
+  location.reload();
 }));
+
+const translations = {
+  "सुरक्षित प्रशासन": "Secure administration", "Admin review panel": "Admin review panel", "यह क्षेत्र केवल अधिकृत admin के लिए है।": "This area is for authorized administrators only.",
+  "Authentication": "Authentication", "Admin login": "Admin login", "Login": "Login", "Logout": "Logout", "Admin data management": "Admin data management",
+  "Submissions review": "Submissions review", "Gotra management": "Gotra management", "Create family tree": "Create family tree", "अभी कोई submission नहीं है।": "There are no submissions yet.",
+  "नया सत्यापित गोत्र जोड़ें": "Add a verified Gotra", "इतिहास और founder की जानकारी केवल प्रमाणित स्रोतों के आधार पर भरें।": "Enter history and founder information only from documented sources.",
+  "गोत्र नाम *": "Gotra name *", "उद्गम स्थान": "Origin place", "उद्गम काल / अवधि": "Origin period", "स्थापक / प्रारंभिक व्यक्तित्व": "Founder / early figure",
+  "स्थापक संबंधी विवरण": "Founder details", "ऐतिहासिक विवरण": "Historical details", "स्रोत संदर्भ": "Source references", "ज्ञात सदस्य": "Known members",
+  "गोत्र से जुड़े लोगों को जोड़ें": "Add people associated with this Gotra", "+ सदस्य जोड़ें": "+ Add member", "गोत्र सुरक्षित करें": "Save Gotra",
+  "नया परिवार वृक्ष बनाएं": "Create a family tree", "परिवार के सदस्य": "Family members", "एक-एक करके व्यक्ति जोड़ें": "Add people one at a time",
+  "+ व्यक्ति जोड़ें": "+ Add person", "वृक्ष सुरक्षित और प्रकाशित करें": "Save and publish tree", "परिवार / शाखा": "Family / branch",
+  "स्रोत या सत्यापन टिप्पणी": "Source or verification notes", "पूरा नाम *": "Full name *", "संबंध / भूमिका": "Relation / role", "पिता": "Father", "माता": "Mother",
+  "जन्म वर्ष": "Birth year", "मृत्यु वर्ष": "Death year", "लिंग": "Gender", "नोट्स": "Notes", "हटाएं": "Remove", "अज्ञात / नहीं चुना": "Unknown / not selected",
+  "अध्याय 01 / शोध एवं संदर्भ": "Chapter 01 / Research and references", "गोहिल वंश का": "The Gohil Vansh", "ऐतिहासिक परिचय": "Historical introduction",
+  "दस्तावेज़, शिलालेख और परंपराओं के संदर्भ में एक सावधान ऐतिहासिक अध्ययन।": "A careful historical study based on documents, inscriptions, and traditions.",
+  "स्रोत आधारित इतिहास": "Source-based history", "परिचय": "Introduction", "अध्ययन के प्रमुख क्षेत्र": "Key areas of study",
+  "प्रारंभिक ऐतिहासिक संदर्भ": "Early historical references", "गोहिल एवं गेहलोत नाम": "Gohil and Gehlot names", "शाखाएं, भूगोल और प्रवास": "Branches, geography, and migration", "स्रोत और व्याख्याएं": "Sources and interpretations",
+  "संपादकीय सिद्धांत": "Editorial principles", "दस्तावेज़ पहले": "Documents first", "स्रोत जोड़ें": "Add a source", "शोध सहयोग": "Research collaboration", "सहयोग करें ↗": "Collaborate ↗",
+  "समुदाय का योगदान": "Community contribution", "अपना रिकॉर्ड साझा करें": "Share your record", "सहयोग करें": "Contribute", "परिवार की स्मृति": "Preserve family", "सुरक्षित करें": "memory",
+  "वंशावली सदस्य": "Genealogy members", "परिवार के सभी लोगों को जोड़ें": "Add everyone in the family", "अतिरिक्त विवरण": "Additional details", "आपका नाम *": "Your name *",
+  "संपर्क (वैकल्पिक)": "Contact (optional)", "सत्यापन के लिए भेजें": "Submit for verification", "परिवार / वंशावली": "Family / genealogy", "गोत्र": "Gotra", "गांव": "Village", "जिला": "District", "राज्य": "State",
+  "वंशावली / Family Genealogy": "Genealogy / Family Genealogy", "परिवार की स्मृति,": "Family memory,", "पीढ़ियों का वृक्ष": "a tree across generations",
+  "वंशावली कैसे जुड़ेगी?": "How will the genealogy be linked?", "अपनी वंशावली भेजें": "Submit your genealogy", "परिवार शाखा": "Family branch", "पूर्वज": "Ancestor", "परिवार": "Family", "पीढ़ी २": "Generation 2",
+  "सामुदायिक निर्देशिका": "Community directory", "समाज की समितियां": "Community committees", "एवं संस्थाएं": "and organizations", "निर्देशिका निर्माणाधीन है": "Directory under construction",
+  "समिति का विवरण भेजें": "Submit committee details", "अभिलेख खोज": "Archive search", "अपना गोत्र या गांव खोजें": "Search your Gotra or village", "गोत्र खोजें": "Search Gotra", "गांव खोजें": "Search village", "खोजें": "Search",
+  "कोई प्रकाशित रिकॉर्ड नहीं मिला": "No published records found", "गोत्र या गांव का नाम लिखकर अभिलेख खोजें": "Enter a Gotra or village name to search the archive",
+  "केवल स्वीकृत रिकॉर्ड सार्वजनिक खोज में दिखाई देते हैं।": "Only approved records appear in the public search.", "रिकॉर्ड मिले · सत्यापन स्थिति सहित": "records found · with verification status",
+  "वंशावली देखें": "View genealogy", "सत्यापित रिकॉर्ड": "Verified record", "सत्यापित परिवार रिकॉर्ड": "Verified family record",
+  "इस रिकॉर्ड में अभी परिवार सदस्य प्रकाशित नहीं हैं।": "No family members have been published in this record yet.",
+  "परिवार रिकॉर्ड के लिए गोत्र आवश्यक है।": "Gotra is required for a family record.", "रिकॉर्ड लाने में समस्या हुई।": "There was a problem loading records.",
+  "श्री गोहिल (गेहलोत) राजपूत": "Shri Gohil (Gehlot) Rajput", "गोहिल वंश का इतिहास, गौरव एवं वंशावली": "History, pride, and genealogy of the Gohil Vansh",
+  "एक समर्पित डिजिटल अभिलेखागार — जहां इतिहास प्रमाणों से और परिवारों की स्मृति दस्तावेज़ों से संरक्षित होती है।": "A dedicated digital archive where history is preserved with evidence and family memories with documentation.",
+  "इतिहास पढ़ें": "Read history", "अपना गोत्र खोजें": "Search your Gotra", "विरासत के पन्ने": "Pages of heritage", "मेवाड़ की ऐतिहासिक धरोहर": "The historical heritage of Mewar",
+  "पत्थरों में अंकित शौर्य, परंपराओं में जीवित स्मृति और पीढ़ियों से सुरक्षित गौरव।": "Courage carved in stone, memory alive in traditions, and pride preserved across generations.",
+  "चित्र संदर्भ हेतु": "Image for reference", "सत्यापित अभिलेखीय चित्र यहां जोड़ा जाएगा": "A verified archival image will be added here",
+  "एकलिंग परंपरा": "Ekling tradition", "एक धरोहर, अनेक पीढ़ियों की स्मृति": "One heritage, remembered across generations",
+  "मेवाड़ की स्थापत्य परंपरा और धार्मिक केंद्रों ने राजस्थान के इतिहास, कला और सामुदायिक स्मृति को गहराई से आकार दिया है। कुलकीर्ति इन्हीं प्रमाणित स्रोतों, अभिलेखों और पारिवारिक दस्तावेज़ों को आने वाली पीढ़ियों तक पहुंचाता है।": "Mewar's architectural traditions and religious centres have deeply shaped Rajasthan's history, art, and community memory. Kul-Kirti carries these verified sources, records, and family documents to future generations.",
+  "अभिलेखागार के बारे में": "About the archive", "स्मरण": "Remembrance", "महाराणा प्रताप": "Maharana Pratap", "मेवाड़ के इतिहास में स्वतंत्रता, स्वाभिमान और प्रतिरोध का प्रतीक व्यक्तित्व।": "A figure symbolizing freedom, self-respect, and resistance in Mewar's history.",
+  "इतिहास जानें ↗": "Learn the history ↗", "स्थापत्य": "Architecture", "चित्तौड़गढ़ दुर्ग": "Chittorgarh Fort", "किलों, स्तंभों और शिलालेखों में दर्ज राजस्थान की दीर्घ ऐतिहासिक यात्रा।": "Rajasthan's long historical journey recorded in forts, pillars, and inscriptions.",
+  "विरासत देखें ↗": "View the heritage ↗", "अभिलेख तक पहुंच": "Access the archive", "कुलकीर्ति के मुख्य विभाग": "Kul-Kirti's main sections",
+  "गोत्र एवं गांव खोज": "Gotra and village search", "स्वीकृत रिकॉर्ड में अपने गोत्र, गांव और परिवार शाखा की खोज करें।": "Search approved Gotra, village, and family branch records.",
+  "खोज शुरू करें →": "Start searching →", "स्रोत-संदर्भित पारिवारिक संबंधों और पीढ़ियों को समझें।": "Explore source-referenced family relationships and generations.",
+  "वंशावली देखें →": "View genealogy →", "रिकॉर्ड साझा करें": "Share a record", "अपना पारिवारिक विवरण समीक्षा और सत्यापन के लिए भेजें।": "Submit your family details for review and verification.", "फॉर्म भरें →": "Fill the form →",
+  "गुहिल, गुहिलोत, गोहिल और गेहलोत — इन नामों का प्रयोग विभिन्न कालखंडों और क्षेत्रों में अलग-अलग संदर्भों में मिलता है। इस इतिहास को समझने के लिए शिलालेख, साहित्यिक स्रोत, स्थापत्य और मौखिक परंपराओं को सावधानी से पढ़ना आवश्यक है।": "The names Guhil, Guhilot, Gohil, and Gehlot appear in different contexts across periods and regions. Understanding this history requires careful reading of inscriptions, literary sources, architecture, and oral traditions.",
+  "गुहिला नाम से जुड़े अभिलेखीय उल्लेखों और उनके संदर्भों का अध्ययन।": "Study of archival references associated with the name Guhila and their contexts.",
+  "क्षेत्रीय और ऐतिहासिक उपयोगों को एक ही निश्चित वंश-दावे के रूप में प्रस्तुत नहीं किया जाएगा।": "Regional and historical usages will not be presented as one definitive genealogical claim.",
+  "मेवाड़ से जुड़े क्षेत्रों और विकसित हुई सामुदायिक स्मृतियों का दस्तावेजीकरण।": "Documentation of regions connected with Mewar and evolving community memories.",
+  "हर प्रकाशित ऐतिहासिक दावे के साथ संदर्भ, स्रोत और सत्यापन स्थिति जोड़ी जाएगी।": "Every published historical claim will include its reference, source, and verification status.",
+  "पारंपरिक कथाओं और प्रमाणित ऐतिहासिक तथ्यों को स्पष्ट रूप से अलग रखा जाएगा।": "Traditional accounts and documented historical facts will be clearly distinguished.",
+  "स्रोत या अध्याय साझा करने के लिए संपादकीय टीम से संपर्क करें।": "Contact the editorial team to share a source or chapter."
+};
+function translatePage(language) {
+  if (language === "hi") return;
+  const replaceText = (node) => {
+    const value = node.textContent.trim();
+    if (translations[value]) node.textContent = node.textContent.replace(value, translations[value]);
+  };
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach(replaceText);
+  document.querySelectorAll("input, textarea").forEach((input) => {
+    const value = input.getAttribute("placeholder");
+    if (value && translations[value]) input.setAttribute("placeholder", translations[value]);
+  });
+  if (location.pathname.endsWith("history.html")) document.title = "Vansh History | Kul-Kirti";
+  if (location.pathname.endsWith("submit.html")) document.title = "Share a Record | Kul-Kirti";
+  if (location.pathname.endsWith("vanshawali.html")) document.title = "Genealogy | Kul-Kirti";
+  if (location.pathname.endsWith("samiti.html")) document.title = "Samiti Directory | Kul-Kirti";
+  if (location.pathname.endsWith("search.html")) document.title = "Gotra and Village Search | Kul-Kirti";
+  if (location.pathname.endsWith("admin.html")) document.title = "Admin Review | Kul-Kirti";
+}
 
 const searchInput = document.querySelector("#search-input");
 const searchResults = document.querySelector("#search-results");
@@ -80,6 +156,7 @@ if (submissionForm) {
   }
   function renderMembers() {
     memberList.innerHTML = members.map((member, index) => `<div class="member-row" data-member="${member.clientId}"><div class="member-row-heading"><strong>सदस्य ${index + 1}</strong><button class="remove-member" type="button" data-remove="${member.clientId}">हटाएं</button></div><div class="form-row"><label>पूरा नाम *<input data-field="name" value="${member.name || ""}" required maxlength="120" placeholder="जैसे: मोहन सिंह"></label><label>संबंध<input data-field="relation" value="${member.relation || ""}" maxlength="80" placeholder="दादा, पिता, पुत्र..."></label></div><div class="form-row"><label>पिता<select data-field="fatherId">${memberOptions(member.fatherId)}</select></label><label>माता<select data-field="motherId">${memberOptions(member.motherId)}</select></label></div><div class="form-row"><label>जन्म वर्ष<input data-field="birthYear" value="${member.birthYear || ""}" maxlength="20" placeholder="उदा. 1945"></label><label>लिंग<input data-field="gender" value="${member.gender || ""}" maxlength="30" placeholder="वैकल्पिक"></label></div><label>नोट्स<input data-field="notes" value="${member.notes || ""}" maxlength="300" placeholder="स्रोत या सत्यापन टिप्पणी"></label></div>`).join("");
+    translatePage(currentLanguage);
     memberList.querySelectorAll("[data-field]").forEach((input) => input.addEventListener("input", () => { const row = members.find((item) => item.clientId === input.closest("[data-member]").dataset.member); row[input.dataset.field] = input.value; if (input.dataset.field === "name") renderMembers(); }));
     memberList.querySelectorAll("[data-remove]").forEach((button) => button.addEventListener("click", () => { const index = members.findIndex((item) => item.clientId === button.dataset.remove); members.splice(index, 1); renderMembers(); }));
   }
@@ -102,6 +179,7 @@ async function loadSubmissions() {
   if (!response.ok) throw new Error("Admin session समाप्त हो गया।");
   const submissions = (await response.json()).submissions;
   adminSubmissions.innerHTML = submissions.length ? submissions.map((item) => `<article class="admin-submission"><h3>${item.name} <span class="result-tag">${item.type}</span></h3><p>${[item.village, item.district, item.state].filter(Boolean).join(" · ")}</p><p>योगदानकर्ता: ${item.contributorName}${item.contributorContact ? ` · ${item.contributorContact}` : ""}</p><p>${item.notes || "कोई अतिरिक्त विवरण नहीं"}</p>${item.familyDetails?.length ? `<details><summary>${item.familyDetails.length} परिवार सदस्य · unique IDs सहित</summary><div class="admin-family-list">${item.familyDetails.map((person) => `<div><strong>${person.name}</strong> · ${person.relation || "सदस्य"}<small>ID: ${person.id}${person.fatherId ? ` · पिता: ${person.fatherId}` : ""}${person.motherId ? ` · माता: ${person.motherId}` : ""}</small></div>`).join("")}</div></details>` : ""}<p><strong>स्थिति:</strong> ${item.status}</p>${item.status === "pending" ? `<div class="admin-actions"><button class="approve" data-id="${item.id}" data-status="approved">स्वीकृत करें</button><button class="reject" data-id="${item.id}" data-status="rejected">अस्वीकृत करें</button></div>` : ""}</article>`).join("") : '<div class="admin-empty">अभी कोई submission नहीं है।</div>';
+  translatePage(currentLanguage);
   adminSubmissions.querySelectorAll("[data-id]").forEach((button) => button.addEventListener("click", async () => { await fetch(`/api/admin/submissions/${button.dataset.id}`, { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: button.dataset.status }) }); loadSubmissions(); }));
 }
 if (adminLogin) {
@@ -133,6 +211,7 @@ async function loadGotras() {
   if (!response.ok) return;
   const gotras = (await response.json()).gotras;
   document.querySelector("#gotra-list").innerHTML = gotras.length ? gotras.map((gotra) => `<article class="admin-submission"><h3>${gotra.name}</h3><p>उद्गम: ${gotra.originPlace || "उल्लेखित नहीं"} · स्थापक: ${gotra.founderName || "उल्लेखित नहीं"}</p><p>${gotra.memberCount} ज्ञात सदस्य · स्थिति: ${gotra.status}</p><p>${gotra.sourceReferences || "स्रोत संदर्भ उपलब्ध नहीं"}</p></article>`).join("") : '<div class="admin-empty">अभी कोई गोत्र नहीं जोड़ा गया है।</div>';
+  translatePage(currentLanguage);
 }
 gotraForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -153,6 +232,7 @@ function renderAdminFamilyMembers() {
   if (!list) return;
   const options = (selected) => `<option value="">अज्ञात / नहीं चुना</option>${adminFamilyMembers.map((member) => `<option value="${member.clientId}" ${member.clientId === selected ? "selected" : ""}>${member.name || "नया व्यक्ति"}</option>`).join("")}`;
   list.innerHTML = adminFamilyMembers.map((member, index) => `<div class="member-row admin-member-box" data-admin-member="${member.clientId}"><div class="member-row-heading"><strong>व्यक्ति ${index + 1}</strong><button class="remove-member" type="button" data-remove-admin-member="${member.clientId}">हटाएं</button></div><div class="form-row"><label>पूरा नाम *<input data-admin-field="name" value="${member.name || ""}" required maxlength="120" placeholder="जैसे: मोहन सिंह"></label><label>संबंध / भूमिका<input data-admin-field="relation" value="${member.relation || ""}" maxlength="80" placeholder="दादा, पिता, भाई, पुत्री"></label></div><div class="form-row"><label>पिता<select data-admin-field="fatherId">${options(member.fatherId)}</select></label><label>माता<select data-admin-field="motherId">${options(member.motherId)}</select></label></div><div class="form-row"><label>जन्म वर्ष<input data-admin-field="birthYear" value="${member.birthYear || ""}" maxlength="20" placeholder="उदा. 1945"></label><label>मृत्यु वर्ष<input data-admin-field="deathYear" value="${member.deathYear || ""}" maxlength="20" placeholder="यदि ज्ञात हो"></label></div><div class="form-row"><label>लिंग<input data-admin-field="gender" value="${member.gender || ""}" maxlength="30"></label><label>नोट्स<input data-admin-field="notes" value="${member.notes || ""}" maxlength="300" placeholder="स्रोत या सत्यापन टिप्पणी"></label></div></div>`).join("");
+  translatePage(currentLanguage);
   list.querySelectorAll("[data-admin-field]").forEach((input) => input.addEventListener("input", () => {
     const member = adminFamilyMembers.find((item) => item.clientId === input.closest("[data-admin-member]").dataset.adminMember);
     member[input.dataset.adminField] = input.value;
