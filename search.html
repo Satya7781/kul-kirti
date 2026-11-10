@@ -1,1 +1,84 @@
-<!doctype html><html lang="hi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>गोत्र एवं गांव खोज | कुलकीर्ति</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="pages.css"></head><body><div id="shared-header"></div><main><section class="page-hero compact"><div class="shell"><p class="eyebrow light">अभिलेख खोज</p><h1>अपना गोत्र या गांव खोजें</h1><p>केवल admin द्वारा सत्यापित और प्रकाशित रिकॉर्ड यहां दिखाई देते हैं।</p></div></section><section class="section search-section"><div class="shell"><div class="search-panel"><div class="search-tabs" role="tablist"><button class="search-tab active" data-search-type="gotra">गोत्र खोजें</button><button class="search-tab" data-search-type="village">गांव खोजें</button></div><form id="record-search" class="search-form"><label for="search-input" class="sr-only">गोत्र या गांव का नाम</label><span class="search-icon">⌕</span><input id="search-input" type="search" placeholder="गोत्र का नाम लिखें..." autocomplete="off"><button class="button button-maroon" type="submit">खोजें <span>→</span></button></form><p class="search-hint">उदाहरण: <button type="button" class="hint-link" data-query="सिसोदिया">सिसोदिया</button>, <button type="button" class="hint-link" data-query="उदयपुर">उदयपुर</button></p><div id="search-results" class="search-results" aria-live="polite"><div class="empty-state"><span class="empty-icon">⌖</span><p>गोत्र या गांव का नाम लिखकर अभिलेख खोजें</p><small>केवल स्वीकृत रिकॉर्ड सार्वजनिक खोज में दिखाई देते हैं।</small></div></div></div></div></section></main><div id="shared-footer"></div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>गोत्र एवं गांव खोज | कुलकीर्ति</title>
+    <meta name="description" content="कुलकीर्ति के सत्यापित अभिलेखों में अपने गोत्र या गांव को खोजें।" />
+
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="कुलकीर्ति" />
+    <meta property="og:title"       content="गोत्र एवं गांव खोज | कुलकीर्ति" />
+    <meta property="og:description" content="कुलकीर्ति के सत्यापित अभिलेखों में अपने गोत्र या गांव को खोजें।" />
+    <meta property="og:locale"      content="hi_IN" />
+    <meta property="og:locale:alternate" content="en_IN" />
+
+    <link rel="alternate" hreflang="hi"        href="/search.html?lang=hi" />
+    <link rel="alternate" hreflang="en"        href="/search.html?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="/search.html" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <main>
+      <section class="page-hero compact">
+        <div class="shell">
+          <p class="eyebrow light" data-i18n="search.heroEyebrow">अभिलेख खोज</p>
+          <h1 data-i18n="search.h1">अपना गोत्र या गांव खोजें</h1>
+          <p data-i18n="search.heroSub">केवल admin द्वारा सत्यापित और प्रकाशित रिकॉर्ड यहां दिखाई देते हैं।</p>
+        </div>
+      </section>
+
+      <section class="section search-section">
+        <div class="shell">
+          <div class="search-panel">
+            <div class="search-tabs" role="tablist">
+              <button class="search-tab active" data-search-type="gotra"
+                data-i18n="search.tabGotra">गोत्र खोजें</button>
+              <button class="search-tab" data-search-type="village"
+                data-i18n="search.tabVillage">गांव खोजें</button>
+            </div>
+
+            <form id="record-search" class="search-form">
+              <label for="search-input" class="sr-only" data-i18n="search.srLabel">गोत्र या गांव का नाम</label>
+              <span class="search-icon">⌕</span>
+              <input id="search-input" type="search"
+                data-i18n-placeholder="search.phGotra"
+                placeholder="गोत्र का नाम लिखें..."
+                autocomplete="off" />
+              <button class="button button-maroon" type="submit">
+                <span data-i18n="search.btnSearch">खोजें</span> <span>→</span>
+              </button>
+            </form>
+
+            <p class="search-hint">
+              <span data-i18n="search.hint">उदाहरण:</span>
+              <button type="button" class="hint-link" data-query="सिसोदिया">सिसोदिया</button>,
+              <button type="button" class="hint-link" data-query="उदयपुर">उदयपुर</button>
+            </p>
+
+            <div id="search-results" class="search-results" aria-live="polite">
+              <div class="empty-state">
+                <span class="empty-icon">⌖</span>
+                <p data-i18n="search.emptyDefault">गोत्र या गांव का नाम लिखकर अभिलेख खोजें</p>
+                <small data-i18n="search.emptyNote">केवल स्वीकृत रिकॉर्ड सार्वजनिक खोज में दिखाई देते हैं।</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

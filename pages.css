@@ -4,3 +4,104 @@
 .family-builder{background:var(--ivory);border:1px solid var(--line);padding:18px;margin:8px 0 20px}.builder-heading{display:flex;align-items:center;justify-content:space-between;gap:15px}.builder-heading h3{color:var(--maroon);font-size:23px;margin:0}.builder-heading .eyebrow{margin-bottom:5px}.member-row{background:#fff;border:1px solid var(--line);padding:16px;margin-top:14px}.member-row-heading{display:flex;justify-content:space-between;color:var(--maroon);margin-bottom:10px}.remove-member{border:0;background:none;color:#842d2d;cursor:pointer;font:12px "Source Sans 3"}.admin-family-list{background:var(--ivory);padding:10px;margin:10px 0}.admin-family-list div{border-bottom:1px solid var(--line);padding:7px 0;font-size:13px}.admin-family-list div:last-child{border-bottom:0}.admin-family-list small{display:block;color:var(--muted);font-size:10px;overflow-wrap:anywhere}.published-person{background:#fff;border:1px solid var(--line);padding:13px;margin:8px 0}.published-person strong{color:var(--maroon);margin-right:12px}.published-person span{color:var(--muted);font-size:13px}.published-person small{display:block;color:var(--muted);font-size:10px;overflow-wrap:anywhere}.tree-record-heading p:last-child{color:var(--muted)}
 .admin-member-box{border-left:4px solid var(--gold)}
 @media(max-width:720px){.admin-link{padding-left:8px;font-size:11px}.page-hero{padding:65px 0}.page-hero h1{font-size:38px}.article-layout{grid-template-columns:1fr;gap:30px}.chapter-list,.portal-grid{grid-template-columns:1fr}.admin-form{padding:20px}.admin-panel{padding:14px}}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BILINGUAL ADDITIONS — pages.css
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Admin tabs — bilingual label lengths can differ */
+.admin-tab {
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+html[lang="hi"] .admin-tab {
+  font-family: "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+  font-size: 13px;
+}
+
+/* Chapter list headings in Hindi */
+html[lang="hi"] .chapter-list h3 {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: 19px;
+}
+
+/* Flow list */
+html[lang="hi"] .flow-list div {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Empty directory */
+html[lang="hi"] .empty-directory h2 {
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+/* Page hero — Hindi subtitle line height */
+html[lang="hi"] .page-hero p:last-child {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  max-width: 600px;
+}
+
+/* Member row headings */
+html[lang="hi"] .member-row-heading strong {
+  font-family: "Noto Sans Devanagari", serif;
+}
+
+/* Builder heading */
+html[lang="hi"] .builder-heading h3 {
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+/* Aside cards */
+html[lang="hi"] .aside-card h3 {
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+/* Portal cards */
+html[lang="hi"] .portal-card h3 {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: 21px;
+}
+
+html[lang="hi"] .portal-card p,
+html[lang="hi"] .portal-card b {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+}
+
+/* Admin submissions */
+html[lang="hi"] .admin-submission h3 {
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+html[lang="hi"] .admin-submission p {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* Search tabs */
+html[lang="hi"] .search-tab {
+  font-family: "Noto Sans Devanagari", serif;
+}
+
+/* Result cards */
+html[lang="hi"] .result-card h3 {
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+/* Prevent portal grid from overflowing on medium screens with Hindi text */
+@media (max-width: 860px) {
+  .portal-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 560px) {
+  .portal-grid {
+    grid-template-columns: 1fr;
+  }
+}

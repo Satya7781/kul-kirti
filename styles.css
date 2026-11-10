@@ -5,3 +5,264 @@
 
 .forms-section{background:var(--cream)}.forms-layout{display:grid;grid-template-columns:.75fr 1.25fr;gap:80px;align-items:start}.left-heading{text-align:left;margin:0}.left-heading h2{font-size:42px;text-align:left}.left-heading .ornament{margin:15px 0 20px}.left-heading>p:last-of-type{color:var(--muted);max-width:390px}.record-form{background:#fff;padding:30px;box-shadow:var(--shadow);border:1px solid var(--line)}.record-form label{display:flex;flex-direction:column;gap:6px;color:var(--maroon);font-size:13px;font-weight:600;margin-bottom:16px}.record-form input,.record-form select,.record-form textarea,.admin-login input{border:1px solid var(--line);background:var(--ivory);padding:11px 12px;color:var(--brown);font:14px "Source Sans 3";outline-color:var(--gold)}.record-form textarea{resize:vertical}.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.form-note{display:block;color:var(--muted);font-size:11px;margin-top:12px}.form-message{display:none;padding:10px 12px;background:#e4f0e2;color:#285d2e;font-size:13px;margin-top:18px}.form-message.error{display:block;background:#f7dede;color:#842d2d}.form-message:not(:empty){display:block}.admin-section{background:#fff}.admin-login{max-width:580px;margin:0 auto}.admin-login .search-form{padding-left:0}.admin-login input{flex:1;background:#fff}.admin-login .form-note{text-align:center}.admin-panel{max-width:900px;margin:0 auto;border:1px solid var(--line);background:var(--ivory);padding:22px}.admin-toolbar{display:flex;justify-content:space-between;align-items:center;color:var(--maroon);margin-bottom:16px}.button-outline-dark{border-color:var(--maroon);color:var(--maroon);background:transparent;padding:7px 12px}.admin-submission{background:#fff;border:1px solid var(--line);padding:16px;margin:10px 0}.admin-submission h3{color:var(--maroon);font-size:20px;margin:0 0 4px}.admin-submission p{color:var(--muted);font-size:13px;margin:3px 0}.admin-actions{display:flex;gap:8px;margin-top:12px}.admin-actions button{border:0;padding:7px 12px;cursor:pointer;font:600 12px "Source Sans 3"}.approve{background:#dcebd8;color:#285d2e}.reject{background:#f3d9d9;color:#842d2d}.admin-empty{padding:25px;text-align:center;color:var(--muted);font-size:14px}
 @media(max-width:720px){.forms-layout{grid-template-columns:1fr;gap:28px}.left-heading h2{font-size:35px}.form-row{grid-template-columns:1fr}.record-form{padding:20px}.admin-panel{padding:14px}}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BILINGUAL / HINDI-FIRST ADDITIONS
+   ─────────────────────────────────────────────────────────────────────────
+   These rules extend the base stylesheet.  They must come last so they
+   can selectively override or complement the existing rules above.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. GLOBAL HINDI TYPOGRAPHY ────────────────────────────────────────── */
+
+/*
+ * When the document lang is "hi" (the default), serve Noto Sans Devanagari
+ * as the primary body font so matras and conjuncts render correctly.
+ * Noto Serif Devanagari handles headings (h1–h3) already set above;
+ * we only need to ensure the sans variant is in the body stack.
+ */
+html[lang="hi"] body {
+  font-family:
+    "Noto Sans Devanagari",
+    "Noto Serif Devanagari",
+    Arial,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.75;      /* Devanagari needs more vertical breathing room */
+  word-spacing: 0.04em;
+}
+
+html[lang="hi"] h1,
+html[lang="hi"] h2,
+html[lang="hi"] h3,
+html[lang="hi"] .brand strong {
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+  line-height: 1.25;
+  letter-spacing: 0;      /* avoid letter-spacing on Devanagari — breaks glyphs */
+}
+
+html[lang="hi"] .hero h1 {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: clamp(44px, 7vw, 65px);
+  letter-spacing: 0;
+}
+
+/* ── 2. ENGLISH OVERRIDES ───────────────────────────────────────────────── */
+
+html[lang="en"] body {
+  font-family: "Source Sans 3", Arial, sans-serif;
+  line-height: 1.6;
+  word-spacing: normal;
+}
+
+html[lang="en"] h1,
+html[lang="en"] h2,
+html[lang="en"] h3,
+html[lang="en"] .brand strong {
+  font-family: "Playfair Display", serif;
+  letter-spacing: 0.01em;
+}
+
+html[lang="en"] .hero h1 {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(40px, 6vw, 65px);
+}
+
+html[lang="en"] .search-form input,
+html[lang="en"] .record-form input,
+html[lang="en"] .record-form select,
+html[lang="en"] .record-form textarea,
+html[lang="en"] .admin-form input,
+html[lang="en"] .admin-form textarea {
+  font-family: "Source Sans 3", Arial, sans-serif;
+}
+
+/* ── 3. LANGUAGE SWITCHER — ACTIVE STATE ───────────────────────────────── */
+
+.language-switch {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 8px 13px;
+  color: var(--maroon);
+  font: 500 13px "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+  min-width: 100px;         /* prevent layout shift when label changes length */
+  justify-content: center;
+}
+
+.language-switch:hover,
+.language-switch:focus-visible {
+  background: var(--cream);
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.language-switch span:first-child {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.language-switch i {
+  font-style: normal;
+  margin-left: 2px;
+  font-size: 11px;
+}
+
+/* Active-language indicator strip on nav links */
+html[lang="en"] .language-switch {
+  border-color: var(--gold);
+}
+
+/* ── 4. DEVANAGARI INPUT / TEXTAREA ─────────────────────────────────────── */
+
+html[lang="hi"] .record-form input,
+html[lang="hi"] .record-form select,
+html[lang="hi"] .record-form textarea,
+html[lang="hi"] .admin-form input,
+html[lang="hi"] .admin-form textarea,
+html[lang="hi"] .search-form input {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+html[lang="hi"] .record-form label,
+html[lang="hi"] .admin-form label {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 13px;
+}
+
+/* ── 5. TOPLINE — Hindi text needs a touch more height ─────────────────── */
+
+html[lang="hi"] .topline-inner {
+  height: 35px;             /* slightly taller than the original 31px */
+  font-size: 11px;
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+}
+
+/* ── 6. BUTTON TEXT — prevent truncation on shorter/longer translations ─── */
+
+.button {
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+html[lang="hi"] .hero-actions .button {
+  min-width: 190px;
+}
+
+html[lang="en"] .hero-actions .button {
+  min-width: 170px;
+}
+
+/* ── 7. NAV — prevent overflow on English labels ────────────────────────── */
+
+.main-nav a {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html[lang="en"] .main-nav {
+  gap: 18px;                /* English labels are slightly longer */
+}
+
+/* ── 8. PORTAL CARDS — equal height across both languages ───────────────── */
+
+.portal-card p {
+  min-height: 54px;         /* prevents unequal card heights between languages */
+}
+
+/* ── 9. RESULT TAGS — no wrap ───────────────────────────────────────────── */
+
+.result-tag {
+  white-space: nowrap;
+  font-family: "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+  font-size: 11px;
+}
+
+/* ── 10. HERO SUBTITLE — Devanagari at display size ────────────────────── */
+
+html[lang="hi"] .hero-subtitle {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: clamp(17px, 2.5vw, 21px);
+  line-height: 1.4;
+}
+
+html[lang="en"] .hero-subtitle {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(16px, 2.2vw, 20px);
+}
+
+/* ── 11. SECTION HEADINGS ───────────────────────────────────────────────── */
+
+html[lang="hi"] .section-heading h2,
+html[lang="hi"] .history-intro h2,
+html[lang="hi"] .tree-section h2 {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+html[lang="hi"] .page-hero h1 {
+  font-family: "Noto Serif Devanagari", serif;
+  font-size: clamp(32px, 5.5vw, 54px);
+}
+
+/* ── 12. FORM NOTES (small helper text) ─────────────────────────────────── */
+
+html[lang="hi"] .form-note,
+html[lang="hi"] .search-hint {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ── 13. FOOTER ─────────────────────────────────────────────────────────── */
+
+html[lang="hi"] .footer-inner > p {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* ── 14. ARTICLE / HISTORY BODY TEXT ───────────────────────────────────── */
+
+html[lang="hi"] .article-content p:not(.eyebrow),
+html[lang="hi"] .chapter-list p,
+html[lang="hi"] .aside-card p,
+html[lang="hi"] .feature-copy p:not(.eyebrow),
+html[lang="hi"] .heritage-card .card-body p:not(.eyebrow) {
+  font-family: "Noto Sans Devanagari", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+/* ── 15. EMPTY STATE TEXT ───────────────────────────────────────────────── */
+
+html[lang="hi"] .empty-state p,
+html[lang="hi"] .admin-empty {
+  font-family: "Noto Sans Devanagari", serif;
+}
+
+/* ── 16. MOBILE OVERRIDES ───────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  html[lang="hi"] .hero h1 {
+    font-size: 46px;
+  }
+  .language-switch {
+    min-width: 90px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+  html[lang="en"] .main-nav {
+    gap: 0;
+  }
+}

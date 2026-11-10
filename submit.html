@@ -1,1 +1,142 @@
-<!doctype html><html lang="hi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>रिकॉर्ड साझा करें | कुलकीर्ति</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="pages.css"></head><body><div id="shared-header"></div><main><section class="page-hero compact"><div class="shell"><p class="eyebrow light">समुदाय का योगदान</p><h1>अपना रिकॉर्ड साझा करें</h1><p>आपकी जानकारी पहले समीक्षा में रहेगी और admin सत्यापन के बाद ही प्रकाशित होगी।</p></div></section><section class="section forms-section"><div class="shell forms-layout"><div class="section-heading left-heading"><p class="eyebrow">सहयोग करें</p><h2>परिवार की स्मृति<br><em>सुरक्षित करें</em></h2><div class="ornament"><span>◆</span></div><p>दादा/परदादा से लेकर माता-पिता, भाई-बहन, स्वयं और बच्चों तक जितने लोग ज्ञात हों, जोड़ें। हर सदस्य को server एक unique ID देगा और संबंध पिता/माता के unique ID से जुड़ेगा।</p><div id="submission-message" class="form-message" role="status"></div></div><form id="submission-form" class="record-form"><div class="form-row"><label>रिकॉर्ड का प्रकार<select name="type"><option value="family">परिवार / वंशावली</option><option value="gotra">गोत्र</option><option value="village">गांव</option></select></label><label>परिवार / शाखा का नाम *<input name="name" required maxlength="120" placeholder="परिवार या शाखा का नाम"></label></div><div class="form-row"><label>गोत्र *<input name="gotra" required maxlength="120" placeholder="गोत्र का नाम"></label><label>गांव *<input name="village" required maxlength="120"></label></div><div class="form-row"><label>जिला *<input name="district" required maxlength="120"></label><label>राज्य *<input name="state" required maxlength="120"></label></div><div class="family-builder"><div class="builder-heading"><div><p class="eyebrow">वंशावली सदस्य</p><h3>परिवार के सभी लोगों को जोड़ें</h3></div><button id="add-member" class="button button-outline-dark" type="button">+ सदस्य जोड़ें</button></div><p class="form-note">पहले सदस्य जोड़ें, फिर किसी व्यक्ति के “पिता” और “माता” में उसी सूची से व्यक्ति चुनें। आप जितने चाहें सदस्य जोड़ सकते हैं।</p><div id="member-list"></div></div><label>अतिरिक्त विवरण<textarea name="notes" rows="3" maxlength="500" placeholder="स्रोत, दस्तावेज़ या सत्यापन संबंधी जानकारी"></textarea></label><div class="form-row"><label>आपका नाम *<input name="contributorName" required maxlength="120"></label><label>संपर्क (वैकल्पिक)<input name="contributorContact" maxlength="120"></label></div><button class="button button-maroon" type="submit">सत्यापन के लिए भेजें <span>→</span></button><small class="form-note">हर submission admin review के बाद ही प्रकाशित होगा।</small></form></div></section></main><div id="shared-footer"></div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>रिकॉर्ड साझा करें | कुलकीर्ति</title>
+    <meta name="description" content="अपना पारिवारिक विवरण समीक्षा और सत्यापन के लिए कुलकीर्ति को भेजें।" />
+
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="कुलकीर्ति" />
+    <meta property="og:title"       content="रिकॉर्ड साझा करें | कुलकीर्ति" />
+    <meta property="og:description" content="अपना पारिवारिक विवरण समीक्षा और सत्यापन के लिए भेजें।" />
+    <meta property="og:locale"      content="hi_IN" />
+    <meta property="og:locale:alternate" content="en_IN" />
+
+    <link rel="alternate" hreflang="hi"        href="/submit.html?lang=hi" />
+    <link rel="alternate" hreflang="en"        href="/submit.html?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="/submit.html" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <main>
+      <section class="page-hero compact">
+        <div class="shell">
+          <p class="eyebrow light" data-i18n="submit.heroEyebrow">समुदाय का योगदान</p>
+          <h1 data-i18n="submit.h1">अपना रिकॉर्ड साझा करें</h1>
+          <p data-i18n="submit.heroSub">आपकी जानकारी पहले समीक्षा में रहेगी और admin सत्यापन के बाद ही प्रकाशित होगी।</p>
+        </div>
+      </section>
+
+      <section class="section forms-section">
+        <div class="shell forms-layout">
+          <!-- Left heading -->
+          <div class="section-heading left-heading">
+            <p class="eyebrow" data-i18n="submit.headingEyebrow">सहयोग करें</p>
+            <h2>
+              <span data-i18n="submit.h2a">परिवार की स्मृति</span><br />
+              <em data-i18n="submit.h2b">सुरक्षित करें</em>
+            </h2>
+            <div class="ornament"><span>◆</span></div>
+            <p data-i18n="submit.headingBody">दादा/परदादा से लेकर माता-पिता, भाई-बहन, स्वयं और बच्चों तक जितने लोग ज्ञात हों, जोड़ें। हर सदस्य को server एक unique ID देगा और संबंध पिता/माता के unique ID से जुड़ेगा।</p>
+            <div id="submission-message" class="form-message" role="status"></div>
+          </div>
+
+          <!-- Form -->
+          <form id="submission-form" class="record-form">
+            <div class="form-row">
+              <label>
+                <span data-i18n="submit.typeLabel">रिकॉर्ड का प्रकार</span>
+                <select name="type">
+                  <option value="family" data-i18n="submit.typeFamily">परिवार / वंशावली</option>
+                  <option value="gotra"  data-i18n="submit.typeGotra">गोत्र</option>
+                  <option value="village" data-i18n="submit.typeVillage">गांव</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="submit.nameLabel">परिवार / शाखा का नाम *</span>
+                <input name="name" required maxlength="120"
+                  data-i18n-placeholder="submit.namePh"
+                  placeholder="परिवार या शाखा का नाम" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                <span data-i18n="submit.gotraLabel">गोत्र *</span>
+                <input name="gotra" required maxlength="120"
+                  data-i18n-placeholder="submit.gotraPh"
+                  placeholder="गोत्र का नाम" />
+              </label>
+              <label>
+                <span data-i18n="submit.villageLabel">गांव *</span>
+                <input name="village" required maxlength="120" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                <span data-i18n="submit.districtLabel">जिला *</span>
+                <input name="district" required maxlength="120" />
+              </label>
+              <label>
+                <span data-i18n="submit.stateLabel">राज्य *</span>
+                <input name="state" required maxlength="120" />
+              </label>
+            </div>
+
+            <!-- Family member builder (rendered by app.js) -->
+            <div class="family-builder">
+              <div class="builder-heading">
+                <div>
+                  <p class="eyebrow" data-i18n="submit.membersEyebrow">वंशावली सदस्य</p>
+                  <h3 data-i18n="submit.membersH3">परिवार के सभी लोगों को जोड़ें</h3>
+                </div>
+                <button id="add-member" class="button button-outline-dark" type="button"
+                  data-i18n="submit.addMember">+ सदस्य जोड़ें</button>
+              </div>
+              <p class="form-note" data-i18n="submit.membersNote">पहले सदस्य जोड़ें, फिर किसी व्यक्ति के "पिता" और "माता" में उसी सूची से व्यक्ति चुनें।</p>
+              <div id="member-list"></div>
+            </div>
+
+            <label>
+              <span data-i18n="submit.notesLabel">अतिरिक्त विवरण</span>
+              <textarea name="notes" rows="3" maxlength="500"
+                data-i18n-placeholder="submit.notesPh"
+                placeholder="स्रोत, दस्तावेज़ या सत्यापन संबंधी जानकारी"></textarea>
+            </label>
+
+            <div class="form-row">
+              <label>
+                <span data-i18n="submit.contribName">आपका नाम *</span>
+                <input name="contributorName" required maxlength="120" />
+              </label>
+              <label>
+                <span data-i18n="submit.contribContact">संपर्क (वैकल्पिक)</span>
+                <input name="contributorContact" maxlength="120" />
+              </label>
+            </div>
+
+            <button class="button button-maroon" type="submit">
+              <span data-i18n="submit.btnSubmit">सत्यापन के लिए भेजें</span> <span>→</span>
+            </button>
+            <small class="form-note" data-i18n="submit.submitNote">हर submission admin review के बाद ही प्रकाशित होगा।</small>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,1 +1,88 @@
-<!doctype html><html lang="hi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>वंशावली | कुलकीर्ति</title><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="pages.css"></head><body><div id="shared-header"></div><main><section class="page-hero compact"><div class="shell"><p class="eyebrow light">वंशावली / Family Genealogy</p><h1>परिवार की स्मृति,<br><em>पीढ़ियों का वृक्ष</em></h1><p>स्रोत-संदर्भित पारिवारिक संबंधों का सुरक्षित अभिलेख।</p></div></section><section class="section"><div class="shell article-layout"><article class="article-content"><div id="published-tree"><h2>वंशावली कैसे जुड़ेगी?</h2><p>परिवार का विवरण user form से submission के रूप में आएगा। Admin प्रमाण और संबंधों की समीक्षा करेगा। स्वीकृत विवरण ही प्रकाशित परिवार रिकॉर्ड से जुड़ेगा।</p><div class="flow-list"><div><b>01</b><span>गोत्र → गांव → परिवार शाखा</span></div><div><b>02</b><span>हर व्यक्ति का unique ID और parent links</span></div><div><b>03</b><span>संबंध की source और verification स्थिति</span></div><div><b>04</b><span>गोपनीयता के अनुसार सार्वजनिक प्रदर्शन</span></div></div></div><a class="button button-maroon" href="/submit.html">अपनी वंशावली भेजें <span>→</span></a></article><div class="tree-visual"><div class="tree-node root">परिवार शाखा</div><div class="tree-line vertical"></div><div class="tree-children"><div class="tree-branch"><div class="tree-line short"></div><div class="tree-node">पूर्वज</div><div class="tree-line vertical small"></div><div class="tree-node muted">पीढ़ी २</div></div><div class="tree-branch"><div class="tree-line short"></div><div class="tree-node">परिवार</div><div class="tree-line vertical small"></div><div class="tree-node muted">पीढ़ी २</div></div></div></div></div></section></main><div id="shared-footer"></div><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>वंशावली | कुलकीर्ति</title>
+    <meta name="description" content="स्रोत-संदर्भित पारिवारिक संबंधों और पीढ़ियों का सुरक्षित अभिलेख।" />
+
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="कुलकीर्ति" />
+    <meta property="og:title"       content="वंशावली | कुलकीर्ति" />
+    <meta property="og:description" content="स्रोत-संदर्भित पारिवारिक संबंधों और पीढ़ियों का सुरक्षित अभिलेख।" />
+    <meta property="og:locale"      content="hi_IN" />
+    <meta property="og:locale:alternate" content="en_IN" />
+
+    <link rel="alternate" hreflang="hi"        href="/vanshawali.html?lang=hi" />
+    <link rel="alternate" hreflang="en"        href="/vanshawali.html?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="/vanshawali.html" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <main>
+      <section class="page-hero compact">
+        <div class="shell">
+          <p class="eyebrow light" data-i18n="vanshawali.heroEyebrow">वंशावली / Family Genealogy</p>
+          <h1>
+            <span data-i18n="vanshawali.h1a">परिवार की स्मृति,</span><br />
+            <em data-i18n="vanshawali.h1b">पीढ़ियों का वृक्ष</em>
+          </h1>
+          <p data-i18n="vanshawali.heroSub">स्रोत-संदर्भित पारिवारिक संबंधों का सुरक्षित अभिलेख।</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="shell article-layout">
+          <article class="article-content">
+            <div id="published-tree">
+              <h2 data-i18n="vanshawali.treeH2">वंशावली कैसे जुड़ेगी?</h2>
+              <p data-i18n="vanshawali.treeBody">परिवार का विवरण user form से submission के रूप में आएगा। Admin प्रमाण और संबंधों की समीक्षा करेगा। स्वीकृत विवरण ही प्रकाशित परिवार रिकॉर्ड से जुड़ेगा।</p>
+              <div class="flow-list">
+                <div><b>01</b><span data-i18n="vanshawali.flow1">गोत्र → गांव → परिवार शाखा</span></div>
+                <div><b>02</b><span data-i18n="vanshawali.flow2">हर व्यक्ति का unique ID और parent links</span></div>
+                <div><b>03</b><span data-i18n="vanshawali.flow3">संबंध की source और verification स्थिति</span></div>
+                <div><b>04</b><span data-i18n="vanshawali.flow4">गोपनीयता के अनुसार सार्वजनिक प्रदर्शन</span></div>
+              </div>
+            </div>
+            <a class="button button-maroon" href="/submit.html">
+              <span data-i18n="vanshawali.btnSubmit">अपनी वंशावली भेजें</span> <span>→</span>
+            </a>
+          </article>
+
+          <!-- Decorative tree visual -->
+          <div class="tree-visual" aria-hidden="true">
+            <div class="tree-node root" data-i18n="vanshawali.nodeRoot">परिवार शाखा</div>
+            <div class="tree-line vertical"></div>
+            <div class="tree-children">
+              <div class="tree-branch">
+                <div class="tree-line short"></div>
+                <div class="tree-node" data-i18n="vanshawali.nodeAncestor">पूर्वज</div>
+                <div class="tree-line vertical small"></div>
+                <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
+              </div>
+              <div class="tree-branch">
+                <div class="tree-line short"></div>
+                <div class="tree-node" data-i18n="vanshawali.nodeFamily">परिवार</div>
+                <div class="tree-line vertical small"></div>
+                <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

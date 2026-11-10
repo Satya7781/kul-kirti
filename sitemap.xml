@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kul-Kirti Sitemap — both Hindi and English URLs.
+  Replace https://www.kulkirti.in with the actual production domain.
+  Regenerate or update lastmod dates after each deployment.
+-->
+<urlset
+  xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml">
+
+  <!-- ── HOME ─────────────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/"/>
+  </url>
+
+  <!-- ── VANSH HISTORY ────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/history.html?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/history.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/history.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/history.html"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/history.html?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/history.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/history.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/history.html"/>
+  </url>
+
+  <!-- ── SEARCH ───────────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/search.html?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/search.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/search.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/search.html"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/search.html?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/search.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/search.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/search.html"/>
+  </url>
+
+  <!-- ── SUBMIT ───────────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/submit.html?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/submit.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/submit.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/submit.html"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/submit.html?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/submit.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/submit.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/submit.html"/>
+  </url>
+
+  <!-- ── VANSHAWALI ───────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/vanshawali.html?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/vanshawali.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/vanshawali.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/vanshawali.html"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/vanshawali.html?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.75</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/vanshawali.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/vanshawali.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/vanshawali.html"/>
+  </url>
+
+  <!-- ── SAMITI ───────────────────────────────────────────────────────── -->
+  <url>
+    <loc>https://www.kulkirti.in/samiti.html?lang=hi</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/samiti.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/samiti.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/samiti.html"/>
+  </url>
+  <url>
+    <loc>https://www.kulkirti.in/samiti.html?lang=en</loc>
+    <lastmod>2024-12-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+    <xhtml:link rel="alternate" hreflang="hi"        href="https://www.kulkirti.in/samiti.html?lang=hi"/>
+    <xhtml:link rel="alternate" hreflang="en"        href="https://www.kulkirti.in/samiti.html?lang=en"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.kulkirti.in/samiti.html"/>
+  </url>
+
+  <!-- admin.html intentionally excluded (noindex) -->
+
+</urlset>

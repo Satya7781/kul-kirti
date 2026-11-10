@@ -3,28 +3,146 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="कुलकीर्ति — गोहिल वंश का इतिहास, गौरव एवं वंशावली।" />
-    <title>कुलकीर्ति | Gehlot Rajput Kul-Kirti</title>
+
+    <!-- Primary meta (updated dynamically by i18n.js) -->
+    <title>कुलकीर्ति | गेहलोत राजपूत अभिलेखागार</title>
+    <meta name="description" content="कुलकीर्ति — गोहिल वंश का इतिहास, गौरव एवं वंशावली। एक समर्पित डिजिटल अभिलेखागार।" />
+
+    <!-- Open Graph -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="कुलकीर्ति" />
+    <meta property="og:title"       content="कुलकीर्ति | गेहलोत राजपूत अभिलेखागार" />
+    <meta property="og:description" content="कुलकीर्ति — गोहिल वंश का इतिहास, गौरव एवं वंशावली।" />
+    <meta property="og:locale"      content="hi_IN" />
+    <meta property="og:locale:alternate" content="en_IN" />
+
+    <!-- hreflang (also managed by i18n.js at runtime) -->
+    <link rel="alternate" hreflang="hi"        href="/?lang=hi" />
+    <link rel="alternate" hreflang="en"        href="/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="/" />
+
+    <!-- Fonts: Hindi + Latin -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
     <link rel="stylesheet" href="styles.css" />
+
+    <!-- i18n engine must load before app.js -->
+    <script src="/public/js/i18n.js"></script>
   </head>
   <body>
-    <div class="topline"><div class="shell topline-inner"><span>इतिहास प्रमाणों के साथ</span><span class="topline-rule"></span><span>वंशावली पीढ़ियों के साथ</span><span class="topline-rule"></span><span>संबंध सत्यापित अभिलेखों के साथ</span></div></div>
-    <header class="site-header"><div class="shell header-inner">
-      <a class="brand" href="/" aria-label="कुलकीर्ति होम"><span class="brand-mark">कु</span><span><strong>कुलकीर्ति</strong><small>GEHLOT RAJPUT ARCHIVE</small></span></a>
-      <button class="menu-toggle" aria-label="मेन्यू खोलें" aria-expanded="false">☰</button>
-      <nav class="main-nav" aria-label="मुख्य नेविगेशन">
-        <a class="active" href="/">होम</a><a href="/history.html">वंश इतिहास</a><a href="/search.html">गोत्र खोज</a><a href="/search.html?type=village">गांव खोज</a><a href="/vanshawali.html">वंशावली</a><a href="/samiti.html">समिति निर्देशिका</a><a href="/submit.html">रिकॉर्ड भेजें</a>
-      </nav><a class="admin-link" href="/admin.html">Admin</a><button class="language-switch" type="button"><span>अ</span> हिन्दी <i>⌄</i></button>
-    </div></header>
+    <!-- ── HEADER (injected by app.js) ───────────────────────────────── -->
+    <div id="shared-header"></div>
+
     <main>
-      <section class="hero"><div class="hero-pattern"></div><div class="shell hero-content"><p class="eyebrow light">श्री गोहिल (गेहलोत) राजपूत</p><h1>कुलकीर्ति</h1><p class="hero-title">GEHLOT RAJPUT<br /><em>KULKIRTI</em></p><div class="ornament light-ornament"><span>◆</span></div><p class="hero-subtitle">गोहिल वंश का इतिहास, गौरव एवं वंशावली</p><p class="hero-copy">एक समर्पित डिजिटल अभिलेखागार — जहां इतिहास प्रमाणों से और परिवारों की स्मृति दस्तावेज़ों से संरक्षित होती है।</p><div class="hero-actions"><a class="button button-gold" href="/history.html">इतिहास पढ़ें <span>→</span></a><a class="button button-outline" href="/search.html">अपना गोत्र खोजें</a></div></div><div class="hero-seal" aria-hidden="true"><span>॥</span><b>श्री</b><span>॥</span></div></section>
-      <section class="section heritage-section"><div class="shell"><div class="section-heading centered"><p class="eyebrow">विरासत के पन्ने</p><h2>मेवाड़ की ऐतिहासिक धरोहर</h2><div class="ornament"><span>◆</span></div><p>पत्थरों में अंकित शौर्य, परंपराओं में जीवित स्मृति और पीढ़ियों से सुरक्षित गौरव।</p></div><div class="heritage-feature"><figure class="feature-image image-ekling"><div class="image-label">चित्र संदर्भ हेतु</div><figcaption>सत्यापित अभिलेखीय चित्र यहां जोड़ा जाएगा</figcaption></figure><div class="feature-copy"><p class="eyebrow">01 / एकलिंग परंपरा</p><h3>एक धरोहर, अनेक पीढ़ियों की स्मृति</h3><p>मेवाड़ की स्थापत्य परंपरा और धार्मिक केंद्रों ने राजस्थान के इतिहास, कला और सामुदायिक स्मृति को गहराई से आकार दिया है। कुलकीर्ति इन्हीं प्रमाणित स्रोतों, अभिलेखों और पारिवारिक दस्तावेज़ों को आने वाली पीढ़ियों तक पहुंचाता है।</p><a class="text-link" href="/history.html">अभिलेखागार के बारे में <span>↗</span></a></div></div><div class="heritage-grid"><article class="heritage-card"><div class="card-image image-pratap"><span>चित्र संदर्भ हेतु</span></div><div class="card-body"><p class="eyebrow">02 / स्मरण</p><h3>महाराणा प्रताप</h3><p>मेवाड़ के इतिहास में स्वतंत्रता, स्वाभिमान और प्रतिरोध का प्रतीक व्यक्तित्व।</p><a class="text-link" href="/history.html">इतिहास जानें ↗</a></div></article><article class="heritage-card"><div class="card-image image-chittor"><span>स्थापत्य संदर्भ हेतु</span></div><div class="card-body"><p class="eyebrow">03 / स्थापत्य</p><h3>चित्तौड़गढ़ दुर्ग</h3><p>किलों, स्तंभों और शिलालेखों में दर्ज राजस्थान की दीर्घ ऐतिहासिक यात्रा।</p><a class="text-link" href="/history.html">विरासत देखें ↗</a></div></article></div></div></section>
-      <section class="home-cards section"><div class="shell"><div class="section-heading centered"><p class="eyebrow">अभिलेख तक पहुंच</p><h2>कुलकीर्ति के मुख्य विभाग</h2><div class="ornament"><span>◆</span></div></div><div class="portal-grid"><a class="portal-card" href="/search.html"><span>01</span><h3>गोत्र एवं गांव खोज</h3><p>स्वीकृत रिकॉर्ड में अपने गोत्र, गांव और परिवार शाखा की खोज करें।</p><b>खोज शुरू करें →</b></a><a class="portal-card" href="/vanshawali.html"><span>02</span><h3>वंशावली</h3><p>स्रोत-संदर्भित पारिवारिक संबंधों और पीढ़ियों को समझें।</p><b>वंशावली देखें →</b></a><a class="portal-card" href="/submit.html"><span>03</span><h3>रिकॉर्ड साझा करें</h3><p>अपना पारिवारिक विवरण समीक्षा और सत्यापन के लिए भेजें।</p><b>फॉर्म भरें →</b></a></div></div></section>
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-pattern"></div>
+        <div class="shell hero-content">
+          <p class="eyebrow light" data-i18n="home.eyebrow">श्री गोहिल (गेहलोत) राजपूत</p>
+          <h1 data-i18n="home.h1">कुलकीर्ति</h1>
+          <p class="hero-title" data-i18n-html="home.heroTitle">GEHLOT RAJPUT<br /><em>KULKIRTI</em></p>
+          <div class="ornament light-ornament"><span>◆</span></div>
+          <p class="hero-subtitle" data-i18n="home.heroSubtitle">गोहिल वंश का इतिहास, गौरव एवं वंशावली</p>
+          <p class="hero-copy" data-i18n="home.heroCopy">एक समर्पित डिजिटल अभिलेखागार — जहां इतिहास प्रमाणों से और परिवारों की स्मृति दस्तावेज़ों से संरक्षित होती है।</p>
+          <div class="hero-actions">
+            <a class="button button-gold" href="/history.html">
+              <span data-i18n="home.btnHistory">इतिहास पढ़ें</span> <span>→</span>
+            </a>
+            <a class="button button-outline" href="/search.html" data-i18n="home.btnSearch">अपना गोत्र खोजें</a>
+          </div>
+        </div>
+        <div class="hero-seal" aria-hidden="true"><span>॥</span><b>श्री</b><span>॥</span></div>
+      </section>
+
+      <!-- HERITAGE SECTION -->
+      <section class="section heritage-section">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="home.heritageEyebrow">विरासत के पन्ने</p>
+            <h2 data-i18n="home.heritageH2">मेवाड़ की ऐतिहासिक धरोहर</h2>
+            <div class="ornament"><span>◆</span></div>
+            <p data-i18n="home.heritageSubtitle">पत्थरों में अंकित शौर्य, परंपराओं में जीवित स्मृति और पीढ़ियों से सुरक्षित गौरव।</p>
+          </div>
+
+          <div class="heritage-feature">
+            <figure class="feature-image image-ekling">
+              <div class="image-label" data-i18n="home.imgRef">चित्र संदर्भ हेतु</div>
+              <figcaption data-i18n="home.imgCaption">सत्यापित अभिलेखीय चित्र यहां जोड़ा जाएगा</figcaption>
+            </figure>
+            <div class="feature-copy">
+              <p class="eyebrow" data-i18n="home.eklingEyebrow">01 / एकलिंग परंपरा</p>
+              <h3 data-i18n="home.eklingH3">एक धरोहर, अनेक पीढ़ियों की स्मृति</h3>
+              <p data-i18n="home.eklingBody">मेवाड़ की स्थापत्य परंपरा और धार्मिक केंद्रों ने राजस्थान के इतिहास, कला और सामुदायिक स्मृति को गहराई से आकार दिया है। कुलकीर्ति इन्हीं प्रमाणित स्रोतों, अभिलेखों और पारिवारिक दस्तावेज़ों को आने वाली पीढ़ियों तक पहुंचाता है।</p>
+              <a class="text-link" href="/history.html">
+                <span data-i18n="home.archiveLink">अभिलेखागार के बारे में</span> <span>↗</span>
+              </a>
+            </div>
+          </div>
+
+          <div class="heritage-grid">
+            <article class="heritage-card">
+              <div class="card-image image-pratap">
+                <span data-i18n="home.imgRef">चित्र संदर्भ हेतु</span>
+              </div>
+              <div class="card-body">
+                <p class="eyebrow" data-i18n="home.pratapEyebrow">02 / स्मरण</p>
+                <h3 data-i18n="home.pratapH3">महाराणा प्रताप</h3>
+                <p data-i18n="home.pratapBody">मेवाड़ के इतिहास में स्वतंत्रता, स्वाभिमान और प्रतिरोध का प्रतीक व्यक्तित्व।</p>
+                <a class="text-link" href="/history.html" data-i18n="home.pratapLink">इतिहास जानें ↗</a>
+              </div>
+            </article>
+            <article class="heritage-card">
+              <div class="card-image image-chittor">
+                <span data-i18n="home.imgRef">चित्र संदर्भ हेतु</span>
+              </div>
+              <div class="card-body">
+                <p class="eyebrow" data-i18n="home.chittorEyebrow">03 / स्थापत्य</p>
+                <h3 data-i18n="home.chittorH3">चित्तौड़गढ़ दुर्ग</h3>
+                <p data-i18n="home.chittorBody">किलों, स्तंभों और शिलालेखों में दर्ज राजस्थान की दीर्घ ऐतिहासिक यात्रा।</p>
+                <a class="text-link" href="/history.html" data-i18n="home.chittorLink">विरासत देखें ↗</a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- PORTAL CARDS -->
+      <section class="home-cards section">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="home.portalEyebrow">अभिलेख तक पहुंच</p>
+            <h2 data-i18n="home.portalH2">कुलकीर्ति के मुख्य विभाग</h2>
+            <div class="ornament"><span>◆</span></div>
+          </div>
+          <div class="portal-grid">
+            <a class="portal-card" href="/search.html">
+              <span data-i18n="home.portal1Num">01</span>
+              <h3 data-i18n="home.portal1H3">गोत्र एवं गांव खोज</h3>
+              <p data-i18n="home.portal1Body">स्वीकृत रिकॉर्ड में अपने गोत्र, गांव और परिवार शाखा की खोज करें।</p>
+              <b data-i18n="home.portal1Link">खोज शुरू करें →</b>
+            </a>
+            <a class="portal-card" href="/vanshawali.html">
+              <span data-i18n="home.portal2Num">02</span>
+              <h3 data-i18n="home.portal2H3">वंशावली</h3>
+              <p data-i18n="home.portal2Body">स्रोत-संदर्भित पारिवारिक संबंधों और पीढ़ियों को समझें।</p>
+              <b data-i18n="home.portal2Link">वंशावली देखें →</b>
+            </a>
+            <a class="portal-card" href="/submit.html">
+              <span data-i18n="home.portal3Num">03</span>
+              <h3 data-i18n="home.portal3H3">रिकॉर्ड साझा करें</h3>
+              <p data-i18n="home.portal3Body">अपना पारिवारिक विवरण समीक्षा और सत्यापन के लिए भेजें।</p>
+              <b data-i18n="home.portal3Link">फॉर्म भरें →</b>
+            </a>
+          </div>
+        </div>
+      </section>
     </main>
-    <footer class="site-footer"><div class="shell footer-inner"><div class="brand footer-brand"><span class="brand-mark">कु</span><span><strong>कुलकीर्ति</strong><small>GEHLOT RAJPUT ARCHIVE</small></span></div><p>एक ऐतिहासिक और वंशावली अभिलेखागार।<br />स्रोत, सम्मान और सत्यापन के साथ।</p><div class="footer-meta"><span>© 2024 कुलकीर्ति</span><a href="/">ऊपर जाएं ↑</a></div></div></footer>
+
+    <!-- ── FOOTER (injected by app.js) ───────────────────────────────── -->
+    <div id="shared-footer"></div>
+
     <script src="app.js"></script>
   </body>
 </html>
