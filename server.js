@@ -10,6 +10,7 @@ const jwt = require("jsonwebtoken");
 const { Pool } = require("pg");
 const crypto = require("crypto");
 const { createRealtime, rawSql } = require("@neon/realtime/server");
+const genealogy = require("./lib/genealogy");
 
 const app = express();
 const port = Number(process.env.PORT || 5500);
@@ -215,6 +216,649 @@ app.patch("/api/admin/submissions/:id", auth, async (request, response, next) =>
     }
     await client.query("COMMIT"); response.json({ status, id: submission.id });
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEALOGY SYSTEM — Public API
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Public: list verified gotras with stats ────────────────────────────────
+app.get("/api/genealogy/gotras", async (request, response, next) => {
+  try {
+    const result = await pool.query(`
+      SELECT g.id, g.name, g.origin_place AS "originPlace", g.origin_period AS "originPeriod",
+             g.founder_name AS "founderName", g.historical_details AS "historicalDetails",
+             g.source_references AS "sourceReferences",
+             (SELECT COUNT(*)::int FROM person_gotra_links l JOIN people p ON p.id = l.person_id
+              WHERE l.gotra_id = g.id AND p.status = 'verified' AND p.visibility = 'public') AS "personCount",
+             (SELECT COUNT(*)::int FROM family_branches b WHERE b.gotra_id = g.id AND b.status <> 'archived') AS "branchCount"
+      FROM gotras g
+      WHERE g.status = 'verified'
+      ORDER BY g.name
+    `);
+    response.json({ gotras: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Public: gotra detail with branches and roots ──────────────────────────
+app.get("/api/genealogy/gotras/:id", async (request, response, next) => {
+  try {
+    const gotraResult = await pool.query(
+      `SELECT id, name, origin_place AS "originPlace", origin_period AS "originPeriod",
+              founder_name AS "founderName", founder_notes AS "founderNotes",
+              historical_details AS "historicalDetails", source_references AS "sourceReferences"
+       FROM gotras WHERE id = $1 AND status = 'verified'`,
+      [request.params.id]
+    );
+    if (!gotraResult.rows[0]) return response.status(404).json({ error: "Gotra not found." });
+
+    const branches = await pool.query(
+      `SELECT id, name, slug, description, parent_branch_id AS "parentBranchId", status
+       FROM family_branches WHERE gotra_id = $1 AND status <> 'archived' ORDER BY name`,
+      [request.params.id]
+    );
+
+    // Root people (earliest documented ancestors)
+    const roots = await pool.query(
+      `SELECT p.id, p.public_id AS "publicId", p.full_name AS "fullName", p.gender,
+              p.birth_year AS "birthYear", p.death_year AS "deathYear", p.is_living AS "isLiving",
+              p.village, p.biography
+       FROM person_gotra_links l
+       JOIN people p ON p.id = l.person_id
+       WHERE l.gotra_id = $1 AND l.is_root = TRUE AND p.status = 'verified' AND p.visibility = 'public'
+       ORDER BY p.full_name`,
+      [request.params.id]
+    );
+
+    response.json({ gotra: gotraResult.rows[0], branches: branches.rows, roots: roots.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Public: person profile by public_id ──────────────────────────────────
+app.get("/api/genealogy/people/:publicId", async (request, response, next) => {
+  try {
+    const personResult = await pool.query(
+      `SELECT id, public_id AS "publicId", full_name AS "fullName", alt_names AS "altNames",
+              gender, birth_year AS "birthYear", death_year AS "deathYear",
+              birthplace, village, district, state, biography, is_living AS "isLiving",
+              status, visibility
+       FROM people
+       WHERE public_id = $1 AND status = 'verified'`,
+      [request.params.publicId]
+    );
+    if (!personResult.rows[0]) return response.status(404).json({ error: "Person not found." });
+
+    const person = personResult.rows[0];
+
+    // Privacy: if visibility is private, only show name + public_id
+    if (person.visibility === "private") {
+      return response.json({
+        person: { publicId: person.publicId, fullName: person.fullName, isLiving: person.isLiving },
+        parents: [], children: [], siblings: [], ancestors: [], descendants: [], gotras: [],
+        restricted: true,
+      });
+    }
+
+    // Field-level privacy for living people
+    const isPublic = person.visibility === "public";
+    const safePerson = {
+      ...person,
+      birthYear: isPublic || !person.isLiving ? person.birthYear : null,
+      birthplace: isPublic || !person.isLiving ? person.birthplace : null,
+      biography: isPublic || !person.isLiving ? person.biography : null,
+    };
+
+    // Parents
+    const parents = await genealogy.findParents(pool, person.id);
+    // Children
+    const children = await genealogy.findChildren(pool, person.id);
+    // Siblings
+    const siblings = await genealogy.findSiblings(pool, person.id);
+    // Ancestors (limited depth)
+    const ancestors = await genealogy.findAncestors(pool, person.id, 10);
+    // Descendants (limited depth)
+    const descendants = await genealogy.findDescendants(pool, person.id, 5);
+    // Gotra memberships
+    const gotras = await pool.query(
+      `SELECT g.id, g.name, l.is_root AS "isRoot", l.branch_id AS "branchId"
+       FROM person_gotra_links l JOIN gotras g ON g.id = l.gotra_id
+       WHERE l.person_id = $1`, [person.id]
+    );
+    // Generation
+    const generation = await genealogy.calculateGeneration(pool, person.id);
+
+    // Remove internal IDs from public response
+    const stripId = (arr) => arr.map(r => {
+      const { id, ...rest } = r; return rest;
+    });
+
+    response.json({
+      person: { ...safePerson, generation },
+      parents: stripId(parents),
+      children: stripId(children),
+      siblings: stripId(siblings),
+      ancestors: stripId(ancestors),
+      descendants: stripId(descendants),
+      gotras: gotras.rows.map(g => ({ id: g.id, name: g.name, isRoot: g.isRoot })),
+      restricted: false,
+    });
+  } catch (error) { next(error); }
+});
+
+// ── Public: person tree (limited depth for rendering) ────────────────────
+app.get("/api/genealogy/people/:publicId/tree", async (request, response, next) => {
+  try {
+    const personResult = await pool.query(
+      `SELECT id FROM people WHERE public_id = $1 AND status = 'verified'`,
+      [request.params.publicId]
+    );
+    if (!personResult.rows[0]) return response.status(404).json({ error: "Person not found." });
+    const tree = await genealogy.getFamilyTree(pool, personResult.rows[0].id, 5);
+    response.json({ tree });
+  } catch (error) { next(error); }
+});
+
+// ── Public: search people ─────────────────────────────────────────────────
+app.get("/api/genealogy/search", async (request, response, next) => {
+  try {
+    const query = clean(request.query.q, 120);
+    if (!query) return response.json({ people: [] });
+    const result = await pool.query(
+      `SELECT id, public_id AS "publicId", full_name AS "fullName", gender,
+              birth_year AS "birthYear", death_year AS "deathYear",
+              is_living AS "isLiving", village
+       FROM people
+       WHERE status = 'verified' AND visibility = 'public'
+         AND full_name ILIKE $1
+       ORDER BY full_name LIMIT 50`,
+      [`%${query}%`]
+    );
+    response.json({ people: result.rows.map(r => { const { id, ...rest } = r; return rest; }) });
+  } catch (error) { next(error); }
+});
+
+// ── Public: submit a genealogy contribution ───────────────────────────────
+app.post("/api/genealogy/contributions", async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const type = ["new_person", "new_relationship", "correction", "branch_addition", "gotra_info", "dispute"]
+      .includes(input.contributionType) ? input.contributionType : "new_person";
+
+    const contributorName = clean(input.contributorName, 120);
+    if (!contributorName) return response.status(400).json({
+      error: msg(request, "योगदानकर्ता का नाम आवश्यक है।", "Contributor name is required.")
+    });
+
+    const result = await pool.query(
+      `INSERT INTO genealogy_contributions
+        (contribution_type, proposed_name, proposed_gender, proposed_birth_year,
+         proposed_death_year, proposed_village, proposed_gotra_id, proposed_branch_id,
+         proposed_father_id, proposed_mother_id, existing_person_id, existing_rel_id,
+         description, evidence, contributor_name, contributor_contact)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       RETURNING id`,
+      [type, clean(input.proposedName, 120), clean(input.proposedGender, 30),
+       clean(input.proposedBirthYear, 20), clean(input.proposedDeathYear, 20),
+       clean(input.proposedVillage, 120),
+       input.proposedGotraId || null, input.proposedBranchId || null,
+       input.proposedFatherId || null, input.proposedMotherId || null,
+       input.existingPersonId || null, input.existingRelId || null,
+       clean(input.description, 2000), clean(input.evidence, 2000),
+       contributorName, clean(input.contributorContact, 120)]
+    );
+    response.status(201).json({
+      message: msg(request,
+        "आपका योगदान समीक्षा के लिए भेज दिया गया है।",
+        "Your contribution has been submitted for review."),
+      id: result.rows[0].id
+    });
+  } catch (error) { next(error); }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEALOGY SYSTEM — Admin API (auth required)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Admin: list people with search and pagination ────────────────────────
+app.get("/api/admin/people", auth, async (request, response, next) => {
+  try {
+    const query = clean(request.query.q, 120);
+    const page = Math.max(1, parseInt(request.query.page) || 1);
+    const limit = Math.min(100, Math.max(10, parseInt(request.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions = [];
+    const values = [];
+    if (query) {
+      values.push(`%${query}%`);
+      conditions.push(`full_name ILIKE $${values.length}`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int FROM people ${whereClause}`, values
+    );
+    const total = countResult.rows[0].count;
+
+    values.push(limit, offset);
+    const result = await pool.query(
+      `SELECT id, public_id AS "publicId", full_name AS "fullName", alt_names AS "altNames",
+              gender, birth_year AS "birthYear", death_year AS "deathYear",
+              birthplace, village, district, state, biography,
+              is_living AS "isLiving", status, visibility,
+              created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM people ${whereClause}
+       ORDER BY created_at DESC
+       LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      values
+    );
+
+    response.json({ people: result.rows, total, page, limit, pages: Math.ceil(total / limit) });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: search people for parent autocomplete ─────────────────────────
+app.get("/api/admin/people/search", auth, async (request, response, next) => {
+  try {
+    const query = clean(request.query.q, 120);
+    if (!query || query.length < 2) return response.json({ people: [] });
+    const result = await pool.query(
+      `SELECT id, public_id AS "publicId", full_name AS "fullName", gender,
+              birth_year AS "birthYear", death_year AS "deathYear", village
+       FROM people
+       WHERE status <> 'archived' AND full_name ILIKE $1
+       ORDER BY full_name LIMIT 20`,
+      [`%${query}%`]
+    );
+    response.json({ people: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: create person ──────────────────────────────────────────────────
+app.post("/api/admin/people", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const fullName = clean(input.fullName, 120);
+    if (!fullName) return response.status(400).json({
+      error: msg(request, "नाम आवश्यक है।", "Name is required.")
+    });
+
+    await client.query("BEGIN");
+    const person = await client.query(
+      `INSERT INTO people
+        (full_name, alt_names, gender, birth_year, death_year, birthplace,
+         village, district, state, biography, is_living, status, visibility, created_by, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$14)
+       RETURNING id, public_id`,
+      [fullName, clean(input.altNames, 500), clean(input.gender, 30),
+       clean(input.birthYear, 20), clean(input.deathYear, 20), clean(input.birthplace, 200),
+       clean(input.village, 120), clean(input.district, 120), clean(input.state, 120),
+       clean(input.biography, 5000),
+       input.isLiving !== undefined ? input.isLiving : (input.deathYear ? false : true),
+       clean(input.status, 20) || "verified", clean(input.visibility, 20) || "public",
+       request.admin.id]
+    );
+
+    // Link to gotra if provided
+    if (input.gotraId) {
+      await client.query(
+        `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+        [person.rows[0].id, input.gotraId, input.branchId || null, input.isRoot || false]
+      );
+    }
+
+    // Create relationships if father/mother provided
+    if (input.fatherId) {
+      const validation = await genealogy.validateRelationship(client._pool || pool, input.fatherId, person.rows[0].id, "biological");
+      if (validation.valid) {
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
+           VALUES ($1, $2, 'biological', 'verified', $3, $4, $4)`,
+          [input.fatherId, person.rows[0].id, clean(input.evidence, 500), request.admin.id]
+        );
+      }
+    }
+    if (input.motherId) {
+      const validation = await genealogy.validateRelationship(pool, input.motherId, person.rows[0].id, "biological");
+      if (validation.valid) {
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
+           VALUES ($1, $2, 'biological', 'verified', $3, $4, $4)`,
+          [input.motherId, person.rows[0].id, clean(input.evidence, 500), request.admin.id]
+        );
+      }
+    }
+
+    await genealogy.logAudit(client._pool || pool, request.admin.id, "create_person", "person", person.rows[0].id,
+      { fullName, gender: input.gender || null });
+    await client.query("COMMIT");
+
+    response.status(201).json({
+      id: person.rows[0].id,
+      publicId: person.rows[0].public_id,
+      message: msg(request, "व्यक्ति सफलतापूर्वक जोड़ा गया।", "Person added successfully.")
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: update person ─────────────────────────────────────────────────
+app.patch("/api/admin/people/:id", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const personId = request.params.id;
+
+    await client.query("BEGIN");
+
+    // Fetch current values for audit
+    const current = await client.query(
+      `SELECT full_name, gender, birth_year, death_year, village, biography, is_living, status, visibility
+       FROM people WHERE id = $1`, [personId]
+    );
+    if (!current.rows[0]) {
+      await client.query("ROLLBACK");
+      return response.status(404).json({ error: "Person not found." });
+    }
+
+    const updates = [];
+    const values = [];
+    const fields = ["full_name", "alt_names", "gender", "birth_year", "death_year", "birthplace",
+                    "village", "district", "state", "biography", "is_living", "status", "visibility"];
+    const inputMap = {
+      full_name: "fullName", alt_names: "altNames", birth_year: "birthYear", death_year: "deathYear",
+      is_living: "isLiving",
+    };
+
+    fields.forEach(field => {
+      const inputKey = inputMap[field] || field;
+      if (input[inputKey] !== undefined) {
+        values.push(input[inputKey]);
+        updates.push(`${field} = $${values.length}`);
+      }
+    });
+
+    if (updates.length) {
+      values.push(request.admin.id);
+      updates.push(`updated_by = $${values.length}`);
+      values.push(personId);
+      await client.query(
+        `UPDATE people SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`,
+        values
+      );
+      await genealogy.logAudit(pool, request.admin.id, "update_person", "person", personId,
+        { before: current.rows[0], after: input });
+    }
+
+    await client.query("COMMIT");
+    response.json({ id: personId, message: msg(request, "व्यक्ति अद्यतन किया गया।", "Person updated.") });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: create relationship (with cycle detection) ────────────────────
+app.post("/api/admin/relationships", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const parentId = clean(input.parentId, 80);
+    const childId = clean(input.childId, 80);
+    const relationType = ["biological", "adoptive", "step", "guardian", "other"]
+      .includes(input.relationType) ? input.relationType : "biological";
+
+    if (!parentId || !childId) return response.status(400).json({
+      error: msg(request, "अभिभावक और संतान आवश्यक हैं।", "Parent and child are required.")
+    });
+
+    // Full validation pipeline
+    const validation = await genealogy.validateRelationship(pool, parentId, childId, relationType);
+    if (!validation.valid) {
+      const errorMessages = {
+        self_parenting: msg(request, "स्व-अभिभावक संबंध नहीं हो सकता।", "Self-parenting is not allowed."),
+        person_not_found: msg(request, "व्यक्ति नहीं मिला।", "Person not found."),
+        duplicate_relationship: msg(request, "यह संबंध पहले से मौजूद है।", "This relationship already exists."),
+        circular_genealogy: msg(request, "यह संबंध चक्रीय वंशावली बनाएगा।", "This relationship would create a circular genealogy."),
+        max_biological_parents: msg(request, "अधिकतम दो जैविक अभिभावक हो सकते हैं।", "A person can have at most two biological parents."),
+      };
+      return response.status(400).json({ error: errorMessages[validation.error] || validation.error });
+    }
+
+    await client.query("BEGIN");
+    const rel = await client.query(
+      `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
+       VALUES ($1, $2, $3, 'verified', $4, $5, $5) RETURNING id`,
+      [parentId, childId, relationType, clean(input.evidence, 500), request.admin.id]
+    );
+    await genealogy.logAudit(pool, request.admin.id, "add_relationship", "relationship", rel.rows[0].id,
+      { parentId, childId, relationType });
+    await client.query("COMMIT");
+
+    response.status(201).json({
+      id: rel.rows[0].id,
+      message: msg(request, "संबंध सफलतापूर्वक जोड़ा गया।", "Relationship added successfully.")
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (error.code === "23505") return response.status(409).json({
+      error: msg(request, "यह संबंध पहले से मौजूद है।", "This relationship already exists.")
+    });
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: remove relationship ────────────────────────────────────────────
+app.delete("/api/admin/relationships/:id", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      "DELETE FROM person_relationships WHERE id = $1 RETURNING parent_id, child_id",
+      [request.params.id]
+    );
+    if (!result.rows[0]) {
+      await client.query("ROLLBACK");
+      return response.status(404).json({ error: "Relationship not found." });
+    }
+    await genealogy.logAudit(pool, request.admin.id, "remove_relationship", "relationship", request.params.id,
+      result.rows[0]);
+    await client.query("COMMIT");
+    response.json({ id: request.params.id, message: msg(request, "संबंध हटा दिया गया।", "Relationship removed.") });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: create family branch ────────────────────────────────────────────
+app.post("/api/admin/branches", auth, async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const name = clean(input.name, 120);
+    const gotraId = clean(input.gotraId, 80);
+    if (!name || !gotraId) return response.status(400).json({
+      error: msg(request, "शाखा नाम और गोत्र आवश्यक हैं।", "Branch name and Gotra are required.")
+    });
+
+    const result = await pool.query(
+      `INSERT INTO family_branches (gotra_id, parent_branch_id, name, slug, description, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'verified', $6) RETURNING id`,
+      [gotraId, input.parentBranchId || null, name,
+       clean(input.slug, 120) || name.toLowerCase().replace(/\s+/g, "-"),
+       clean(input.description, 500), request.admin.id]
+    );
+    await genealogy.logAudit(pool, request.admin.id, "create_branch", "branch", result.rows[0].id, { name, gotraId });
+    response.status(201).json({
+      id: result.rows[0].id,
+      message: msg(request, "शाखा सफलतापूर्वक बनाई गई।", "Branch created successfully.")
+    });
+  } catch (error) {
+    if (error.code === "23505") return response.status(409).json({
+      error: msg(request, "यह शाखा पहले से मौजूद है।", "This branch already exists.")
+    });
+    next(error);
+  }
+});
+
+// ── Admin: list branches ─────────────────────────────────────────────────
+app.get("/api/admin/branches", auth, async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.id, b.name, b.slug, b.description, b.status,
+              b.parent_branch_id AS "parentBranchId",
+              g.name AS "gotraName", g.id AS "gotraId"
+       FROM family_branches b
+       JOIN gotras g ON g.id = b.gotra_id
+       WHERE b.status <> 'archived'
+       ORDER BY g.name, b.name`
+    );
+    response.json({ branches: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: list genealogy contributions ──────────────────────────────────
+app.get("/api/admin/contributions", auth, async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, contribution_type AS "contributionType",
+              proposed_name AS "proposedName", proposed_gender AS "proposedGender",
+              proposed_birth_year AS "proposedBirthYear", proposed_death_year AS "proposedDeathYear",
+              proposed_village AS "proposedVillage", proposed_gotra_id AS "proposedGotraId",
+              proposed_father_id AS "proposedFatherId", proposed_mother_id AS "proposedMotherId",
+              existing_person_id AS "existingPersonId", existing_rel_id AS "existingRelId",
+              description, evidence, contributor_name AS "contributorName",
+              contributor_contact AS "contributorContact", status,
+              submitted_at AS "submittedAt", review_notes AS "reviewNotes"
+       FROM genealogy_contributions
+       ORDER BY submitted_at DESC`
+    );
+    response.json({ contributions: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: approve/reject contribution ────────────────────────────────────
+app.patch("/api/admin/contributions/:id", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const status = request.body.status;
+    const reviewNotes = clean(request.body.reviewNotes);
+    if (!["approved", "rejected", "under_review", "needs_info", "disputed"].includes(status))
+      return response.status(400).json({ error: "Invalid status." });
+
+    await client.query("BEGIN");
+    const result = await client.query(
+      "SELECT * FROM genealogy_contributions WHERE id = $1 FOR UPDATE", [request.params.id]
+    );
+    const contribution = result.rows[0];
+    if (!contribution) {
+      await client.query("ROLLBACK");
+      return response.status(404).json({ error: "Contribution not found." });
+    }
+
+    await client.query(
+      "UPDATE genealogy_contributions SET status = $1, reviewed_by = $2, review_notes = $3, reviewed_at = NOW() WHERE id = $4",
+      [status, request.admin.id, reviewNotes, contribution.id]
+    );
+
+    // If approved and it's a new_person contribution, create the person
+    if (status === "approved" && contribution.contribution_type === "new_person" && contribution.proposed_name) {
+      const personResult = await client.query(
+        `INSERT INTO people
+          (full_name, gender, birth_year, death_year, village, status, visibility, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'verified', 'public', $6, $6)
+         RETURNING id, public_id`,
+        [contribution.proposed_name, contribution.proposed_gender,
+         contribution.proposed_birth_year, contribution.proposed_death_year,
+         contribution.proposed_village, request.admin.id]
+      );
+      const newPersonId = personResult.rows[0].id;
+
+      // Link to gotra if provided
+      if (contribution.proposed_gotra_id) {
+        await client.query(
+          `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+           VALUES ($1, $2, $3, false)
+           ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+          [newPersonId, contribution.proposed_gotra_id, contribution.proposed_branch_id]
+        );
+      }
+
+      // Create parent relationships if provided
+      if (contribution.proposed_father_id) {
+        const v = await genealogy.validateRelationship(pool, contribution.proposed_father_id, newPersonId, "biological");
+        if (v.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
+             VALUES ($1, $2, 'biological', 'verified', $3, $4, $4)`,
+            [contribution.proposed_father_id, newPersonId, contribution.evidence, request.admin.id]
+          );
+        }
+      }
+      if (contribution.proposed_mother_id) {
+        const v = await genealogy.validateRelationship(pool, contribution.proposed_mother_id, newPersonId, "biological");
+        if (v.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
+             VALUES ($1, $2, 'biological', 'verified', $3, $4, $4)`,
+            [contribution.proposed_mother_id, newPersonId, contribution.evidence, request.admin.id]
+          );
+        }
+      }
+
+      await genealogy.logAudit(pool, request.admin.id, "approve_contribution", "contribution", contribution.id,
+        { personCreated: newPersonId });
+    }
+
+    await client.query("COMMIT");
+    response.json({ status, id: contribution.id });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: get person detail (admin view, includes internal data) ────────
+app.get("/api/admin/people/:id", auth, async (request, response, next) => {
+  try {
+    const personResult = await pool.query(
+      `SELECT id, public_id AS "publicId", full_name AS "fullName", alt_names AS "altNames",
+              gender, birth_year AS "birthYear", death_year AS "deathYear",
+              birthplace, village, district, state, biography,
+              is_living AS "isLiving", status, visibility,
+              created_at AS "createdAt", updated_at AS "updatedAt"
+       FROM people WHERE id = $1`, [request.params.id]
+    );
+    if (!personResult.rows[0]) return response.status(404).json({ error: "Person not found." });
+
+    const person = personResult.rows[0];
+    const parents = await genealogy.findParents(pool, person.id);
+    const children = await genealogy.findChildren(pool, person.id);
+    const gotras = await pool.query(
+      `SELECT g.id, g.name, l.is_root AS "isRoot", l.branch_id AS "branchId"
+       FROM person_gotra_links l JOIN gotras g ON g.id = l.gotra_id
+       WHERE l.person_id = $1`, [person.id]
+    );
+    const generation = await genealogy.calculateGeneration(pool, person.id);
+
+    response.json({ person: { ...person, generation }, parents, children, gotras: gotras.rows });
+  } catch (error) { next(error); }
 });
 
 app.use(express.static(root));

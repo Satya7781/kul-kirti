@@ -80,6 +80,53 @@
           </div>
         </div>
       </section>
+
+      <!-- ── GENEALOGY EXPLORER ────────────────────────────────────────── -->
+      <!-- Person search bar -->
+      <section class="section genealogy-explorer-section">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="genealogy.explorerEyebrow">वंशावली खोज</p>
+            <h2 data-i18n="genealogy.explorerH2">व्यक्ति खोजें</h2>
+            <div class="ornament"><span>◆</span></div>
+          </div>
+          <form id="genealogy-search-form" class="genealogy-search-form">
+            <input id="genealogy-search-input" type="search"
+              data-i18n-placeholder="genealogy.searchPh"
+              placeholder="व्यक्ति का नाम लिखें..." autocomplete="off" />
+            <button class="button button-maroon" type="submit">
+              <span data-i18n="genealogy.searchBtn">खोजें</span> <span>→</span>
+            </button>
+          </form>
+          <div id="genealogy-search-results" class="genealogy-search-results" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <!-- Gotra directory -->
+      <section class="section genealogy-gotras-section" style="padding-top:0">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="genealogy.gotraDirEyebrow">गोत्र निर्देशिका</p>
+            <h2 data-i18n="genealogy.gotraDirH2">सत्यापित गोत्र</h2>
+            <div class="ornament"><span>◆</span></div>
+          </div>
+          <div id="gotra-directory" class="gotra-directory-grid"></div>
+        </div>
+      </section>
+
+      <!-- Gotra detail (shown when ?gotra=ID) -->
+      <section id="gotra-detail-section" class="section" hidden>
+        <div class="shell">
+          <div id="gotra-detail-content"></div>
+        </div>
+      </section>
+
+      <!-- Person profile (shown when ?person=PUBLICID) -->
+      <section id="person-profile-section" class="section" hidden>
+        <div class="shell">
+          <div id="person-profile-content"></div>
+        </div>
+      </section>
     </main>
 
     <div id="shared-footer"></div>

@@ -72,6 +72,10 @@
                 data-i18n="admin.tabGotras">गोत्र प्रबंधन</button>
               <button class="admin-tab" data-admin-view="family-builder" type="button"
                 data-i18n="admin.tabFamily">परिवार वृक्ष बनाएं</button>
+              <button class="admin-tab" data-admin-view="people" type="button"
+                data-i18n="admin.tabPeople">लोग</button>
+              <button class="admin-tab" data-admin-view="genealogy-contributions" type="button"
+                data-i18n="admin.tabGenealogyContrib">योगदान</button>
             </div>
 
             <!-- ── SUBMISSIONS VIEW ─────────────────────────────────── -->
@@ -201,6 +205,119 @@
                 </button>
                 <p id="admin-family-message" class="form-message" role="status"></p>
               </form>
+            </div>
+
+            <!-- ── PEOPLE MANAGEMENT VIEW ───────────────────────────── -->
+            <div id="admin-people" class="admin-people-view" hidden>
+              <!-- People search bar -->
+              <div class="genealogy-toolbar">
+                <input id="people-search-input" type="search"
+                  data-i18n-placeholder="admin.peopleSearchPh"
+                  placeholder="नाम से खोजें..." autocomplete="off" />
+                <button id="people-search-btn" class="button button-outline-dark" type="button"
+                  data-i18n="admin.searchBtn">खोजें</button>
+              </div>
+              <div id="people-list" class="admin-people-list"></div>
+              <div id="people-pagination" class="genealogy-pagination"></div>
+
+              <!-- Add Person Form -->
+              <form id="person-form" class="admin-form gotra-form">
+                <h2 data-i18n="admin.addPersonH2">नया व्यक्ति जोड़ें</h2>
+                <p class="form-note" data-i18n="admin.addPersonNote">व्यक्ति की जानकारी भरें। पिता/माता को मौजूदा व्यक्तियों में से चुनें।</p>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personFullName">पूरा नाम *</span>
+                    <input name="fullName" required maxlength="120" />
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personGender">लिंग</span>
+                    <select name="gender">
+                      <option value="" data-i18n="admin.genderUnknown">अज्ञात</option>
+                      <option value="male" data-i18n="admin.genderMale">पुरुष</option>
+                      <option value="female" data-i18n="admin.genderFemale">महिला</option>
+                      <option value="other" data-i18n="admin.genderOther">अन्य</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personBirthYear">जन्म वर्ष</span>
+                    <input name="birthYear" maxlength="20" placeholder="उदा. 1850" />
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personDeathYear">मृत्यु वर्ष</span>
+                    <input name="deathYear" maxlength="20" placeholder="यदि ज्ञात हो" />
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personVillage">गांव</span>
+                    <input name="village" maxlength="120" />
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personState">राज्य</span>
+                    <input name="state" maxlength="120" />
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personGotra">गोत्र</span>
+                    <select name="gotraId" id="person-gotra-select"></select>
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personBranch">शाखा</span>
+                    <input name="branchId" maxlength="80" placeholder="वैकल्पिक" />
+                  </label>
+                </div>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personFather">पिता (मौजूदा व्यक्ति)</span>
+                    <input name="fatherId" id="person-father-input" type="text"
+                      data-i18n-placeholder="admin.personParentSearchPh"
+                      placeholder="नाम लिखकर खोजें..." autocomplete="off" />
+                    <input type="hidden" name="fatherIdHidden" id="person-father-hidden" />
+                    <div id="father-suggestions" class="autocomplete-suggestions"></div>
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personMother">माता (मौजूदा व्यक्ति)</span>
+                    <input name="motherId" id="person-mother-input" type="text"
+                      data-i18n-placeholder="admin.personParentSearchPh"
+                      placeholder="नाम लिखकर खोजें..." autocomplete="off" />
+                    <input type="hidden" name="motherIdHidden" id="person-mother-hidden" />
+                    <div id="mother-suggestions" class="autocomplete-suggestions"></div>
+                  </label>
+                </div>
+                <label>
+                  <span data-i18n="admin.personBio">संक्षिप्त जीवनी</span>
+                  <textarea name="biography" rows="3" maxlength="5000"></textarea>
+                </label>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.personVisibility">दृश्यता</span>
+                    <select name="visibility">
+                      <option value="public" data-i18n="admin.visPublic">सार्वजनिक</option>
+                      <option value="members" data-i18n="admin.visMembers">सदस्य</option>
+                      <option value="private" data-i18n="admin.visPrivate">निजी</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="admin.personIsLiving">जीवित</span>
+                    <select name="isLiving">
+                      <option value="true" data-i18n="admin.livingYes">हां</option>
+                      <option value="false" data-i18n="admin.livingNo">नहीं</option>
+                    </select>
+                  </label>
+                </div>
+                <button class="button button-maroon" type="submit">
+                  <span data-i18n="admin.savePerson">व्यक्ति सहेजें</span> <span>→</span>
+                </button>
+                <p id="person-message" class="form-message" role="status"></p>
+              </form>
+            </div>
+
+            <!-- ── GENEALOGY CONTRIBUTIONS VIEW ──────────────────────── -->
+            <div id="admin-genealogy-contributions" class="admin-genealogy-contributions" hidden>
+              <div id="genealogy-contributions-list" class="admin-submissions"></div>
             </div>
 
           </div><!-- /#admin-panel -->

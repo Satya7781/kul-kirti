@@ -134,6 +134,88 @@
           </form>
         </div>
       </section>
+
+      <!-- ── GENEALOGY CONTRIBUTION FORM ─────────────────────────────── -->
+      <section class="section" style="padding-top:0">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="genealogy.contribEyebrow">वंशावली योगदान</p>
+            <h2 data-i18n="genealogy.contribH2">नया व्यक्ति या सुधार भेजें</h2>
+            <div class="ornament"><span>◆</span></div>
+            <p data-i18n="genealogy.contribBody">अपनी वंशावली में नया व्यक्ति, संबंध या सुधार प्रस्तुत करें। प्रत्येक योगदान admin समीक्षा के बाद ही स्वीकार होगा।</p>
+          </div>
+          <form id="genealogy-contribution-form" class="record-form" style="max-width:720px;margin:0 auto">
+            <div class="form-row">
+              <label>
+                <span data-i18n="genealogy.contribType">योगदान का प्रकार *</span>
+                <select name="contributionType" required>
+                  <option value="new_person" data-i18n="genealogy.contribNewPerson">नया व्यक्ति</option>
+                  <option value="new_relationship" data-i18n="genealogy.contribNewRel">नया संबंध</option>
+                  <option value="correction" data-i18n="genealogy.contribCorrection">सुधार</option>
+                  <option value="gotra_info" data-i18n="genealogy.contribGotraInfo">गोत्र जानकारी</option>
+                  <option value="dispute" data-i18n="genealogy.contribDispute">विवाद</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="genealogy.contribName">व्यक्ति का नाम</span>
+                <input name="proposedName" maxlength="120" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                <span data-i18n="genealogy.contribBirthYear">जन्म वर्ष</span>
+                <input name="proposedBirthYear" maxlength="20" />
+              </label>
+              <label>
+                <span data-i18n="genealogy.contribDeathYear">मृत्यु वर्ष</span>
+                <input name="proposedDeathYear" maxlength="20" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                <span data-i18n="genealogy.contribVillage">गांव</span>
+                <input name="proposedVillage" maxlength="120" />
+              </label>
+              <label>
+                <span data-i18n="genealogy.contribGender">लिंग</span>
+                <select name="proposedGender">
+                  <option value="" data-i18n="admin.genderUnknown">अज्ञात</option>
+                  <option value="male" data-i18n="admin.genderMale">पुरुष</option>
+                  <option value="female" data-i18n="admin.genderFemale">महिला</option>
+                  <option value="other" data-i18n="admin.genderOther">अन्य</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              <span data-i18n="genealogy.contribDescription">विवरण</span>
+              <textarea name="description" rows="3" maxlength="2000"
+                data-i18n-placeholder="genealogy.contribDescPh"
+                placeholder="कौन सा व्यक्ति, संबंध या सुधार प्रस्तुत कर रहे हैं, विस्तार से बताएं"></textarea>
+            </label>
+            <label>
+              <span data-i18n="genealogy.contribEvidence">साक्ष्य / स्रोत</span>
+              <textarea name="evidence" rows="2" maxlength="2000"
+                data-i18n-placeholder="genealogy.contribEvidencePh"
+                placeholder="दस्तावेज़, पुस्तक, या परिवार के सदस्य से प्राप्त जानकारी"></textarea>
+            </label>
+            <div class="form-row">
+              <label>
+                <span data-i18n="submit.contribName">आपका नाम *</span>
+                <input name="contributorName" required maxlength="120" />
+              </label>
+              <label>
+                <span data-i18n="submit.contribContact">संपर्क (वैकल्पिक)</span>
+                <input name="contributorContact" maxlength="120" />
+              </label>
+            </div>
+            <button class="button button-maroon" type="submit">
+              <span data-i18n="genealogy.contribSubmit">योगदान भेजें</span> <span>→</span>
+            </button>
+            <small class="form-note" data-i18n="genealogy.contribNote">हर योगदान admin समीक्षा के बाद ही स्वीकार होगा।</small>
+            <p id="genealogy-contribution-message" class="form-message" role="status"></p>
+          </form>
+        </div>
+      </section>
     </main>
 
     <div id="shared-footer"></div>

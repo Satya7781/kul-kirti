@@ -977,3 +977,609 @@ adminFamilyForm?.addEventListener("submit", async e => {
     if (btn) { btn.disabled = false; btn.innerHTML = origText; }
   }
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. PUBLIC GENEALOGY EXPLORER
+   ───────────────────────────────────────────────────────────────────────────
+   Renders on vanshawali.html. Supports three URL modes:
+   - default:  loads gotra directory
+   - ?gotra=ID:  loads gotra detail with branches and roots
+   - ?person=PUBLICID: loads person profile with family
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initGenealogyExplorer() {
+  const gotraDirectory = document.querySelector("#gotra-directory");
+  const gotraDetailSection = document.querySelector("#gotra-detail-section");
+  const gotraDetailContent = document.querySelector("#gotra-detail-content");
+  const personProfileSection = document.querySelector("#person-profile-section");
+  const personProfileContent = document.querySelector("#person-profile-content");
+  const genealogySearchForm = document.querySelector("#genealogy-search-form");
+  const genealogySearchInput = document.querySelector("#genealogy-search-input");
+  const genealogySearchResults = document.querySelector("#genealogy-search-results");
+
+  /* Don't run if not on vanshawali.html */
+  if (!gotraDirectory && !gotraDetailSection && !personProfileSection) return;
+
+  const params = new URLSearchParams(location.search);
+  const gotraId = params.get("gotra");
+  const personId = params.get("person");
+
+  /* ── Person search ─────────────────────────────────────────────────────── */
+  async function searchPeople(query) {
+    if (!genealogySearchResults) return;
+    if (!query || query.length < 2) {
+      genealogySearchResults.innerHTML = "";
+      return;
+    }
+    try {
+      const res = await fetch(`/api/genealogy/search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error(I18n.t("common.error"));
+      const { people } = await res.json();
+      if (!people.length) {
+        genealogySearchResults.innerHTML =
+          `<div class="empty-state"><p>${I18n.t("genealogy.searchNoResults")}</p></div>`;
+        return;
+      }
+      const summary = I18n.t("genealogy.searchResults", { n: people.length });
+      genealogySearchResults.innerHTML =
+        `<p class="result-summary">${summary}</p>` +
+        people.map(p => {
+          const meta = [
+            p.gender ? I18n.t(`admin.gender${p.gender.charAt(0).toUpperCase() + p.gender.slice(1)}`) : "",
+            p.birthYear ? p.birthYear : "",
+            p.village ? p.village : "",
+          ].filter(Boolean).join(" · ");
+          return `<div class="person-search-card">
+            <div>
+              <h4>${p.fullName}</h4>
+              <div class="person-meta">${meta}</div>
+            </div>
+            <a class="result-tag" href="/vanshawali.html?person=${p.publicId}">${I18n.t("genealogy.viewProfile")}</a>
+          </div>`;
+        }).join("");
+    } catch (err) {
+      genealogySearchResults.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  if (genealogySearchForm) {
+    genealogySearchForm.addEventListener("submit", e => {
+      e.preventDefault();
+      searchPeople(genealogySearchInput?.value);
+    });
+  }
+
+  /* ── Gotra directory (default view) ────────────────────────────────────── */
+  async function loadGotraDirectory() {
+    if (!gotraDirectory) return;
+    try {
+      const res = await fetch("/api/genealogy/gotras");
+      if (!res.ok) throw new Error(I18n.t("common.error"));
+      const { gotras } = await res.json();
+      if (!gotras.length) {
+        gotraDirectory.innerHTML = `<div class="empty-state"><p>${I18n.t("genealogy.noGotras")}</p></div>`;
+        return;
+      }
+      gotraDirectory.innerHTML = gotras.map(g => `
+        <a class="gotra-dir-card" href="/vanshawali.html?gotra=${g.id}">
+          <h3>${g.name}</h3>
+          <div class="gotra-meta">
+            <span><b>${g.personCount || 0}</b> ${I18n.t("genealogy.gotraPersons")}</span>
+            <span><b>${g.branchCount || 0}</b> ${I18n.t("genealogy.gotraBranches")}</span>
+          </div>
+          ${g.historicalDetails ? `<p class="gotra-desc">${g.historicalDetails.slice(0, 150)}${g.historicalDetails.length > 150 ? "…" : ""}</p>` : ""}
+          <span class="gotra-link">${I18n.t("genealogy.viewDetail")} →</span>
+        </a>
+      `).join("");
+    } catch (err) {
+      gotraDirectory.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  /* ── Gotra detail (?gotra=ID) ──────────────────────────────────────────── */
+  async function loadGotraDetail(id) {
+    if (!gotraDetailContent) return;
+    gotraDetailSection.hidden = false;
+    try {
+      const res = await fetch(`/api/genealogy/gotras/${id}`);
+      if (!res.ok) throw new Error(I18n.t("common.error"));
+      const { gotra, branches, roots } = await res.json();
+
+      gotraDetailContent.innerHTML = `
+        <div class="gotra-detail-card">
+          <h2>${gotra.name}</h2>
+          ${gotra.originPlace ? `<p style="color:var(--muted);font-size:14px;margin-bottom:12px">${gotra.originPlace}${gotra.originPeriod ? " · " + gotra.originPeriod : ""}</p>` : ""}
+          <div class="gotra-stats">
+            <div class="gotra-stat"><b>${roots.length}</b><span>${I18n.t("genealogy.roots")}</span></div>
+            <div class="gotra-stat"><b>${branches.length}</b><span>${I18n.t("genealogy.branches")}</span></div>
+          </div>
+          ${gotra.historicalDetails ? `<div class="gotra-detail-section"><h3>${I18n.t("genealogy.gotraDirH2")}</h3><p style="color:var(--muted);font-size:15px;line-height:1.8">${gotra.historicalDetails}</p></div>` : ""}
+          ${gotra.founderName ? `<div class="gotra-detail-section"><h3>${I18n.t("genealogy.roots")}</h3><p style="color:var(--muted)">${gotra.founderName}${gotra.founderNotes ? " — " + gotra.founderNotes : ""}</p></div>` : ""}
+          <div class="gotra-detail-section">
+            <h3>${I18n.t("genealogy.roots")}</h3>
+            ${roots.length ? roots.map(r => `
+              <div class="rel-item">
+                <a href="/vanshawali.html?person=${r.publicId}">${r.fullName}</a>
+                <span class="rel-meta">${r.birthYear || ""}${r.deathYear ? " – " + r.deathYear : ""}</span>
+              </div>
+            `).join("") : `<p class="rel-empty">${I18n.t("genealogy.noRoots")}</p>`}
+          </div>
+          <div class="gotra-detail-section">
+            <h3>${I18n.t("genealogy.branches")}</h3>
+            ${branches.length ? branches.map(b => `<div class="rel-item">${b.name}${b.description ? ` <span class="rel-meta">${b.description}</span>` : ""}</div>`).join("") : `<p class="rel-empty">${I18n.t("genealogy.noBranches")}</p>`}
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      gotraDetailContent.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  /* ── Person profile (?person=PUBLICID) ────────────────────────────────── */
+  async function loadPersonProfile(publicId) {
+    if (!personProfileContent) return;
+    personProfileSection.hidden = false;
+    try {
+      const res = await fetch(`/api/genealogy/people/${publicId}`);
+      if (!res.ok) {
+        personProfileContent.innerHTML = `<div class="empty-state"><p>${I18n.t("genealogy.restrictedProfile")}</p></div>`;
+        return;
+      }
+      const data = await res.json();
+
+      if (data.restricted) {
+        personProfileContent.innerHTML = `
+          <div class="person-profile-card">
+            <div class="person-profile-header">
+              <div class="person-profile-avatar">${(data.person.fullName || "?").charAt(0)}</div>
+              <div class="person-profile-info">
+                <h2>${data.person.fullName}</h2>
+                <p style="color:var(--muted)">${I18n.t("genealogy.restrictedProfile")}</p>
+              </div>
+            </div>
+          </div>`;
+        return;
+      }
+
+      const p = data.person;
+      const avatar = (p.fullName || "?").charAt(0);
+      const tags = [];
+      if (p.generation) tags.push(`<span class="tag gen">${I18n.t("genealogy.generation")} ${p.generation}</span>`);
+      tags.push(`<span class="tag ${p.isLiving ? "living" : "deceased"}">${p.isLiving ? I18n.t("genealogy.living") : I18n.t("genealogy.deceased")}</span>`);
+      if (data.gotras && data.gotras.length) {
+        data.gotras.forEach(g => tags.push(`<span class="tag gotra">${g.name}</span>`));
+      }
+
+      const meta = [
+        p.birthYear ? p.birthYear : "",
+        p.deathYear ? " – " + p.deathYear : "",
+        p.village ? " · " + p.village : "",
+      ].filter(Boolean).join("");
+
+      function renderRelList(items, emptyKey) {
+        if (!items || !items.length) return `<p class="rel-empty">${I18n.t("genealogy." + emptyKey)}</p>`;
+        return `<div class="rel-list">${items.map(r => `
+          <div class="rel-item">
+            <a href="/vanshawali.html?person=${r.publicId}">${r.fullName || r.full_name || "?"}</a>
+            <span class="rel-meta">${r.birthYear || ""}${r.deathYear ? " – " + r.deathYear : ""}${r.village ? " · " + r.village : ""}</span>
+          </div>
+        `).join("")}</div>`;
+      }
+
+      function renderAncestorPath(items) {
+        if (!items || !items.length) return `<p class="rel-empty">${I18n.t("genealogy.noAncestors")}</p>`;
+        return `<div class="ancestor-path">${items.map(a => `
+          <div class="path-item">
+            <span class="path-gen">${I18n.t("genealogy.generation")} ${p.generation - a.depth}</span>
+            <a href="/vanshawali.html?person=${a.publicId}">${a.fullName}</a>
+            <span class="path-meta">${a.birthYear || ""}${a.deathYear ? " – " + a.deathYear : ""}</span>
+          </div>
+        `).join("")}</div>`;
+      }
+
+      function renderDescendantPath(items) {
+        if (!items || !items.length) return `<p class="rel-empty">${I18n.t("genealogy.noDescendants")}</p>`;
+        return `<div class="descendant-path">${items.map(d => `
+          <div class="path-item">
+            <span class="path-gen">${I18n.t("genealogy.generation")} ${p.generation + d.depth}</span>
+            <a href="/vanshawali.html?person=${d.publicId}">${d.fullName}</a>
+            <span class="path-meta">${d.birthYear || ""}${d.deathYear ? " – " + d.deathYear : ""}</span>
+          </div>
+        `).join("")}</div>`;
+      }
+
+      personProfileContent.innerHTML = `
+        <div class="person-profile-card">
+          <div class="person-profile-header">
+            <div class="person-profile-avatar">${avatar}</div>
+            <div class="person-profile-info">
+              <h2>${p.fullName}</h2>
+              ${meta ? `<p style="color:var(--muted);font-size:14px">${meta}</p>` : ""}
+              <div class="person-tags">${tags.join("")}</div>
+            </div>
+          </div>
+          ${p.biography ? `<p style="color:var(--muted);font-size:15px;line-height:1.8;margin-bottom:24px">${p.biography}</p>` : ""}
+          <div class="rel-section">
+            <h3>${I18n.t("genealogy.parents")}</h3>
+            ${renderRelList(data.parents, "noParents")}
+          </div>
+          <div class="rel-section">
+            <h3>${I18n.t("genealogy.children")}</h3>
+            ${renderRelList(data.children, "noChildren")}
+          </div>
+          <div class="rel-section">
+            <h3>${I18n.t("genealogy.siblings")}</h3>
+            ${renderRelList(data.siblings, "noSiblings")}
+          </div>
+          <div class="rel-section">
+            <h3>${I18n.t("genealogy.ancestors")}</h3>
+            ${renderAncestorPath(data.ancestors)}
+          </div>
+          <div class="rel-section">
+            <h3>${I18n.t("genealogy.descendants")}</h3>
+            ${renderDescendantPath(data.descendants)}
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      personProfileContent.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+    }
+  }
+
+  /* ── Route based on URL params ─────────────────────────────────────────── */
+  if (personId) {
+    loadPersonProfile(personId);
+  } else if (gotraId) {
+    loadGotraDetail(gotraId);
+  } else {
+    loadGotraDirectory();
+  }
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. ADMIN PEOPLE MANAGEMENT
+   ───────────────────────────────────────────────────────────────────────────
+   Renders on admin.html when the "People" tab is active.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initAdminPeople() {
+  const peopleList = document.querySelector("#people-list");
+  const peopleSearchInput = document.querySelector("#people-search-input");
+  const peopleSearchBtn = document.querySelector("#people-search-btn");
+  const peoplePagination = document.querySelector("#people-pagination");
+  const personForm = document.querySelector("#person-form");
+  const personMessage = document.querySelector("#person-message");
+  const personGotraSelect = document.querySelector("#person-gotra-select");
+  const fatherInput = document.querySelector("#person-father-input");
+  const fatherHidden = document.querySelector("#person-father-hidden");
+  const fatherSuggestions = document.querySelector("#father-suggestions");
+  const motherInput = document.querySelector("#person-mother-input");
+  const motherHidden = document.querySelector("#person-mother-hidden");
+  const motherSuggestions = document.querySelector("#mother-suggestions");
+
+  if (!peopleList && !personForm) return;
+
+  let currentPage = 1;
+  let totalPages = 1;
+
+  /* ── Load people list with pagination ─────────────────────────────────── */
+  async function loadPeople(page, query) {
+    if (!peopleList) return;
+    _clearAdminError();
+    try {
+      const params = new URLSearchParams({ page: page || 1, limit: 20 });
+      if (query) params.set("q", query);
+      const res = await fetch(`/api/admin/people?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error(I18n.t("common.sessionExpired"));
+      const data = await res.json();
+      currentPage = data.page;
+      totalPages = data.pages;
+
+      if (!data.people.length) {
+        peopleList.innerHTML = `<div class="admin-empty">${I18n.t("admin.noPeople")}</div>`;
+        if (peoplePagination) peoplePagination.innerHTML = "";
+        return;
+      }
+
+      peopleList.innerHTML = data.people.map(p => `
+        <div class="admin-person-row">
+          <div>
+            <h4>${p.fullName}</h4>
+            <div class="person-info">
+              <span class="pubid">${p.publicId}</span>
+              ${p.gender ? " · " + p.gender : ""}
+              ${p.birthYear ? " · " + p.birthYear : ""}
+              ${p.village ? " · " + p.village : ""}
+              ${p.status === "verified" ? "" : " · " + p.status}
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      if (peoplePagination && totalPages > 1) {
+        peoplePagination.innerHTML = `
+          <button ${currentPage <= 1 ? "disabled" : ""} data-page="${currentPage - 1}">${I18n.t("admin.peoplePrev")}</button>
+          <span>${I18n.t("admin.peoplePage", { current: currentPage, total: totalPages })}</span>
+          <button ${currentPage >= totalPages ? "disabled" : ""} data-page="${currentPage + 1}">${I18n.t("admin.peopleNext")}</button>
+        `;
+        peoplePagination.querySelectorAll("button[data-page]").forEach(btn =>
+          btn.addEventListener("click", () => loadPeople(parseInt(btn.dataset.page), peopleSearchInput?.value))
+        );
+      } else if (peoplePagination) {
+        peoplePagination.innerHTML = "";
+      }
+    } catch (err) {
+      _showAdminError(err.message);
+    }
+  }
+
+  /* ── Search button ─────────────────────────────────────────────────────── */
+  peopleSearchBtn?.addEventListener("click", () => loadPeople(1, peopleSearchInput?.value));
+  peopleSearchInput?.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); loadPeople(1, peopleSearchInput.value); }
+  });
+
+  /* ── Load gotras into person form dropdown ─────────────────────────────── */
+  async function loadGotrasForForm() {
+    if (!personGotraSelect) return;
+    try {
+      const res = await fetch("/api/admin/gotras", { credentials: "include" });
+      if (!res.ok) return;
+      const { gotras } = await res.json();
+      personGotraSelect.innerHTML =
+        `<option value="">—</option>` +
+        gotras.map(g => `<option value="${g.id}">${g.name}</option>`).join("");
+    } catch (_) { /* silent */ }
+  }
+
+  /* ── Parent autocomplete ───────────────────────────────────────────────── */
+  function setupAutocomplete(input, hiddenField, suggestionsEl) {
+    if (!input) return;
+    let debounceTimer;
+    input.addEventListener("input", () => {
+      hiddenField.value = "";
+      clearTimeout(debounceTimer);
+      const query = input.value.trim();
+      if (query.length < 2) {
+        suggestionsEl.classList.remove("show");
+        return;
+      }
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/admin/people/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
+          if (!res.ok) return;
+          const { people } = await res.json();
+          if (!people.length) {
+            suggestionsEl.classList.remove("show");
+            return;
+          }
+          suggestionsEl.innerHTML = people.map(p => `
+            <div class="suggestion-item" data-id="${p.id}" data-name="${p.fullName}">
+              <div class="sug-name">${p.fullName}</div>
+              <div class="sug-meta">${p.gender || ""} ${p.birthYear ? "· " + p.birthYear : ""} ${p.village ? "· " + p.village : ""}</div>
+            </div>
+          `).join("");
+          suggestionsEl.classList.add("show");
+          suggestionsEl.querySelectorAll(".suggestion-item").forEach(item =>
+            item.addEventListener("click", () => {
+              hiddenField.value = item.dataset.id;
+              input.value = item.dataset.name;
+              suggestionsEl.classList.remove("show");
+            })
+          );
+        } catch (_) { /* silent */ }
+      }, 300);
+    });
+
+    /* Hide suggestions on outside click */
+    document.addEventListener("click", e => {
+      if (!input.contains(e.target) && !suggestionsEl.contains(e.target)) {
+        suggestionsEl.classList.remove("show");
+      }
+    });
+  }
+
+  setupAutocomplete(fatherInput, fatherHidden, fatherSuggestions);
+  setupAutocomplete(motherInput, motherHidden, motherSuggestions);
+
+  /* ── Person form submit ───────────────────────────────────────────────── */
+  let personSubmitting = false;
+  personForm?.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (personSubmitting) return;
+    personSubmitting = true;
+    const btn = personForm.querySelector("[type=submit]");
+    const origText = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+
+    const formData = Object.fromEntries(new FormData(personForm));
+    /* Use hidden fields for actual parent IDs */
+    if (fatherHidden?.value) formData.fatherId = fatherHidden.value;
+    else delete formData.fatherId;
+    if (motherHidden?.value) formData.motherId = motherHidden.value;
+    else delete formData.motherId;
+    /* Remove text inputs (they're for autocomplete display only) */
+    delete formData.fatherId_input;
+    delete formData.motherId_input;
+
+    try {
+      const res = await fetch("/api/admin/people", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const result = await res.json();
+      if (personMessage) {
+        personMessage.textContent = res.ok ? result.message : result.error;
+        personMessage.classList.toggle("error", !res.ok);
+      }
+      if (res.ok) {
+        personForm.reset();
+        if (fatherHidden) fatherHidden.value = "";
+        if (motherHidden) motherHidden.value = "";
+        loadPeople(1, "");
+      }
+    } catch (err) {
+      if (personMessage) { personMessage.textContent = I18n.t("common.error"); personMessage.classList.add("error"); }
+    } finally {
+      personSubmitting = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  });
+
+  /* ── Load people when tab is first activated ──────────────────────────── */
+  /* Watch for the People tab being clicked */
+  document.querySelectorAll(".admin-tab[data-admin-view='people']").forEach(tab => {
+    tab.addEventListener("click", () => {
+      loadPeople(1, "");
+      loadGotrasForForm();
+    });
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. ADMIN GENEALOGY CONTRIBUTIONS
+   ───────────────────────────────────────────────────────────────────────────
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initAdminGenealogyContributions() {
+  const contribList = document.querySelector("#genealogy-contributions-list");
+  if (!contribList) return;
+
+  async function loadContributions() {
+    _clearAdminError();
+    try {
+      const res = await fetch("/api/admin/contributions", { credentials: "include" });
+      if (!res.ok) throw new Error(I18n.t("common.sessionExpired"));
+      const { contributions } = await res.json();
+      if (!contributions.length) {
+        contribList.innerHTML = `<div class="admin-empty">${I18n.t("admin.noSubmissions")}</div>`;
+        return;
+      }
+      contribList.innerHTML = contributions.map(c => {
+        const typeLabels = {
+          new_person: I18n.t("genealogy.contribNewPerson"),
+          new_relationship: I18n.t("genealogy.contribNewRel"),
+          correction: I18n.t("genealogy.contribCorrection"),
+          gotra_info: I18n.t("genealogy.contribGotraInfo"),
+          dispute: I18n.t("genealogy.contribDispute"),
+        };
+        const statusLabel = I18n.t(`common.${c.status}`) || c.status;
+        const actions = c.status === "pending"
+          ? `<div class="admin-actions">
+               <button class="approve" data-id="${c.id}" data-status="approved">${I18n.t("admin.approveBtn")}</button>
+               <button class="reject" data-id="${c.id}" data-status="rejected">${I18n.t("admin.rejectBtn")}</button>
+             </div>` : "";
+        return `<div class="contrib-card">
+          <h4>${c.proposedName || c.description?.slice(0, 50) || "—"} <span class="contrib-type-badge">${typeLabels[c.contributionType] || c.contributionType}</span></h4>
+          <p class="contrib-meta">${I18n.t("admin.contributor")}: ${c.contributorName}${c.contributorContact ? " · " + c.contributorContact : ""}</p>
+          ${c.proposedBirthYear || c.proposedDeathYear ? `<p class="contrib-meta">${c.proposedBirthYear || ""} ${c.proposedDeathYear ? "– " + c.proposedDeathYear : ""} ${c.proposedVillage ? "· " + c.proposedVillage : ""}</p>` : ""}
+          ${c.description ? `<p class="contrib-meta">${c.description}</p>` : ""}
+          ${c.evidence ? `<p class="contrib-meta"><strong>${I18n.t("genealogy.contribEvidence")}:</strong> ${c.evidence}</p>` : ""}
+          <p class="contrib-meta"><strong>${I18n.t("admin.statusLabel")}:</strong> ${statusLabel}</p>
+          ${actions}
+        </div>`;
+      }).join("");
+
+      contribList.querySelectorAll("[data-id]").forEach(btn =>
+        btn.addEventListener("click", async () => {
+          const isApprove = btn.dataset.status === "approved";
+          const confirmMsg = isApprove ? I18n.t("admin.confirmApprove") : I18n.t("admin.confirmReject");
+          if (!confirm(confirmMsg)) return;
+          btn.disabled = true;
+          const origText = btn.textContent;
+          btn.textContent = I18n.t("common.loading");
+          try {
+            const res = await fetch(`/api/admin/contributions/${btn.dataset.id}`, {
+              method: "PATCH", credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: btn.dataset.status }),
+            });
+            if (!res.ok) throw new Error(I18n.t("common.error"));
+            loadContributions();
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = origText;
+            _showAdminError(err.message);
+          }
+        })
+      );
+    } catch (err) {
+      _showAdminError(err.message);
+    }
+  }
+
+  /* Load when tab is clicked */
+  document.querySelectorAll(".admin-tab[data-admin-view='genealogy-contributions']").forEach(tab => {
+    tab.addEventListener("click", loadContributions);
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. GENEALOGY CONTRIBUTION FORM (submit.html)
+   ───────────────────────────────────────────────────────────────────────────
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initGenealogyContributionForm() {
+  const form = document.querySelector("#genealogy-contribution-form");
+  if (!form) return;
+  const message = document.querySelector("#genealogy-contribution-message");
+
+  let submitting = false;
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (submitting) return;
+    submitting = true;
+    const btn = form.querySelector("[type=submit]");
+    const origText = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+
+    const formData = Object.fromEntries(new FormData(form));
+    try {
+      const res = await fetch("/api/genealogy/contributions", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const result = await res.json();
+      if (message) {
+        message.textContent = res.ok ? (result.message || I18n.t("genealogy.contribSuccess")) : result.error;
+        message.classList.toggle("error", !res.ok);
+      }
+      if (res.ok) form.reset();
+    } catch (err) {
+      if (message) { message.textContent = I18n.t("common.error"); message.classList.add("error"); }
+    } finally {
+      submitting = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  });
+}());
+
+/* ── Register the new admin tabs in the tab map ─────────────────────────── */
+/* This updates the existing languagechange handler's tabMap to include
+   the new People and Contributions tabs. We dispatch a custom event that
+   the existing handler picks up via the tabMap object. */
+(function extendTabMap() {
+  const tabMap = {
+    submissions:           "admin.tabSubmissions",
+    gotras:                "admin.tabGotras",
+    "family-builder":      "admin.tabFamily",
+    people:                "admin.tabPeople",
+    "genealogy-contributions": "admin.tabGenealogyContrib",
+  };
+  /* Re-wire tab ARIA and label translation for the new tabs */
+  document.querySelectorAll(".admin-tab[data-admin-view='people'], .admin-tab[data-admin-view='genealogy-contributions']").forEach(tab => {
+    tab.setAttribute("role", "tab");
+    _syncTabAria(tab);
+    const panelId = `admin-${tab.dataset.adminView}`;
+    tab.setAttribute("aria-controls", panelId);
+    const panel = document.querySelector(`#admin-${tab.dataset.adminView}`);
+    if (panel) {
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", `tab-${tab.dataset.adminView}`);
+      tab.id = `tab-${tab.dataset.adminView}`;
+    }
+  });
+  /* Store the extended map globally so the languagechange handler can use it */
+  window._adminTabMap = tabMap;
+}());

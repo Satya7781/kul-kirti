@@ -544,3 +544,520 @@ html[lang="hi"] .result-card h3 {
   .search-panel { border-radius: var(--radius-sm); }
   .admin-panel  { border-radius: var(--radius-sm); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GENEALOGY SYSTEM — CSS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. GOTRA DIRECTORY GRID ──────────────────────────────────────────────── */
+.gotra-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.gotra-dir-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  transition: transform var(--transition-base), box-shadow var(--transition-base),
+              border-color var(--transition-fast);
+  border-top: 3px solid transparent;
+}
+.gotra-dir-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-medium);
+  border-top-color: var(--gold);
+}
+.gotra-dir-card h3 {
+  color: var(--maroon);
+  font-size: 22px;
+  margin: 0 0 8px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.gotra-dir-card .gotra-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.gotra-dir-card .gotra-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.gotra-dir-card .gotra-meta b {
+  color: var(--gold);
+  font-weight: 700;
+}
+.gotra-dir-card .gotra-desc {
+  font-size: 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin-bottom: 14px;
+}
+.gotra-dir-card .gotra-link {
+  color: var(--maroon);
+  font-weight: 700;
+  font-size: 13px;
+  border-bottom: 1px solid var(--gold);
+  padding-bottom: 3px;
+}
+
+/* ── 2. GENEALOGY SEARCH FORM ─────────────────────────────────────────────── */
+.genealogy-search-form {
+  display: flex;
+  gap: 8px;
+  max-width: 600px;
+  margin: 0 auto 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.genealogy-search-form:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(196,154,69,.12);
+}
+.genealogy-search-form input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: none;
+  padding: 12px 14px;
+  font: 15px "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+  color: var(--brown);
+}
+.genealogy-search-form .button {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.genealogy-search-results {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── 3. PERSON SEARCH RESULT CARD ────────────────────────────────────────── */
+.person-search-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  animation: resultIn .25s ease both;
+}
+.person-search-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-soft);
+  transform: translateX(2px);
+}
+.person-search-card h4 {
+  color: var(--maroon);
+  font-size: 18px;
+  margin: 0 0 2px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.person-search-card .person-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.person-search-card .person-meta .gen-badge {
+  display: inline-block;
+  background: var(--cream);
+  color: var(--maroon);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-right: 6px;
+}
+
+/* ── 4. PERSON PROFILE LAYOUT ────────────────────────────────────────────── */
+.person-profile-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: var(--shadow-soft);
+}
+.person-profile-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+.person-profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--cream);
+  border: 2px solid var(--gold);
+  display: grid;
+  place-items: center;
+  font: 700 32px "Noto Serif Devanagari", "Playfair Display", serif;
+  color: var(--maroon);
+  flex-shrink: 0;
+}
+.person-profile-info h2 {
+  color: var(--maroon);
+  font-size: 28px;
+  margin: 0 0 6px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.person-profile-info .person-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.person-profile-info .tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  letter-spacing: .04em;
+}
+.person-profile-info .tag.gen {
+  background: var(--gold);
+  color: #fff;
+}
+.person-profile-info .tag.living {
+  background: #dcebd8;
+  color: #285d2e;
+}
+.person-profile-info .tag.deceased {
+  background: var(--cream);
+  color: var(--muted);
+}
+.person-profile-info .tag.gotra {
+  background: var(--maroon);
+  color: #fff;
+}
+
+/* ── 5. RELATIONSHIP SECTIONS ────────────────────────────────────────────── */
+.rel-section {
+  margin-bottom: 24px;
+}
+.rel-section h3 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rel-section h3::before {
+  content: "◆";
+  font-size: 8px;
+  color: var(--gold);
+}
+.rel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.rel-item {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 14px;
+  color: var(--brown);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.rel-item:hover {
+  border-color: var(--gold);
+  box-shadow: 0 2px 8px rgba(196,154,69,.1);
+}
+.rel-item a {
+  color: var(--maroon);
+  font-weight: 600;
+}
+.rel-item .rel-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+.rel-empty {
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ── 6. ANCESTOR / DESCENDANT PATH ───────────────────────────────────────── */
+.ancestor-path, .descendant-path {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+.path-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.path-item .path-gen {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 60px;
+}
+.path-item a {
+  color: var(--maroon);
+  font-weight: 600;
+}
+.path-item .path-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 7. GOTRA DETAIL PAGE ───────────────────────────────────────────────── */
+.gotra-detail-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: var(--shadow-soft);
+}
+.gotra-detail-card h2 {
+  color: var(--maroon);
+  font-size: 30px;
+  margin: 0 0 12px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.gotra-detail-card .gotra-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.gotra-detail-card .gotra-stat {
+  text-align: center;
+}
+.gotra-detail-card .gotra-stat b {
+  display: block;
+  font-size: 24px;
+  color: var(--gold);
+  font-family: "Playfair Display", serif;
+}
+.gotra-detail-card .gotra-stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.gotra-detail-section {
+  margin-bottom: 24px;
+}
+.gotra-detail-section h3 {
+  color: var(--maroon);
+  font-size: 18px;
+  margin: 0 0 10px;
+}
+
+/* ── 8. AUTOCOMPLETE SUGGESTIONS ─────────────────────────────────────────── */
+.autocomplete-suggestions {
+  position: absolute;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-medium);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+  width: calc(100% - 2px);
+  margin-top: 2px;
+}
+.autocomplete-suggestions.show {
+  display: block;
+}
+.autocomplete-suggestions .suggestion-item {
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  transition: background var(--transition-fast);
+}
+.autocomplete-suggestions .suggestion-item:last-child {
+  border-bottom: none;
+}
+.autocomplete-suggestions .suggestion-item:hover {
+  background: var(--cream);
+}
+.autocomplete-suggestions .suggestion-item .sug-name {
+  font-weight: 600;
+  color: var(--maroon);
+}
+.autocomplete-suggestions .suggestion-item .sug-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── 9. GENEALOGY TOOLBAR (admin people search) ──────────────────────────── */
+.genealogy-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.genealogy-toolbar input {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font: 14px "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+  color: var(--brown);
+  outline-color: var(--gold);
+}
+
+/* ── 10. ADMIN PEOPLE LIST ──────────────────────────────────────────────── */
+.admin-people-list {
+  margin-bottom: 16px;
+}
+.admin-person-row {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.admin-person-row:hover {
+  box-shadow: var(--shadow-soft);
+  border-color: rgba(196,154,69,.35);
+}
+.admin-person-row h4 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.admin-person-row .person-info {
+  font-size: 12px;
+  color: var(--muted);
+}
+.admin-person-row .person-info .pubid {
+  font-family: monospace;
+  font-size: 11px;
+  background: var(--cream);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+/* ── 11. PAGINATION ──────────────────────────────────────────────────────── */
+.genealogy-pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.genealogy-pagination button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--maroon);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: 600 12px "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+  transition: background var(--transition-fast);
+}
+.genealogy-pagination button:hover {
+  background: var(--cream);
+}
+.genealogy-pagination button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+/* ── 12. GENEALOGY CONTRIBUTION CARDS (admin review) ─────────────────────── */
+.contrib-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin: 10px 0;
+}
+.contrib-card h4 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+.contrib-card .contrib-type-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  background: var(--cream);
+  color: var(--maroon);
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-left: 6px;
+}
+.contrib-card .contrib-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0;
+}
+
+/* ── 13. RESPONSIVE ──────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .gotra-directory-grid {
+    grid-template-columns: 1fr;
+  }
+  .person-profile-card, .gotra-detail-card {
+    padding: 20px;
+  }
+  .person-profile-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .genealogy-search-form {
+    flex-direction: column;
+    border-radius: var(--radius-sm);
+  }
+  .genealogy-search-form .button {
+    width: 100%;
+  }
+  .rel-list {
+    flex-direction: column;
+  }
+  .gotra-detail-card .gotra-stats {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .person-profile-card, .gotra-detail-card, .gotra-dir-card {
+    border-radius: var(--radius-sm);
+    padding: 16px;
+  }
+  .genealogy-toolbar {
+    flex-direction: column;
+  }
+}
