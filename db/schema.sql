@@ -381,3 +381,8 @@ CREATE TABLE IF NOT EXISTS user_branch_permissions (
 
 CREATE INDEX IF NOT EXISTS user_branch_perms_email_idx ON user_branch_permissions (user_email);
 CREATE INDEX IF NOT EXISTS user_branch_perms_branch_idx ON user_branch_permissions (branch_id);
+
+-- ── 13. LINK gotra_members to people table ─────────────────────────────────
+-- Adds a nullable FK so each gotra_member can reference its full people record.
+ALTER TABLE gotra_members ADD COLUMN IF NOT EXISTS linked_person_id UUID REFERENCES people(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS gotra_members_linked_person_idx ON gotra_members (linked_person_id);

@@ -798,7 +798,7 @@ document.querySelector("#add-gotra-member")?.addEventListener("click", () => {
   renderGotraMembers();
 });
 
-/* Task 5: loadGotras with error handling */
+/* loadGotras — enhanced with expandable per-gotra member management */
 async function loadGotras() {
   const container = document.querySelector("#gotra-list");
   if (!container) return;
@@ -807,20 +807,247 @@ async function loadGotras() {
     const response = await fetch("/api/admin/gotras", { credentials: "include" });
     if (!response.ok) throw new Error(I18n.t("common.sessionExpired"));
     const gotras = (await response.json()).gotras;
-    container.innerHTML = gotras.length
-      ? gotras.map(gotra =>
-          `<article class="admin-submission">
-            <h3>${gotra.name}</h3>
-            <p>${I18n.t("admin.gotraOrigin")}: ${gotra.originPlace || I18n.t("admin.unknownPlace")}
-               · ${I18n.t("admin.gotraFounder")}: ${gotra.founderName || I18n.t("admin.unknownPlace")}</p>
-            <p>${gotra.memberCount} ${I18n.t("admin.memberStatus")}: ${gotra.status}</p>
-            <p>${gotra.sourceReferences || I18n.t("admin.noSourceRef")}</p>
-          </article>`
-        ).join("")
-      : `<div class="admin-empty">${I18n.t("admin.noGotra")}</div>`;
+
+    if (!gotras.length) {
+      container.innerHTML = `<div class="admin-empty">${I18n.t("admin.noGotra")}</div>`;
+      return;
+    }
+
+    container.innerHTML = gotras.map(gotra => `
+      <div class="gotra-mgmt-card" data-gotra-id="${gotra.id}">
+        <div class="gotra-mgmt-header">
+          <div>
+            <h4>${gotra.name}</h4>
+            <div class="gmh-meta">
+              ${gotra.originPlace ? gotra.originPlace + " · " : ""}${gotra.status}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="gmh-count">${gotra.memberCount} सदस्य</span>
+            <span class="gmh-toggle">▼</span>
+          </div>
+        </div>
+        <div class="gotra-mgmt-body">
+          <div class="gotra-members-container">
+            <p style="font-size:13px;color:var(--muted)">खोलें और सदस्य देखें...</p>
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+    container.querySelectorAll(".gotra-mgmt-header").forEach(header => {
+      header.addEventListener("click", async () => {
+        const card = header.closest(".gotra-mgmt-card");
+        const gotraId = card.dataset.gotraId;
+        const wasOpen = card.classList.contains("open");
+        card.classList.toggle("open");
+        if (!wasOpen) await _loadGotraMembersPanel(card, gotraId);
+      });
+    });
   } catch (err) {
     _showAdminError(err.message);
   }
+}
+
+async function _loadGotraMembersPanel(card, gotraId) {
+  const bodyEl = card.querySelector(".gotra-mgmt-body");
+  const membersContainer = card.querySelector(".gotra-members-container");
+  try {
+    const res = await fetch(`/api/admin/gotras/${gotraId}/members`, { credentials: "include" });
+    if (!res.ok) throw new Error(I18n.t("common.error"));
+    const { members } = await res.json();
+
+    const tableRows = members.length
+      ? members.map(m => `
+          <tr>
+            <td>${m.personName}${m.personId ? '<span class="linked-badge">✓</span>' : ""}</td>
+            <td>${m.relationOrRole || "—"}</td>
+            <td>${[m.village, m.district, m.state].filter(Boolean).join(", ") || "—"}</td>
+            <td>${m.isLiving === false ? "स्वर्गी" : "जीवित"}</td>
+            <td>${m.publicId ? `<a class="profile-link" href="/vanshawali.html?person=${m.publicId}" target="_blank">प्रोफ़ाइल ↗</a>` : "—"}</td>
+          </tr>`)
+        .join("")
+      : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px">अभी कोई सदस्य नहीं</td></tr>`;
+
+    membersContainer.innerHTML = `
+      <table class="gotra-member-table">
+        <thead><tr><th>नाम</th><th>भूमिका</th><th>स्थान</th><th>स्थिति</th><th>प्रोफ़ाइल</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+      <div class="add-member-panel">
+        <div class="add-member-panel-tabs">
+          <button class="amp-tab active" data-amp-tab="new-member">+ नया सदस्य</button>
+          <button class="amp-tab" data-amp-tab="link-existing">मौजूदा व्यक्ति जोड़ें</button>
+        </div>
+        <div class="amp-panel active" data-amp-panel="new-member">
+          <form class="add-gotra-member-form">
+            <div class="form-row">
+              <label>पूरा नाम *<input name="personName" required maxlength="120" placeholder="जैसे: मोहन सिंह"></label>
+              <label>भूमिका / संबंध<input name="relationOrRole" maxlength="120" placeholder="संस्थापक, सदस्य..."></label>
+            </div>
+            <div class="form-row">
+              <label>गांव<input name="village" maxlength="120"></label>
+              <label>जिला<input name="district" maxlength="120"></label>
+            </div>
+            <div class="form-row">
+              <label>राज्य<input name="state" maxlength="120"></label>
+              <label>जीवित?<select name="isLiving"><option value="true">हां</option><option value="false">नहीं</option></select></label>
+            </div>
+            <div class="form-row">
+              <label style="position:relative">पिता (खोजें)
+                <input class="gm-parent-search" type="text" autocomplete="off" placeholder="नाम लिखकर खोजें...">
+                <input type="hidden" name="fatherId" class="gm-parent-id">
+                <div class="autocomplete-suggestions"></div>
+              </label>
+              <label style="position:relative">माता (खोजें)
+                <input class="gm-parent-search" type="text" autocomplete="off" placeholder="नाम लिखकर खोजें...">
+                <input type="hidden" name="motherId" class="gm-parent-id">
+                <div class="autocomplete-suggestions"></div>
+              </label>
+            </div>
+            <label>नोट्स<input name="notes" maxlength="300"></label>
+            <div style="margin-top:12px"><button class="button button-maroon" type="submit">सदस्य जोड़ें →</button></div>
+            <p class="form-message" role="status"></p>
+          </form>
+        </div>
+        <div class="amp-panel" data-amp-panel="link-existing">
+          <form class="link-gotra-person-form">
+            <label style="position:relative">मौजूदा व्यक्ति खोजें *
+              <input class="gm-parent-search" type="text" autocomplete="off" placeholder="नाम लिखकर खोजें...">
+              <input type="hidden" name="personId" class="gm-parent-id">
+              <div class="autocomplete-suggestions"></div>
+            </label>
+            <label style="margin-top:12px">भूमिका / संबंध<input name="relationOrRole" maxlength="120"></label>
+            <div style="margin-top:12px"><button class="button button-maroon" type="submit">जोड़ें →</button></div>
+            <p class="form-message" role="status"></p>
+          </form>
+        </div>
+      </div>
+    `;
+
+    /* Inner tab switching */
+    bodyEl.querySelectorAll(".amp-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        bodyEl.querySelectorAll(".amp-tab").forEach(t => t.classList.remove("active"));
+        bodyEl.querySelectorAll(".amp-panel").forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        bodyEl.querySelector(`[data-amp-panel="${tab.dataset.ampTab}"]`)?.classList.add("active");
+      });
+    });
+
+    /* Autocomplete for all parent-search inputs inside this panel */
+    bodyEl.querySelectorAll(".gm-parent-search").forEach(input => _wireGmAutocomplete(input));
+
+    /* New member form */
+    const addForm = bodyEl.querySelector(".add-gotra-member-form");
+    _wireGmAddForm(addForm, gotraId, card);
+
+    /* Link existing person form */
+    const linkForm = bodyEl.querySelector(".link-gotra-person-form");
+    _wireGmLinkForm(linkForm, gotraId, card);
+
+  } catch (err) {
+    if (membersContainer) membersContainer.innerHTML = `<p style="color:#842d2d;font-size:13px">${err.message}</p>`;
+  }
+}
+
+function _wireGmAutocomplete(input) {
+  const label = input.closest("label");
+  const suggestionsEl = label?.querySelector(".autocomplete-suggestions");
+  const hiddenId = label?.querySelector(".gm-parent-id");
+  if (!suggestionsEl) return;
+  let timer;
+  input.addEventListener("input", () => {
+    if (hiddenId) hiddenId.value = "";
+    clearTimeout(timer);
+    const query = input.value.trim();
+    if (query.length < 2) { suggestionsEl.classList.remove("show"); return; }
+    timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/people/search?q=${encodeURIComponent(query)}`, { credentials: "include" });
+        if (!res.ok) return;
+        const { people } = await res.json();
+        if (!people.length) { suggestionsEl.classList.remove("show"); return; }
+        suggestionsEl.innerHTML = people.map(p =>
+          `<div class="suggestion-item" data-id="${p.id}" data-name="${p.fullName}">
+            <div class="sug-name">${p.fullName}</div>
+            <div class="sug-meta">${p.birthYear || ""} ${p.village ? "· " + p.village : ""}</div>
+          </div>`
+        ).join("");
+        suggestionsEl.classList.add("show");
+        suggestionsEl.querySelectorAll(".suggestion-item").forEach(item =>
+          item.addEventListener("click", () => {
+            if (hiddenId) hiddenId.value = item.dataset.id;
+            input.value = item.dataset.name;
+            suggestionsEl.classList.remove("show");
+          })
+        );
+      } catch (_) { /* silent */ }
+    }, 300);
+  });
+  document.addEventListener("click", e => {
+    if (!input.contains(e.target)) suggestionsEl.classList.remove("show");
+  }, { passive: true });
+}
+
+function _wireGmAddForm(form, gotraId, card) {
+  if (!form) return;
+  let busy = false;
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (busy) return;
+    busy = true;
+    const btn = form.querySelector("[type=submit]");
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+    const msgEl = form.querySelector(".form-message");
+    const data = Object.fromEntries(new FormData(form));
+    try {
+      const res = await fetch(`/api/admin/gotras/${gotraId}/members`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (msgEl) { msgEl.textContent = res.ok ? result.message : result.error; msgEl.classList.toggle("error", !res.ok); }
+      if (res.ok) { form.reset(); await _loadGotraMembersPanel(card, gotraId); loadGotras(); }
+    } catch (err) {
+      if (msgEl) { msgEl.textContent = I18n.t("common.error"); msgEl.classList.add("error"); }
+    } finally {
+      busy = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
+  });
+}
+
+function _wireGmLinkForm(form, gotraId, card) {
+  if (!form) return;
+  let busy = false;
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (busy) return;
+    busy = true;
+    const btn = form.querySelector("[type=submit]");
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+    const msgEl = form.querySelector(".form-message");
+    const data = Object.fromEntries(new FormData(form));
+    try {
+      const res = await fetch(`/api/admin/gotras/${gotraId}/link-person`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (msgEl) { msgEl.textContent = res.ok ? result.message : result.error; msgEl.classList.toggle("error", !res.ok); }
+      if (res.ok) { form.reset(); await _loadGotraMembersPanel(card, gotraId); loadGotras(); }
+    } catch (err) {
+      if (msgEl) { msgEl.textContent = I18n.t("common.error"); msgEl.classList.add("error"); }
+    } finally {
+      busy = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
+  });
 }
 
 /* Task 4: gotra form duplicate-submit prevention */

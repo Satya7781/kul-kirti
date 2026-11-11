@@ -149,6 +149,170 @@ app.get("/api/admin/gotras", auth, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+// ── Admin: get members of a specific gotra ─────────────────────────────────
+app.get("/api/admin/gotras/:id/members", auth, async (request, response, next) => {
+  try {
+    // Combined view: gotra_members + linked people records
+    const gotraResult = await pool.query(
+      `SELECT id, name, origin_place AS "originPlace", status FROM gotras WHERE id = $1`,
+      [request.params.id]
+    );
+    if (!gotraResult.rows[0]) return response.status(404).json({ error: "Gotra not found." });
+
+    const members = await pool.query(
+      `SELECT
+         m.id, m.person_name AS "personName", m.relation_or_role AS "relationOrRole",
+         m.village, m.district, m.state, m.notes, m.created_at AS "createdAt",
+         p.id AS "personId", p.public_id AS "publicId", p.is_living AS "isLiving",
+         p.visibility, p.status AS "personStatus"
+       FROM gotra_members m
+       LEFT JOIN people p ON p.id = m.linked_person_id
+       WHERE m.gotra_id = $1
+       ORDER BY m.person_name`,
+      [request.params.id]
+    );
+    response.json({ gotra: gotraResult.rows[0], members: members.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: add a member to an existing gotra ──────────────────────────────
+// Creates a gotra_members record AND a linked people record so the person
+// appears in the full genealogy system properly connected to the gotra.
+app.post("/api/admin/gotras/:id/members", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const personName = clean(input.personName, 120);
+    if (!personName) return response.status(400).json({
+      error: msg(request, "नाम आवश्यक है।", "Name is required.")
+    });
+
+    // Validate gotra exists
+    const gotraCheck = await client.query("SELECT id, name FROM gotras WHERE id = $1", [request.params.id]);
+    if (!gotraCheck.rows[0]) return response.status(404).json({ error: "Gotra not found." });
+
+    await client.query("BEGIN");
+
+    // 1. Create person in the people table (links to full genealogy)
+    const isLiving = input.isLiving === "false" || input.isLiving === false ? false : true;
+    const personResult = await client.query(
+      `INSERT INTO people
+         (full_name, village, district, state, is_living, status, visibility, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, 'verified', 'public', $6, $6)
+       RETURNING id, public_id`,
+      [personName, clean(input.village, 120), clean(input.district, 120),
+       clean(input.state, 120), isLiving, request.admin.id]
+    );
+    const personId = personResult.rows[0].id;
+
+    // 2. Add to gotra_members with linked_person_id
+    const memberResult = await client.query(
+      `INSERT INTO gotra_members
+         (gotra_id, person_name, relation_or_role, village, district, state, notes, linked_person_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id`,
+      [request.params.id, personName, clean(input.relationOrRole, 120),
+       clean(input.village, 120), clean(input.district, 120),
+       clean(input.state, 120), clean(input.notes, 300), personId]
+    );
+
+    // 3. Link person to gotra in person_gotra_links
+    await client.query(
+      `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+      [personId, request.params.id, input.branchId || null, input.isRoot === true]
+    );
+
+    // 4. If father/mother provided, link parent relationships
+    if (input.fatherId) {
+      const fValidation = await genealogy.validateRelationship(pool, input.fatherId, personId, "biological");
+      if (fValidation.valid) {
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+           VALUES ($1, $2, 'biological', 'verified', $3, $3) ON CONFLICT DO NOTHING`,
+          [input.fatherId, personId, request.admin.id]
+        );
+      }
+    }
+    if (input.motherId) {
+      const mValidation = await genealogy.validateRelationship(pool, input.motherId, personId, "biological");
+      if (mValidation.valid) {
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+           VALUES ($1, $2, 'biological', 'verified', $3, $3) ON CONFLICT DO NOTHING`,
+          [input.motherId, personId, request.admin.id]
+        );
+      }
+    }
+
+    await genealogy.logAudit(pool, request.admin.id, "add_gotra_member", "gotra_member", memberResult.rows[0].id,
+      { gotraId: request.params.id, personName, personId });
+    await client.query("COMMIT");
+
+    response.status(201).json({
+      memberId: memberResult.rows[0].id,
+      personId,
+      publicId: personResult.rows[0].public_id,
+      message: msg(request,
+        `${personName} को गोत्र में जोड़ा गया।`,
+        `${personName} has been added to the Gotra.`)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: link existing person to a gotra ────────────────────────────────
+app.post("/api/admin/gotras/:id/link-person", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    const personId = clean(input.personId, 80);
+    if (!personId) return response.status(400).json({ error: "personId required." });
+
+    const personCheck = await client.query("SELECT id, full_name FROM people WHERE id = $1", [personId]);
+    if (!personCheck.rows[0]) return response.status(404).json({ error: "Person not found." });
+
+    const gotraCheck = await client.query("SELECT id FROM gotras WHERE id = $1", [request.params.id]);
+    if (!gotraCheck.rows[0]) return response.status(404).json({ error: "Gotra not found." });
+
+    await client.query("BEGIN");
+
+    // Add to gotra_members
+    await client.query(
+      `INSERT INTO gotra_members (gotra_id, person_name, relation_or_role, village, district, state, linked_person_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT DO NOTHING`,
+      [request.params.id, personCheck.rows[0].full_name, clean(input.relationOrRole, 120),
+       clean(input.village, 120), clean(input.district, 120), clean(input.state, 120), personId]
+    );
+
+    // Add to person_gotra_links
+    await client.query(
+      `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+       VALUES ($1, $2, $3, false)
+       ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+      [personId, request.params.id, input.branchId || null]
+    );
+
+    await client.query("COMMIT");
+    response.json({
+      message: msg(request,
+        `व्यक्ति को गोत्र से जोड़ा गया।`,
+        `Person linked to Gotra.`)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
 app.post("/api/admin/gotras", auth, async (request, response, next) => {
   const client = await pool.connect();
   try {
