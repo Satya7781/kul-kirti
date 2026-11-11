@@ -1061,3 +1061,338 @@ html[lang="hi"] .result-card h3 {
     flex-direction: column;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VANSHAWALI ENHANCEMENT CSS — Dashboard, Import, Tree, Villages
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. DASHBOARD GRID ───────────────────────────────────────────────────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin-bottom: 30px;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+  border-top: 3px solid transparent;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-fast);
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+  border-top-color: var(--gold);
+}
+.stat-card .stat-value {
+  font: 700 28px/1 "Playfair Display", "Noto Serif Devanagari", serif;
+  color: var(--maroon);
+}
+.stat-card .stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-family: "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+}
+.dashboard-recent-title {
+  color: var(--maroon);
+  font-size: 18px;
+  margin: 24px 0 12px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+
+/* ── 2. IMPORT UI ─────────────────────────────────────────────────────────── */
+.import-section {
+  margin-bottom: 20px;
+}
+.import-section h3 {
+  color: var(--maroon);
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.import-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.import-upload-area {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.import-upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  background: var(--ivory);
+  transition: border-color var(--transition-fast);
+}
+.import-upload-label:hover {
+  border-color: var(--gold);
+}
+.import-upload-label input[type="file"] {
+  display: none;
+}
+
+.import-summary {
+  background: var(--cream);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--maroon);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.import-summary .badge-valid {
+  color: #285d2e;
+  background: #dcebd8;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  margin-left: 6px;
+}
+.import-summary .badge-invalid {
+  color: #842d2d;
+  background: #f7dede;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.import-preview-area {
+  margin-top: 20px;
+}
+.import-preview-table-wrap {
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.import-preview-table th {
+  background: var(--ivory);
+  color: var(--maroon);
+  font-weight: 600;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.import-preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--brown);
+  font-size: 12px;
+}
+.import-preview-table tr.row-invalid {
+  background: rgba(247,222,222,.3);
+}
+.import-preview-table tr.row-invalid td:first-child::before {
+  content: "✗";
+  color: #842d2d;
+  font-weight: 700;
+  margin-right: 4px;
+}
+.import-preview-table tr.row-valid td:first-child::before {
+  content: "✓";
+  color: #285d2e;
+  font-weight: 700;
+  margin-right: 4px;
+}
+.import-preview-table .cell-errors {
+  color: #842d2d;
+  font-size: 11px;
+}
+
+/* ── 3. INTERACTIVE FAMILY TREE ──────────────────────────────────────────── */
+.tree-section-title {
+  color: var(--maroon);
+  font-size: 20px;
+  margin: 30px 0 16px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.family-tree-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--ivory);
+  overflow: auto;
+  padding: 20px;
+}
+.tree-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.tree-svg line {
+  stroke: var(--gold);
+  stroke-width: 1.5;
+  opacity: .6;
+}
+.tree-nodes-layer {
+  position: relative;
+  z-index: 1;
+}
+.tree-node-card {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 4px;
+  min-width: 140px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  position: absolute;
+}
+.tree-node-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-2px);
+  z-index: 2;
+}
+.tree-node-card.selected {
+  border-color: var(--maroon);
+  box-shadow: 0 0 0 2px rgba(109,23,37,.15);
+}
+.tree-node-card .node-name {
+  font-weight: 600;
+  color: var(--maroon);
+  font-size: 13px;
+  font-family: "Noto Sans Devanagari", "Source Sans 3", sans-serif;
+}
+.tree-node-card .node-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.tree-node-card .node-gen {
+  display: inline-block;
+  font-size: 10px;
+  background: var(--cream);
+  color: var(--maroon);
+  padding: 1px 6px;
+  border-radius: 99px;
+  margin-top: 4px;
+}
+.tree-node-card .node-expand-btn {
+  display: block;
+  margin: 4px auto 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.tree-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.tree-controls .button {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* ── 4. VILLAGE GRID ──────────────────────────────────────────────────────── */
+.village-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.village-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  border-left: 3px solid var(--gold);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.village-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+.village-card h4 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 4px;
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+}
+.village-card .village-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.village-card .village-count {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 18px;
+  font-family: "Playfair Display", serif;
+}
+
+/* ── 5. BRANCH MANAGEMENT ────────────────────────────────────────────────── */
+.branch-mgmt-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: box-shadow var(--transition-fast);
+}
+.branch-mgmt-card:hover {
+  box-shadow: var(--shadow-soft);
+}
+.branch-mgmt-card h4 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 2px;
+}
+.branch-mgmt-card .branch-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── 6. RESPONSIVE ──────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .dashboard-grid { grid-template-columns: 1fr 1fr; }
+  .village-grid { grid-template-columns: 1fr; }
+  .import-preview-table { font-size: 11px; }
+  .import-preview-table th, .import-preview-table td { padding: 4px 6px; }
+  .tree-controls { flex-direction: column; align-items: stretch; }
+  .tree-controls .button { width: 100%; }
+}
+@media (max-width: 480px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .import-upload-area { flex-direction: column; align-items: stretch; }
+  .import-upload-label { justify-content: center; }
+}

@@ -1583,3 +1583,493 @@ adminFamilyForm?.addEventListener("submit", async e => {
   /* Store the extended map globally so the languagechange handler can use it */
   window._adminTabMap = tabMap;
 }());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. ADMIN DASHBOARD
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initAdminDashboard() {
+  const statsContainer = document.querySelector("#dashboard-stats");
+  const recentContainer = document.querySelector("#dashboard-recent-people");
+  if (!statsContainer) return;
+
+  async function loadDashboard() {
+    try {
+      const res = await fetch("/api/vanshawali/stats", { credentials: "include" });
+      if (!res.ok) throw new Error(I18n.t("common.sessionExpired"));
+      const data = await res.json();
+
+      statsContainer.innerHTML = [
+        { label: "statTotalPeople", value: data.totalPeople },
+        { label: "statVillages", value: data.totalVillages },
+        { label: "statBranches", value: data.totalBranches },
+        { label: "statRelationships", value: data.totalRelationships },
+        { label: "statPending", value: data.pendingSubmissions },
+      ].map(s => `
+        <div class="stat-card">
+          <div class="stat-value">${s.value}</div>
+          <div class="stat-label">${I18n.t("genealogy." + s.label)}</div>
+        </div>
+      `).join("");
+
+      if (recentContainer && data.recentPeople?.length) {
+        recentContainer.innerHTML = data.recentPeople.map(p => `
+          <div class="admin-person-row">
+            <div>
+              <h4>${p.fullName}</h4>
+              <div class="person-info">
+                <span class="pubid">${p.publicId}</span>
+                ${p.village ? " · " + p.village : ""}
+              </div>
+            </div>
+          </div>
+        `).join("");
+      } else if (recentContainer) {
+        recentContainer.innerHTML = `<div class="admin-empty">${I18n.t("admin.noPeople")}</div>`;
+      }
+    } catch (err) {
+      _showAdminError(err.message);
+    }
+  }
+
+  document.querySelectorAll(".admin-tab[data-admin-view='dashboard']").forEach(tab => {
+    tab.addEventListener("click", loadDashboard);
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. CSV IMPORT — file upload, preview, commit
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initCsvImport() {
+  const fileInput = document.querySelector("#import-file-input");
+  const previewBtn = document.querySelector("#import-preview-btn");
+  const commitBtn = document.querySelector("#import-commit-btn");
+  const cancelBtn = document.querySelector("#import-cancel-btn");
+  const previewArea = document.querySelector("#import-preview-area");
+  const previewTbody = document.querySelector("#import-preview-tbody");
+  const summaryEl = document.querySelector("#import-summary");
+  const messageEl = document.querySelector("#import-preview-message");
+  if (!fileInput) return;
+
+  let csvText = "";
+  let currentJobId = null;
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) { previewBtn.disabled = true; return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      csvText = e.target.result;
+      previewBtn.disabled = false;
+      if (messageEl) { messageEl.textContent = file.name; messageEl.classList.remove("error"); }
+    };
+    reader.readAsText(file);
+  });
+
+  previewBtn?.addEventListener("click", async () => {
+    if (!csvText.trim()) {
+      if (messageEl) { messageEl.textContent = I18n.t("genealogy.importNoFile"); messageEl.classList.add("error"); }
+      return;
+    }
+    previewBtn.disabled = true;
+    previewBtn.textContent = I18n.t("common.loading");
+    try {
+      const res = await fetch("/api/admin/vanshawali/import/preview", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ csv: csvText, filename: fileInput.files[0]?.name || "upload.csv" }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+
+      currentJobId = result.jobId;
+      previewArea.hidden = false;
+
+      summaryEl.innerHTML = I18n.t("genealogy.importSummary", {
+        total: result.summary.total, valid: result.summary.valid, invalid: result.summary.invalid,
+      }).replace(/\{valid\}/, `<span class="badge-valid">${result.summary.valid}</span>`)
+        .replace(/\{invalid\}/, `<span class="badge-invalid">${result.summary.invalid}</span>`);
+
+      const allRows = [
+        ...result.validRows.map(r => ({ ...r, isValid: true })),
+        ...result.invalidRows.map(r => ({ ...r, isValid: false })),
+      ].sort((a, b) => a.row - b.row);
+
+      previewTbody.innerHTML = allRows.map(r => `
+        <tr class="${r.isValid ? "row-valid" : "row-invalid"}">
+          <td>${r.row}</td>
+          <td>${r.external_id || ""}</td>
+          <td>${r.full_name || ""}</td>
+          <td>${r.father_external_id || ""}</td>
+          <td>${r.mother_external_id || ""}</td>
+          <td>${r.village || ""}</td>
+          <td>${r.isValid ? I18n.t("genealogy.importValid") : I18n.t("genealogy.importInvalid")}</td>
+          <td class="cell-errors">${r.errors ? r.errors.join("; ") : ""}</td>
+        </tr>
+      `).join("");
+
+      commitBtn.disabled = result.summary.valid === 0;
+    } catch (err) {
+      if (messageEl) { messageEl.textContent = err.message; messageEl.classList.add("error"); }
+    } finally {
+      previewBtn.disabled = false;
+      previewBtn.textContent = I18n.t("genealogy.previewBtn");
+    }
+  });
+
+  commitBtn?.addEventListener("click", async () => {
+    if (!currentJobId) return;
+    commitBtn.disabled = true;
+    commitBtn.textContent = I18n.t("common.loading");
+    try {
+      const res = await fetch("/api/admin/vanshawali/import/commit", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: currentJobId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error);
+      if (messageEl) { messageEl.textContent = result.message; messageEl.classList.remove("error"); }
+      previewArea.hidden = true;
+      currentJobId = null;
+      fileInput.value = "";
+      previewBtn.disabled = true;
+    } catch (err) {
+      if (messageEl) { messageEl.textContent = err.message; messageEl.classList.add("error"); }
+    } finally {
+      commitBtn.disabled = false;
+      commitBtn.textContent = I18n.t("genealogy.commitImport");
+    }
+  });
+
+  cancelBtn?.addEventListener("click", () => {
+    previewArea.hidden = true;
+    currentJobId = null;
+    if (messageEl) messageEl.textContent = "";
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. BRANCH MANAGEMENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initBranchManagement() {
+  const branchForm = document.querySelector("#branch-form");
+  const branchList = document.querySelector("#branch-list");
+  const branchGotraSelect = document.querySelector("#branch-gotra-select");
+  const branchFormMessage = document.querySelector("#branch-form-message");
+  if (!branchForm && !branchList) return;
+
+  async function loadBranchesForMgmt() {
+    if (!branchList) return;
+    try {
+      const res = await fetch("/api/vanshawali/branches", { credentials: "include" });
+      if (!res.ok) return;
+      const { branches } = await res.json();
+      if (!branches.length) {
+        branchList.innerHTML = `<div class="admin-empty">${I18n.t("genealogy.noBranchesMgmt")}</div>`;
+        return;
+      }
+      branchList.innerHTML = branches.map(b => `
+        <div class="branch-mgmt-card">
+          <div>
+            <h4>${b.name}</h4>
+            <div class="branch-meta">
+              ${b.gotraName || ""} · ${b.personCount || 0} ${I18n.t("genealogy.branchPersonCount")}
+              ${b.description ? " · " + b.description : ""}
+            </div>
+          </div>
+        </div>
+      `).join("");
+    } catch (_) { /* silent */ }
+  }
+
+  async function loadGotrasForBranchForm() {
+    if (!branchGotraSelect) return;
+    try {
+      const res = await fetch("/api/admin/gotras", { credentials: "include" });
+      if (!res.ok) return;
+      const { gotras } = await res.json();
+      branchGotraSelect.innerHTML = `<option value="">—</option>` +
+        gotras.map(g => `<option value="${g.id}">${g.name}</option>`).join("");
+    } catch (_) { /* silent */ }
+  }
+
+  let branchSubmitting = false;
+  branchForm?.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (branchSubmitting) return;
+    branchSubmitting = true;
+    const btn = branchForm.querySelector("[type=submit]");
+    const origText = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+
+    const formData = Object.fromEntries(new FormData(branchForm));
+    try {
+      const res = await fetch("/api/admin/branches", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const result = await res.json();
+      if (branchFormMessage) {
+        branchFormMessage.textContent = res.ok ? result.message : result.error;
+        branchFormMessage.classList.toggle("error", !res.ok);
+      }
+      if (res.ok) { branchForm.reset(); loadBranchesForMgmt(); }
+    } catch (err) {
+      if (branchFormMessage) { branchFormMessage.textContent = I18n.t("common.error"); branchFormMessage.classList.add("error"); }
+    } finally {
+      branchSubmitting = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  });
+
+  document.querySelectorAll(".admin-tab[data-admin-view='branch-mgmt']").forEach(tab => {
+    tab.addEventListener("click", () => {
+      loadBranchesForMgmt();
+      loadGotrasForBranchForm();
+    });
+  });
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   15. INTERACTIVE FAMILY TREE RENDERER
+   ═══════════════════════════════════════════════════════════════════════════
+   SVG-based tree with expand/collapse and lazy loading.
+   Renders on vanshawali.html when ?person=PUBLICID is present.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initFamilyTree() {
+  const treeSection = document.querySelector("#person-tree-section");
+  const canvas = document.querySelector("#family-tree-canvas");
+  const svg = document.querySelector("#tree-svg");
+  const nodesLayer = document.querySelector("#tree-nodes-layer");
+  const expandAllBtn = document.querySelector("#tree-expand-all");
+  const collapseAllBtn = document.querySelector("#tree-collapse-all");
+  const printBtn = document.querySelector("#tree-print");
+  if (!treeSection || !canvas) return;
+
+  const NODE_W = 160;
+  const NODE_H = 60;
+  const GAP_Y = 80;
+  const GAP_X = 20;
+  const expandedNodes = new Set();
+  let treeData = null;
+  let layoutNodes = [];
+
+  async function loadChildren(personId) {
+    try {
+      const res = await fetch(`/api/genealogy/people/${personId}/tree`);
+      if (!res.ok) return [];
+      const { tree } = await res.json();
+      return tree?.children || [];
+    } catch (_) { return []; }
+  }
+
+  function buildLayout(node, depth, leftStart) {
+    const children = expandedNodes.has(node.publicId || node.id)
+      ? (node.children || [])
+      : [];
+    const childWidths = children.length
+      ? children.map(c => buildLayout(c, depth + 1, leftStart))
+      : [NODE_W + GAP_X];
+
+    const totalWidth = childWidths.reduce((a, b) => a + b, 0) || NODE_W + GAP_X;
+    const nodeLeft = leftStart + (totalWidth - NODE_W - GAP_X) / 2;
+
+    layoutNodes.push({
+      ...node,
+      _depth: depth,
+      _left: nodeLeft,
+      _top: depth * (NODE_H + GAP_Y) + 20,
+      _width: totalWidth,
+      _hasChildren: (node.children && node.children.length > 0) ||
+                    (node._loadedChildren && node._loadedChildren.length > 0),
+      _expanded: expandedNodes.has(node.publicId || node.id),
+    });
+
+    let childLeft = leftStart;
+    children.forEach((child, i) => {
+      buildLayout(child, depth + 1, childLeft);
+      childLeft += childWidths[i];
+    });
+
+    return totalWidth;
+  }
+
+  function renderTree(rootPerson) {
+    layoutNodes = [];
+    buildLayout(rootPerson, 0, 0);
+
+    const totalWidth = layoutNodes.reduce((max, n) => Math.max(max, n._left + NODE_W + GAP_X), 0);
+    const totalHeight = layoutNodes.reduce((max, n) => Math.max(max, n._top + NODE_H + 20), 0);
+
+    canvas.style.width = Math.max(totalWidth, canvas.clientWidth) + "px";
+    canvas.style.height = totalHeight + "px";
+    svg.setAttribute("width", totalWidth);
+    svg.setAttribute("height", totalHeight);
+    svg.innerHTML = "";
+
+    /* Draw connector lines parent → child */
+    layoutNodes.forEach(node => {
+      if (!expandedNodes.has(node.publicId || node.id)) return;
+      const children = layoutNodes.filter(n =>
+        n._depth === node._depth + 1 &&
+        n._left >= node._left - 50 && n._left <= node._left + node._width
+      );
+      children.forEach(child => {
+        const x1 = node._left + NODE_W / 2;
+        const y1 = node._top + NODE_H;
+        const x2 = child._left + NODE_W / 2;
+        const y2 = child._top;
+        const midY = (y1 + y2) / 2;
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M${x1},${y1} L${x1},${midY} L${x2},${midY} L${x2},${y2}`);
+        path.setAttribute("stroke", "#c49a45");
+        path.setAttribute("stroke-width", "1.5");
+        path.setAttribute("fill", "none");
+        path.setAttribute("opacity", "0.5");
+        svg.appendChild(path);
+      });
+    });
+
+    /* Render node cards */
+    nodesLayer.innerHTML = "";
+    nodesLayer.style.position = "relative";
+    nodesLayer.style.width = totalWidth + "px";
+    nodesLayer.style.height = totalHeight + "px";
+
+    layoutNodes.forEach(node => {
+      const card = document.createElement("div");
+      card.className = "tree-node-card";
+      card.style.left = node._left + "px";
+      card.style.top = node._top + "px";
+      card.style.width = NODE_W + "px";
+      if (node._depth === 0) card.classList.add("selected");
+
+      const genLabel = node._depth === 0
+        ? I18n.t("genealogy.treeRoot")
+        : `${I18n.t("genealogy.generation")} ${node._depth + 1}`;
+
+      card.innerHTML = `
+        <div class="node-name">${node.fullName || "?"}</div>
+        <div class="node-meta">${node.village || ""}</div>
+        <span class="node-gen">${genLabel}</span>
+        ${node._hasChildren ? `<button class="node-expand-btn">${node._expanded ? "−" : "+"}</button>` : ""}
+      `;
+
+      card.addEventListener("click", async () => {
+        if (node.publicId) {
+          window.location.href = `/vanshawali.html?person=${node.publicId}`;
+        }
+      });
+
+      const expandBtn = card.querySelector(".node-expand-btn");
+      if (expandBtn) {
+        expandBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const nodeId = node.publicId || node.id;
+          if (expandedNodes.has(nodeId)) {
+            expandedNodes.delete(nodeId);
+          } else {
+            expandedNodes.add(nodeId);
+            if (!node.children || node.children.length === 0) {
+              node.children = await loadChildren(node.publicId);
+              if (!node.children.length) {
+                expandedNodes.delete(nodeId);
+                return;
+              }
+            }
+          }
+          renderTree(treeData);
+        });
+      }
+
+      nodesLayer.appendChild(card);
+    });
+  }
+
+  /* Init: fetch the root person tree and render */
+  const personId = new URLSearchParams(location.search).get("person");
+  if (personId) {
+    treeSection.hidden = false;
+    fetch(`/api/genealogy/people/${personId}/tree`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data || !data.tree) return;
+        treeData = data.tree.person;
+        treeData.publicId = treeData.public_id || personId;
+        /* Pre-populate children from tree response */
+        treeData.children = (data.tree.children || []).map(c => ({
+          ...c,
+          publicId: c.public_id || c.publicId,
+          children: [],
+        }));
+        renderTree(treeData);
+      })
+      .catch(() => { /* silent */ });
+  }
+
+  expandAllBtn?.addEventListener("click", () => {
+    layoutNodes.forEach(n => { if (n._hasChildren) expandedNodes.add(n.publicId || n.id); });
+    renderTree(treeData);
+  });
+  collapseAllBtn?.addEventListener("click", () => {
+    expandedNodes.clear();
+    renderTree(treeData);
+  });
+  printBtn?.addEventListener("click", () => window.print());
+}());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   16. VILLAGE DIRECTORY (public)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function initVillageDirectory() {
+  const villageGrid = document.querySelector("#village-directory");
+  if (!villageGrid) return;
+
+  fetch("/api/vanshawali/villages")
+    .then(res => res.ok ? res.json() : { villages: [] })
+    .then(({ villages }) => {
+      if (!villages.length) {
+        villageGrid.innerHTML = `<div class="empty-state"><p>${I18n.t("genealogy.noVillages")}</p></div>`;
+        return;
+      }
+      villageGrid.innerHTML = villages.map(v => `
+        <div class="village-card">
+          <h4>${v.village}</h4>
+          <div class="village-meta">${v.district || ""} ${v.state ? "· " + v.state : ""}</div>
+          <div class="village-count">${v.personCount}</div>
+          <div class="village-meta">${I18n.t("genealogy.villagePeople")}</div>
+        </div>
+      `).join("");
+    })
+    .catch(() => { villageGrid.innerHTML = `<div class="empty-state"><p>${I18n.t("common.error")}</p></div>`; });
+}());
+
+/* ── Extend the tab map for new admin tabs ───────────────────────────────── */
+(function extendTabMap2() {
+  if (window._adminTabMap) {
+    window._adminTabMap.dashboard = "genealogy.tabDashboard";
+    window._adminTabMap.import = "genealogy.tabImport";
+    window._adminTabMap["branch-mgmt"] = "genealogy.tabBranchMgmt";
+  }
+  /* Wire ARIA for new tabs */
+  document.querySelectorAll(
+    ".admin-tab[data-admin-view='dashboard'], .admin-tab[data-admin-view='import'], .admin-tab[data-admin-view='branch-mgmt']"
+  ).forEach(tab => {
+    tab.setAttribute("role", "tab");
+    _syncTabAria(tab);
+    const panelId = `admin-${tab.dataset.adminView}`;
+    tab.setAttribute("aria-controls", panelId);
+    const panel = document.querySelector(`#admin-${tab.dataset.adminView}`);
+    if (panel) {
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", `tab-${tab.dataset.adminView}`);
+      tab.id = `tab-${tab.dataset.adminView}`;
+    }
+  });
+}());

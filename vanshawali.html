@@ -125,6 +125,31 @@
       <section id="person-profile-section" class="section" hidden>
         <div class="shell">
           <div id="person-profile-content"></div>
+          <!-- Interactive SVG tree (loaded when ?person=PUBLICID) -->
+          <div id="person-tree-section" hidden>
+            <h3 class="tree-section-title" data-i18n="genealogy.treeTitle">परिवार वृक्ष</h3>
+            <div id="family-tree-canvas" class="family-tree-canvas">
+              <svg id="tree-svg" class="tree-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+              <div id="tree-nodes" class="tree-nodes-layer"></div>
+            </div>
+            <div class="tree-controls">
+              <button id="tree-expand-all" class="button button-outline-dark" type="button" data-i18n="genealogy.expandAll">सभी खोलें</button>
+              <button id="tree-collapse-all" class="button button-outline-dark" type="button" data-i18n="genealogy.collapseAll">सभी बंद करें</button>
+              <button id="tree-print" class="button button-outline-dark" type="button" data-i18n="genealogy.printTree">प्रिंट</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Village directory section -->
+      <section class="section genealogy-villages-section" style="padding-top:0">
+        <div class="shell">
+          <div class="section-heading centered">
+            <p class="eyebrow" data-i18n="genealogy.villageDirEyebrow">गांव निर्देशिका</p>
+            <h2 data-i18n="genealogy.villageDirH2">परिवार गांव अनुसार</h2>
+            <div class="ornament"><span>◆</span></div>
+          </div>
+          <div id="village-directory" class="village-grid"></div>
         </div>
       </section>
     </main>

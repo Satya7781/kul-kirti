@@ -290,3 +290,94 @@ CREATE TABLE IF NOT EXISTS genealogy_tree_projection (
 
 CREATE INDEX IF NOT EXISTS genealogy_tree_root_idx ON genealogy_tree_projection (root_person_id);
 CREATE INDEX IF NOT EXISTS genealogy_tree_gen_idx ON genealogy_tree_projection (generation);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VANSHAWALI ENHANCEMENT — LOCATIONS, IMPORT STAGING, BRANCH PERMISSIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- All additive.  Existing tables and data are never touched.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── 10. LOCATIONS ──────────────────────────────────────────────────────────
+-- Normalized village/city/district/state.  Many people share one location.
+-- People can still use text columns directly; location_id is optional.
+
+CREATE TABLE IF NOT EXISTS locations (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  village_name TEXT NOT NULL,
+  city         TEXT,
+  district     TEXT,
+  state        TEXT,
+  slug         TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (village_name, district, state)
+);
+
+CREATE INDEX IF NOT EXISTS locations_village_idx ON locations (village_name);
+CREATE INDEX IF NOT EXISTS locations_district_idx ON locations (district);
+CREATE INDEX IF NOT EXISTS locations_state_idx ON locations (state);
+
+-- Add nullable location_id to people (does NOT remove existing text columns)
+ALTER TABLE people ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS people_location_idx ON people (location_id);
+
+-- ── 11. IMPORT STAGING TABLES ──────────────────────────────────────────────
+-- For CSV/Excel bulk import.  Jobs track the overall import; rows store
+-- parsed and validated data before commit.
+
+CREATE TABLE IF NOT EXISTS import_jobs (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id      UUID NOT NULL REFERENCES admins(id),
+  filename      TEXT,
+  total_rows    INTEGER NOT NULL DEFAULT 0,
+  valid_rows    INTEGER NOT NULL DEFAULT 0,
+  invalid_rows  INTEGER NOT NULL DEFAULT 0,
+  imported_rows INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'previewing'
+                CHECK (status IN ('previewing', 'validated', 'committed', 'failed', 'cancelled')),
+  summary       JSONB,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  committed_at  TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS import_rows (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id        UUID NOT NULL REFERENCES import_jobs(id) ON DELETE CASCADE,
+  row_number    INTEGER NOT NULL,
+  external_id   TEXT,
+  full_name     TEXT,
+  father_external_id TEXT,
+  mother_external_id TEXT,
+  village       TEXT,
+  city          TEXT,
+  district      TEXT,
+  state         TEXT,
+  branch_name   TEXT,
+  living_status TEXT,
+  is_valid      BOOLEAN NOT NULL DEFAULT TRUE,
+  errors        JSONB NOT NULL DEFAULT '[]'::jsonb,
+  warnings      JSONB NOT NULL DEFAULT '[]'::jsonb,
+  resolved_person_id UUID REFERENCES people(id),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS import_rows_job_idx ON import_rows (job_id);
+CREATE INDEX IF NOT EXISTS import_rows_valid_idx ON import_rows (job_id, is_valid);
+
+-- ── 12. USER BRANCH PERMISSIONS ─────────────────────────────────────────────
+-- Branch-level access for branch representatives.  Only created if needed;
+-- the existing admins table with role='super_admin' handles full access.
+
+CREATE TABLE IF NOT EXISTS user_branch_permissions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_email      TEXT NOT NULL,
+  branch_id       UUID REFERENCES family_branches(id) ON DELETE CASCADE,
+  permission_level TEXT NOT NULL DEFAULT 'submit'
+                  CHECK (permission_level IN ('submit', 'manage', 'view')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_email, branch_id)
+);
+
+CREATE INDEX IF NOT EXISTS user_branch_perms_email_idx ON user_branch_permissions (user_email);
+CREATE INDEX IF NOT EXISTS user_branch_perms_branch_idx ON user_branch_permissions (branch_id);

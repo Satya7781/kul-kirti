@@ -76,6 +76,12 @@
                 data-i18n="admin.tabPeople">लोग</button>
               <button class="admin-tab" data-admin-view="genealogy-contributions" type="button"
                 data-i18n="admin.tabGenealogyContrib">योगदान</button>
+              <button class="admin-tab" data-admin-view="dashboard" type="button"
+                data-i18n="admin.tabDashboard">डैशबोर्ड</button>
+              <button class="admin-tab" data-admin-view="import" type="button"
+                data-i18n="admin.tabImport">आयात</button>
+              <button class="admin-tab" data-admin-view="branch-mgmt" type="button"
+                data-i18n="admin.tabBranchMgmt">शाखा प्रबंधन</button>
             </div>
 
             <!-- ── SUBMISSIONS VIEW ─────────────────────────────────── -->
@@ -318,6 +324,86 @@
             <!-- ── GENEALOGY CONTRIBUTIONS VIEW ──────────────────────── -->
             <div id="admin-genealogy-contributions" class="admin-genealogy-contributions" hidden>
               <div id="genealogy-contributions-list" class="admin-submissions"></div>
+            </div>
+
+            <!-- ── DASHBOARD VIEW ────────────────────────────────────── -->
+            <div id="admin-dashboard" class="admin-dashboard-view" hidden>
+              <div id="dashboard-stats" class="dashboard-grid"></div>
+              <h3 class="dashboard-recent-title" data-i18n="admin.recentPeople">हाल ही में जोड़े गए लोग</h3>
+              <div id="dashboard-recent-people" class="admin-people-list"></div>
+            </div>
+
+            <!-- ── IMPORT VIEW ────────────────────────────────────────── -->
+            <div id="admin-import" class="admin-import-view" hidden>
+              <div class="import-section">
+                <h3 data-i18n="admin.importH3">CSV / Excel आयात</h3>
+                <p class="form-note" data-i18n="admin.importNote">टेम्पलेट डाउनलोड करें, भरें, और अपलोड करें। प्रत्येक पंक्ति की जांच preview में होगी।</p>
+                <div class="import-actions">
+                  <a id="import-template-link" href="/api/admin/vanshawali/import/template" class="button button-outline-dark"
+                    data-i18n="admin.downloadTemplate">⬇ टेम्पलेट डाउनलोड</a>
+                </div>
+                <div class="import-upload-area">
+                  <label for="import-file-input" class="import-upload-label">
+                    <span data-i18n="admin.selectFile">फ़ाइल चुनें (CSV)</span>
+                    <input id="import-file-input" type="file" accept=".csv,text/csv" />
+                  </label>
+                  <button id="import-preview-btn" class="button button-maroon" type="button" disabled
+                    data-i18n="admin.previewBtn">Preview देखें →</button>
+                </div>
+                <p id="import-preview-message" class="form-message" role="status"></p>
+              </div>
+              <div id="import-preview-area" class="import-preview-area" hidden>
+                <div id="import-summary" class="import-summary"></div>
+                <div class="import-preview-table-wrap">
+                  <table class="import-preview-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="admin.colRow">पंक्ति</th>
+                        <th data-i18n="admin.colExtId">External ID</th>
+                        <th data-i18n="admin.colName">नाम</th>
+                        <th data-i18n="admin.colFather">पिता ID</th>
+                        <th data-i18n="admin.colMother">माता ID</th>
+                        <th data-i18n="admin.colVillage">गांव</th>
+                        <th data-i18n="admin.colStatus">स्थिति</th>
+                        <th data-i18n="admin.colErrors">त्रुटियां</th>
+                      </tr>
+                    </thead>
+                    <tbody id="import-preview-tbody"></tbody>
+                  </table>
+                </div>
+                <div class="import-actions">
+                  <button id="import-commit-btn" class="button button-gold" type="button" disabled
+                    data-i18n="admin.commitImport">✓ Import करें</button>
+                  <button id="import-cancel-btn" class="button button-outline-dark" type="button"
+                    data-i18n="admin.cancelImport">रद्द करें</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── BRANCH MANAGEMENT VIEW ─────────────────────────────── -->
+            <div id="admin-branch-mgmt" class="admin-branch-mgmt-view" hidden>
+              <form id="branch-form" class="admin-form gotra-form">
+                <h3 data-i18n="admin.addBranchH3">नई शाखा जोड़ें</h3>
+                <div class="form-row">
+                  <label>
+                    <span data-i18n="admin.branchName">शाखा नाम *</span>
+                    <input name="name" required maxlength="120" />
+                  </label>
+                  <label>
+                    <span data-i18n="admin.branchGotra">गोत्र</span>
+                    <select name="gotraId" id="branch-gotra-select"></select>
+                  </label>
+                </div>
+                <label>
+                  <span data-i18n="admin.branchDesc">विवरण</span>
+                  <textarea name="description" rows="2" maxlength="500"></textarea>
+                </label>
+                <button class="button button-maroon" type="submit">
+                  <span data-i18n="admin.saveBranch">शाखा सहेजें</span> <span>→</span>
+                </button>
+                <p id="branch-form-message" class="form-message" role="status"></p>
+              </form>
+              <div id="branch-list" class="admin-people-list"></div>
             </div>
 
           </div><!-- /#admin-panel -->

@@ -11,6 +11,7 @@ const { Pool } = require("pg");
 const crypto = require("crypto");
 const { createRealtime, rawSql } = require("@neon/realtime/server");
 const genealogy = require("./lib/genealogy");
+const csvParser = require("./lib/csv-parser");
 
 const app = express();
 const port = Number(process.env.PORT || 5500);
@@ -858,6 +859,393 @@ app.get("/api/admin/people/:id", auth, async (request, response, next) => {
     const generation = await genealogy.calculateGeneration(pool, person.id);
 
     response.json({ person: { ...person, generation }, parents, children, gotras: gotras.rows });
+  } catch (error) { next(error); }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VANSHAWALI ENHANCEMENT — STATS, VILLAGES, IMPORT, BRANCH UPDATES, PERSON DELETE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Public: dashboard stats ────────────────────────────────────────────────
+app.get("/api/vanshawali/stats", async (request, response, next) => {
+  try {
+    const [peopleCount, villageCount, branchCount, relCount, pendingCount, recentPeople] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int FROM people WHERE status <> 'archived'`),
+      pool.query(`SELECT COUNT(DISTINCT village)::int FROM people WHERE village IS NOT NULL AND village <> '' AND status <> 'archived'`),
+      pool.query(`SELECT COUNT(*)::int FROM family_branches WHERE status <> 'archived'`),
+      pool.query(`SELECT COUNT(*)::int FROM person_relationships WHERE status = 'verified'`),
+      pool.query(`SELECT COUNT(*)::int FROM genealogy_contributions WHERE status = 'pending'`),
+      pool.query(`SELECT id, public_id AS "publicId", full_name AS "fullName", village, created_at AS "createdAt"
+                  FROM people WHERE status <> 'archived' ORDER BY created_at DESC LIMIT 10`),
+    ]);
+    response.json({
+      totalPeople: peopleCount.rows[0].count,
+      totalVillages: villageCount.rows[0].count,
+      totalBranches: branchCount.rows[0].count,
+      totalRelationships: relCount.rows[0].count,
+      pendingSubmissions: pendingCount.rows[0].count,
+      recentPeople: recentPeople.rows,
+    });
+  } catch (error) { next(error); }
+});
+
+// ── Public: list villages with people counts ─────────────────────────────
+app.get("/api/vanshawali/villages", async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT village, COUNT(*)::int AS "personCount",
+              MAX(district) AS district, MAX(state) AS state
+       FROM people
+       WHERE village IS NOT NULL AND village <> '' AND status <> 'archived' AND visibility = 'public'
+       GROUP BY village ORDER BY "personCount" DESC LIMIT 200`
+    );
+    response.json({ villages: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Public: list all branches ──────────────────────────────────────────────
+app.get("/api/vanshawali/branches", async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.id, b.name, b.slug, b.description, b.status,
+              b.parent_branch_id AS "parentBranchId",
+              g.name AS "gotraName",
+              (SELECT COUNT(*)::int FROM person_gotra_links l
+               JOIN people p ON p.id = l.person_id
+               WHERE l.branch_id = b.id AND p.status <> 'archived') AS "personCount"
+       FROM family_branches b
+       LEFT JOIN gotras g ON g.id = b.gotra_id
+       WHERE b.status <> 'archived'
+       ORDER BY g.name, b.name`
+    );
+    response.json({ branches: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: download CSV template ──────────────────────────────────────────
+app.get("/api/admin/vanshawali/import/template", auth, (request, response) => {
+  const template = csvParser.generateTemplate();
+  response.setHeader("Content-Type", "text/csv; charset=utf-8");
+  response.setHeader("Content-Disposition", 'attachment; filename="vanshawali-template.csv"');
+  response.send(template);
+});
+
+// ── Admin: import preview (parse + validate, store in staging) ────────────
+app.post("/api/admin/vanshawali/import/preview", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const csvText = request.body.csv || "";
+    if (!csvText.trim()) return response.status(400).json({
+      error: msg(request, "CSV डेटा खाली है।", "CSV data is empty.")
+    });
+
+    // Parse CSV
+    const parsed = csvParser.parseCSV(csvText);
+    if (parsed.rows.length === 0) return response.status(400).json({
+      error: msg(request, "CSV में कोई डेटा पंक्ति नहीं है।", "CSV contains no data rows.")
+    });
+
+    // Validate
+    const validated = csvParser.validateImport(parsed);
+    if (!validated.valid) return response.status(400).json({ error: validated.error });
+
+    // Create import job
+    await client.query("BEGIN");
+    const job = await client.query(
+      `INSERT INTO import_jobs (admin_id, filename, total_rows, valid_rows, invalid_rows, status, summary)
+       VALUES ($1, $2, $3, $4, $5, 'previewing', $6) RETURNING id`,
+      [request.admin.id, clean(request.body.filename, 200) || "upload.csv",
+       validated.summary.total, validated.summary.valid, validated.summary.invalid,
+       JSON.stringify(validated.summary)]
+    );
+    const jobId = job.rows[0].id;
+
+    // Store all rows (valid + invalid) in staging
+    const allRows = [...validated.validRows, ...validated.invalidRows];
+    for (const row of allRows) {
+      await client.query(
+        `INSERT INTO import_rows (job_id, row_number, external_id, full_name,
+          father_external_id, mother_external_id, village, city, district, state,
+          branch_name, living_status, is_valid, errors, warnings)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+        [jobId, row._rowNumber, clean(row.external_id, 80), clean(row.full_name, 120),
+         clean(row.father_external_id, 80), clean(row.mother_external_id, 80),
+         clean(row.village, 120), clean(row.city, 120), clean(row.district, 120),
+         clean(row.state, 120), clean(row.branch_name, 120), clean(row.living_status, 20),
+         row.is_valid,
+         JSON.stringify(row.errors || []), JSON.stringify(row.warnings || [])]
+      );
+    }
+
+    await client.query("UPDATE import_jobs SET status = 'validated' WHERE id = $1", [jobId]);
+    await client.query("COMMIT");
+
+    response.json({
+      jobId,
+      summary: validated.summary,
+      validRows: validated.validRows.map(r => ({
+        row: r._rowNumber, external_id: r.external_id, full_name: r.full_name,
+        village: r.village, living_status: r.living_status,
+      })),
+      invalidRows: validated.invalidRows.map(r => ({
+        row: r._rowNumber, external_id: r.external_id, full_name: r.full_name,
+        errors: r.errors,
+      })),
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: commit import (transactional batch insert) ─────────────────────
+app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const jobId = clean(request.body.jobId, 80);
+    if (!jobId) return response.status(400).json({
+      error: msg(request, "import job ID आवश्यक है।", "Import job ID is required.")
+    });
+
+    // Fetch job
+    const jobResult = await client.query(
+      "SELECT * FROM import_jobs WHERE id = $1 AND status = 'validated'",
+      [jobId]
+    );
+    if (!jobResult.rows[0]) return response.status(404).json({
+      error: msg(request, "Import job नहीं मिला या पहले से committed है।", "Import job not found or already committed.")
+    });
+
+    // Fetch valid rows
+    const rowsResult = await client.query(
+      "SELECT * FROM import_rows WHERE job_id = $1 AND is_valid = TRUE ORDER BY row_number",
+      [jobId]
+    );
+    const rows = rowsResult.rows;
+
+    if (!rows.length) return response.status(400).json({
+      error: msg(request, "कोई valid rows नहीं हैं।", "No valid rows to import.")
+    });
+
+    await client.query("BEGIN");
+
+    // Map: external_id → people.id (for parent resolution)
+    const idMap = new Map();
+    let importedCount = 0;
+
+    // First pass: create all people (resolve locations + branches)
+    for (const row of rows) {
+      // Resolve or create location
+      let locationId = null;
+      if (row.village) {
+        const locResult = await client.query(
+          `INSERT INTO locations (village_name, city, district, state)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (village_name, district, state) DO UPDATE SET updated_at = NOW()
+           RETURNING id`,
+          [row.village, row.city || null, row.district || null, row.state || null]
+        );
+        locationId = locResult.rows[0].id;
+      }
+
+      // Resolve branch
+      let branchId = null;
+      if (row.branch_name) {
+        const branchResult = await client.query(
+          `SELECT id FROM family_branches WHERE name = $1 LIMIT 1`,
+          [row.branch_name]
+        );
+        branchId = branchResult.rows[0]?.id || null;
+      }
+
+      // Create person
+      const isLiving = row.living_status === "deceased" ? false : true;
+      const personResult = await client.query(
+        `INSERT INTO people (full_name, village, city, district, state, is_living, status, visibility, location_id, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, 'verified', 'public', $7, $8, $8)
+         RETURNING id, public_id`,
+        [row.full_name, row.village || null, row.city || null, row.district || null,
+         row.state || null, isLiving, locationId, request.admin.id]
+      );
+      const personId = personResult.rows[0].id;
+      idMap.set(row.external_id, personId);
+      importedCount++;
+
+      // Link to branch if found
+      if (branchId) {
+        // Find gotra for this branch
+        const gotraResult = await client.query(
+          `SELECT gotra_id FROM family_branches WHERE id = $1`, [branchId]
+        );
+        if (gotraResult.rows[0]?.gotra_id) {
+          await client.query(
+            `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+             VALUES ($1, $2, $3, false)
+             ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+            [personId, gotraResult.rows[0].gotra_id, branchId]
+          );
+        }
+      }
+
+      // Mark row as resolved
+      await client.query(
+        "UPDATE import_rows SET resolved_person_id = $1 WHERE id = $2",
+        [personId, row.id]
+      );
+    }
+
+    // Second pass: create parent-child relationships
+    for (const row of rows) {
+      const childId = idMap.get(row.external_id);
+      if (!childId) continue;
+
+      if (row.father_external_id && idMap.has(row.father_external_id)) {
+        const fatherId = idMap.get(row.father_external_id);
+        const validation = await genealogy.validateRelationship(client._pool || pool, fatherId, childId, "biological");
+        if (validation.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+             VALUES ($1, $2, 'biological', 'verified', $3, $3)
+             ON CONFLICT DO NOTHING`,
+            [fatherId, childId, request.admin.id]
+          );
+        }
+      }
+
+      if (row.mother_external_id && idMap.has(row.mother_external_id)) {
+        const motherId = idMap.get(row.mother_external_id);
+        const validation = await genealogy.validateRelationship(pool, motherId, childId, "biological");
+        if (validation.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+             VALUES ($1, $2, 'biological', 'verified', $3, $3)
+             ON CONFLICT DO NOTHING`,
+            [motherId, childId, request.admin.id]
+          );
+        }
+      }
+    }
+
+    // Update job status
+    await client.query(
+      "UPDATE import_jobs SET status = 'committed', imported_rows = $1, committed_at = NOW() WHERE id = $2",
+      [importedCount, jobId]
+    );
+
+    await genealogy.logAudit(pool, request.admin.id, "import_commit", "import_job", jobId,
+      { imported: importedCount, total: rows.length });
+    await client.query("COMMIT");
+
+    response.json({
+      jobId,
+      imported: importedCount,
+      message: msg(request,
+        `${importedCount} व्यक्ति सफलतापूर्वक import हो गए।`,
+        `${importedCount} people imported successfully.`)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: delete/archive person ──────────────────────────────────────────
+app.delete("/api/admin/people/:id", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Check if person has relationships — if so, archive instead of delete
+    const relCount = await client.query(
+      "SELECT COUNT(*)::int FROM person_relationships WHERE parent_id = $1 OR child_id = $1",
+      [request.params.id]
+    );
+    if (relCount.rows[0].count > 0) {
+      // Archive: set status to 'archived' (preserves data)
+      await client.query(
+        "UPDATE people SET status = 'archived', updated_at = NOW(), updated_by = $2 WHERE id = $1",
+        [request.params.id, request.admin.id]
+      );
+      await genealogy.logAudit(pool, request.admin.id, "archive_person", "person", request.params.id, null);
+      await client.query("COMMIT");
+      response.json({
+        id: request.params.id,
+        archived: true,
+        message: msg(request,
+          "व्यक्ति को archived कर दिया गया (संबंधों के कारण)।",
+          "Person archived (has existing relationships).")
+      });
+    } else {
+      // Safe to delete — no relationships
+      await client.query("DELETE FROM people WHERE id = $1", [request.params.id]);
+      await genealogy.logAudit(pool, request.admin.id, "delete_person", "person", request.params.id, null);
+      await client.query("COMMIT");
+      response.json({
+        id: request.params.id,
+        deleted: true,
+        message: msg(request, "व्यक्ति हटा दिया गया।", "Person deleted.")
+      });
+    }
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: update branch ──────────────────────────────────────────────────
+app.put("/api/admin/branches/:id", auth, async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const updates = [];
+    const values = [];
+    if (input.name) { values.push(clean(input.name, 120)); updates.push(`name = $${values.length}`); }
+    if (input.description !== undefined) { values.push(clean(input.description, 500)); updates.push(`description = $${values.length}`); }
+    if (input.status) { values.push(clean(input.status, 20)); updates.push(`status = $${values.length}`); }
+    if (input.parentBranchId !== undefined) { values.push(input.parentBranchId || null); updates.push(`parent_branch_id = $${values.length}`); }
+    if (input.slug) { values.push(clean(input.slug, 120)); updates.push(`slug = $${values.length}`); }
+
+    if (!updates.length) return response.status(400).json({ error: "No updates provided." });
+    values.push(request.params.id);
+    await pool.query(
+      `UPDATE family_branches SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`,
+      values
+    );
+    await genealogy.logAudit(pool, request.admin.id, "update_branch", "branch", request.params.id, input);
+    response.json({ id: request.params.id, message: msg(request, "शाखा अद्यतन की गई।", "Branch updated.") });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: assign person to branch ────────────────────────────────────────
+app.post("/api/admin/vanshawali/assign-branch", auth, async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const personId = clean(input.personId, 80);
+    const branchId = clean(input.branchId, 80);
+    if (!personId || !branchId) return response.status(400).json({
+      error: msg(request, "व्यक्ति और शाखा आवश्यक हैं।", "Person and branch are required.")
+    });
+
+    // Get gotra_id from branch
+    const branchResult = await pool.query(
+      "SELECT gotra_id FROM family_branches WHERE id = $1", [branchId]
+    );
+    if (!branchResult.rows[0]) return response.status(404).json({ error: "Branch not found." });
+    const gotraId = branchResult.rows[0].gotra_id;
+
+    await pool.query(
+      `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+       VALUES ($1, $2, $3, false)
+       ON CONFLICT (person_id, gotra_id) DO UPDATE SET branch_id = EXCLUDED.branch_id`,
+      [personId, gotraId, branchId]
+    );
+    await genealogy.logAudit(pool, request.admin.id, "assign_branch", "person", personId, { branchId });
+    response.json({ message: msg(request, "व्यक्ति को शाखा में जोड़ा गया।", "Person assigned to branch.") });
   } catch (error) { next(error); }
 });
 
