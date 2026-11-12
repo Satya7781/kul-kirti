@@ -69,3 +69,7 @@ npm audit --omit=dev
 ```
 
 Historical and genealogical records should be published only after evidence review and explicit admin verification.
+
+## Audit and security notes
+
+The current audit is documented in [AUDIT_REPORT.md](./AUDIT_REPORT.md). Database initialization is additive and does not overwrite an existing admin password on restart. To rotate that password in production, use an explicit password-rotation procedure rather than restarting the Render service.

@@ -27,6 +27,25 @@ app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
+const requestWindows = new Map();
+function rateLimit({ windowMs, max, key = (request) => request.ip }) {
+  return (request, response, next) => {
+    const now = Date.now();
+    const bucketKey = `${key(request)}:${request.path}`;
+    const bucket = requestWindows.get(bucketKey);
+    if (!bucket || now - bucket.startedAt >= windowMs) {
+      requestWindows.set(bucketKey, { startedAt: now, count: 1 });
+      return next();
+    }
+    bucket.count += 1;
+    if (bucket.count > max) {
+      response.set("Retry-After", String(Math.ceil((windowMs - (now - bucket.startedAt)) / 1000)));
+      return response.status(429).json({ error: "Too many requests. Please try again later." });
+    }
+    return next();
+  };
+}
+
 async function initializeDatabase() {
   const schema = fs.readFileSync(path.join(root, "db", "schema.sql"), "utf8");
   await pool.query(schema);
@@ -35,7 +54,7 @@ async function initializeDatabase() {
   }
   const passwordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
   await pool.query(
-    "INSERT INTO admins (email, password_hash) VALUES ($1, $2) ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash",
+    "INSERT INTO admins (email, password_hash) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
     [process.env.ADMIN_EMAIL.trim().toLowerCase(), passwordHash]
   );
   console.log(`Database schema ready; admin account synchronized for ${process.env.ADMIN_EMAIL.trim().toLowerCase()}.`);
@@ -58,9 +77,16 @@ function msg(request, hi, en) {
 }
 
 function auth(request, response, next) {
+  const expectedOrigin = process.env.FRONTEND_ORIGIN || `${request.protocol}://${request.get("host")}`;
+  if (request.method !== "GET" && request.headers.origin && request.headers.origin !== expectedOrigin) {
+    return response.status(403).json({ error: "Cross-site request blocked." });
+  }
   const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
   try { request.admin = jwt.verify(token, jwtSecret); next(); }
   catch { response.status(401).json({ error: "Admin authentication required." }); }
+}
+function validateEnum(value, allowed, fallback = "") {
+  return allowed.includes(value) ? value : fallback;
 }
 function validateSubmission(input) {
   const rawPeople = Array.isArray(input.familyDetails) ? input.familyDetails.slice(0, 1000) : [];
@@ -120,7 +146,7 @@ app.post("/api/realtime/published-records", async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/submissions", async (request, response, next) => {
+app.post("/api/submissions", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (request, response, next) => {
   try {
     const data = validateSubmission(request.body);
     if (!data.name || !data.state || !data.contributorName) return response.status(400).json({ error: msg(request, "नाम, राज्य और योगदानकर्ता का नाम आवश्यक है।", "Name, state, and contributor name are required.") });
@@ -130,7 +156,7 @@ app.post("/api/submissions", async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/admin/login", async (request, response, next) => {
+app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: (request) => `${request.ip}:${clean(request.body?.email, 200).toLowerCase()}` }), async (request, response, next) => {
   try {
     const email = clean(request.body.email, 200).toLowerCase(); const password = request.body.password;
     const result = await pool.query("SELECT id, email, password_hash, role FROM admins WHERE email = $1", [email]);
@@ -246,7 +272,7 @@ app.post("/api/admin/gotras/:id/members", auth, async (request, response, next) 
       }
     }
 
-    await genealogy.logAudit(pool, request.admin.id, "add_gotra_member", "gotra_member", memberResult.rows[0].id,
+    await genealogy.logAudit(client, request.admin.id, "add_gotra_member", "gotra_member", memberResult.rows[0].id,
       { gotraId: request.params.id, personName, personId });
     await client.query("COMMIT");
 
@@ -514,11 +540,19 @@ app.get("/api/genealogy/people/:publicId", async (request, response, next) => {
 app.get("/api/genealogy/people/:publicId/tree", async (request, response, next) => {
   try {
     const personResult = await pool.query(
-      `SELECT id FROM people WHERE public_id = $1 AND status = 'verified'`,
+      `SELECT id, visibility, is_living FROM people WHERE public_id = $1 AND status = 'verified'`,
       [request.params.publicId]
     );
     if (!personResult.rows[0]) return response.status(404).json({ error: "Person not found." });
+    if (personResult.rows[0].visibility === "private") {
+      return response.status(403).json({ error: "This family tree is not publicly available." });
+    }
     const tree = await genealogy.getFamilyTree(pool, personResult.rows[0].id, 5);
+    if (personResult.rows[0].visibility !== "public" && personResult.rows[0].is_living) {
+      tree.person.birthplace = null;
+      tree.person.biography = null;
+      tree.person.birth_year = null;
+    }
     response.json({ tree });
   } catch (error) { next(error); }
 });
@@ -759,7 +793,7 @@ app.patch("/api/admin/people/:id", auth, async (request, response, next) => {
         `UPDATE people SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`,
         values
       );
-      await genealogy.logAudit(pool, request.admin.id, "update_person", "person", personId,
+      await genealogy.logAudit(client, request.admin.id, "update_person", "person", personId,
         { before: current.rows[0], after: input });
     }
 
@@ -806,7 +840,7 @@ app.post("/api/admin/relationships", auth, async (request, response, next) => {
        VALUES ($1, $2, $3, 'verified', $4, $5, $5) RETURNING id`,
       [parentId, childId, relationType, clean(input.evidence, 500), request.admin.id]
     );
-    await genealogy.logAudit(pool, request.admin.id, "add_relationship", "relationship", rel.rows[0].id,
+    await genealogy.logAudit(client, request.admin.id, "add_relationship", "relationship", rel.rows[0].id,
       { parentId, childId, relationType });
     await client.query("COMMIT");
 
@@ -838,7 +872,7 @@ app.delete("/api/admin/relationships/:id", auth, async (request, response, next)
       await client.query("ROLLBACK");
       return response.status(404).json({ error: "Relationship not found." });
     }
-    await genealogy.logAudit(pool, request.admin.id, "remove_relationship", "relationship", request.params.id,
+    await genealogy.logAudit(client, request.admin.id, "remove_relationship", "relationship", request.params.id,
       result.rows[0]);
     await client.query("COMMIT");
     response.json({ id: request.params.id, message: msg(request, "संबंध हटा दिया गया।", "Relationship removed.") });
@@ -985,7 +1019,7 @@ app.patch("/api/admin/contributions/:id", auth, async (request, response, next) 
         }
       }
 
-      await genealogy.logAudit(pool, request.admin.id, "approve_contribution", "contribution", contribution.id,
+      await genealogy.logAudit(client, request.admin.id, "approve_contribution", "contribution", contribution.id,
         { personCreated: newPersonId });
     }
 
@@ -1034,13 +1068,13 @@ app.get("/api/admin/people/:id", auth, async (request, response, next) => {
 app.get("/api/vanshawali/stats", async (request, response, next) => {
   try {
     const [peopleCount, villageCount, branchCount, relCount, pendingCount, recentPeople] = await Promise.all([
-      pool.query(`SELECT COUNT(*)::int FROM people WHERE status <> 'archived'`),
-      pool.query(`SELECT COUNT(DISTINCT village)::int FROM people WHERE village IS NOT NULL AND village <> '' AND status <> 'archived'`),
-      pool.query(`SELECT COUNT(*)::int FROM family_branches WHERE status <> 'archived'`),
-      pool.query(`SELECT COUNT(*)::int FROM person_relationships WHERE status = 'verified'`),
+      pool.query(`SELECT COUNT(*)::int FROM people WHERE status = 'verified' AND visibility = 'public'`),
+      pool.query(`SELECT COUNT(DISTINCT village)::int FROM people WHERE village IS NOT NULL AND village <> '' AND status = 'verified' AND visibility = 'public'`),
+      pool.query(`SELECT COUNT(*)::int FROM family_branches WHERE status = 'verified'`),
+      pool.query(`SELECT COUNT(*)::int FROM person_relationships r JOIN people p ON p.id = r.child_id WHERE r.status = 'verified' AND p.status = 'verified' AND p.visibility = 'public'`),
       pool.query(`SELECT COUNT(*)::int FROM genealogy_contributions WHERE status = 'pending'`),
       pool.query(`SELECT id, public_id AS "publicId", full_name AS "fullName", village, created_at AS "createdAt"
-                  FROM people WHERE status <> 'archived' ORDER BY created_at DESC LIMIT 10`),
+                  FROM people WHERE status = 'verified' AND visibility = 'public' ORDER BY created_at DESC LIMIT 10`),
     ]);
     response.json({
       totalPeople: peopleCount.rows[0].count,
@@ -1076,10 +1110,10 @@ app.get("/api/vanshawali/branches", async (request, response, next) => {
               g.name AS "gotraName",
               (SELECT COUNT(*)::int FROM person_gotra_links l
                JOIN people p ON p.id = l.person_id
-               WHERE l.branch_id = b.id AND p.status <> 'archived') AS "personCount"
+               WHERE l.branch_id = b.id AND p.status = 'verified' AND p.visibility = 'public') AS "personCount"
        FROM family_branches b
        LEFT JOIN gotras g ON g.id = b.gotra_id
-       WHERE b.status <> 'archived'
+       WHERE b.status = 'verified' AND g.status = 'verified'
        ORDER BY g.name, b.name`
     );
     response.json({ branches: result.rows });
@@ -1298,7 +1332,7 @@ app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, 
       [importedCount, jobId]
     );
 
-    await genealogy.logAudit(pool, request.admin.id, "import_commit", "import_job", jobId,
+    await genealogy.logAudit(client, request.admin.id, "import_commit", "import_job", jobId,
       { imported: importedCount, total: rows.length });
     await client.query("COMMIT");
 
@@ -1334,7 +1368,7 @@ app.delete("/api/admin/people/:id", auth, async (request, response, next) => {
         "UPDATE people SET status = 'archived', updated_at = NOW(), updated_by = $2 WHERE id = $1",
         [request.params.id, request.admin.id]
       );
-      await genealogy.logAudit(pool, request.admin.id, "archive_person", "person", request.params.id, null);
+      await genealogy.logAudit(client, request.admin.id, "archive_person", "person", request.params.id, null);
       await client.query("COMMIT");
       response.json({
         id: request.params.id,
@@ -1346,7 +1380,7 @@ app.delete("/api/admin/people/:id", auth, async (request, response, next) => {
     } else {
       // Safe to delete — no relationships
       await client.query("DELETE FROM people WHERE id = $1", [request.params.id]);
-      await genealogy.logAudit(pool, request.admin.id, "delete_person", "person", request.params.id, null);
+      await genealogy.logAudit(client, request.admin.id, "delete_person", "person", request.params.id, null);
       await client.query("COMMIT");
       response.json({
         id: request.params.id,
@@ -1637,7 +1671,7 @@ app.post("/api/admin/pariwar/:id/link", auth, async (request, response, next) =>
       [gotraId, request.admin.id, reviewNotes, tree.id]
     );
 
-    await genealogy.logAudit(pool, request.admin.id, "link_public_tree", "public_family_tree", tree.id,
+    await genealogy.logAudit(client, request.admin.id, "link_public_tree", "public_family_tree", tree.id,
       { gotraId, membersLinked: idMap.size });
     await client.query("COMMIT");
 

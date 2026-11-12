@@ -14,6 +14,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function initGenealogyExplorer() {
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
   /* DOM handles */
   const homeView           = document.querySelector("#vw-home-view");
   const gotraDirectory     = document.querySelector("#gotra-directory");
@@ -68,7 +71,7 @@
         people.map(p => {
           const meta = [p.birthYear, p.village].filter(Boolean).join(" · ");
           return `<div class="person-search-card">
-            <div><h4>${p.fullName}</h4><div class="person-meta">${meta}</div></div>
+            <div><h4>${escapeHtml(p.fullName)}</h4><div class="person-meta">${escapeHtml(meta)}</div></div>
             <a class="result-tag" href="/vanshawali.html?person=${p.publicId}">${I18n.t("genealogy.viewProfile")}</a>
           </div>`;
         }).join("");
@@ -90,13 +93,13 @@
       }
       gotraDirectory.innerHTML = gotras.map(g => `
         <a class="gotra-dir-card" href="/vanshawali.html?gotra=${g.id}">
-          <h3>${g.name}</h3>
+          <h3>${escapeHtml(g.name)}</h3>
           <div class="gotra-meta">
             <span><b>${g.personCount || 0}</b> ${I18n.t("genealogy.gotraPersons")}</span>
             <span><b>${g.branchCount || 0}</b> ${I18n.t("genealogy.gotraBranches")}</span>
           </div>
           ${g.historicalDetails
-            ? `<p class="gotra-desc">${g.historicalDetails.slice(0, 150)}${g.historicalDetails.length > 150 ? "…" : ""}</p>`
+            ? `<p class="gotra-desc">${escapeHtml(g.historicalDetails.slice(0, 150))}${g.historicalDetails.length > 150 ? "…" : ""}</p>`
             : ""}
           <span class="gotra-link">${I18n.t("genealogy.viewDetail")} →</span>
         </a>`).join("");
@@ -118,8 +121,8 @@
       }
       villageGrid.innerHTML = villages.map(v => `
         <div class="village-card">
-          <h4>${v.village}</h4>
-          <div class="village-meta">${[v.district, v.state].filter(Boolean).join(" · ")}</div>
+          <h4>${escapeHtml(v.village)}</h4>
+          <div class="village-meta">${escapeHtml([v.district, v.state].filter(Boolean).join(" · "))}</div>
           <div class="village-count">${v.personCount}</div>
           <div class="village-meta">${I18n.t("genealogy.villagePeople")}</div>
         </div>`).join("");
@@ -148,8 +151,8 @@
       const rootCards = roots.length
         ? roots.map(r => `
             <div class="gotra-member-card">
-              <a href="/vanshawali.html?person=${r.publicId}">${r.fullName}</a>
-              <div class="gmc-meta">${r.birthYear || ""}${r.deathYear ? " – " + r.deathYear : ""}${r.village ? " · " + r.village : ""}</div>
+              <a href="/vanshawali.html?person=${encodeURIComponent(r.publicId)}">${escapeHtml(r.fullName)}</a>
+              <div class="gmc-meta">${escapeHtml(`${r.birthYear || ""}${r.deathYear ? " – " + r.deathYear : ""}${r.village ? " · " + r.village : ""}`)}</div>
             </div>`).join("")
         : `<p class="rel-empty">${I18n.t("genealogy.noRoots")}</p>`;
 
@@ -157,23 +160,23 @@
         .filter(m => m.publicId)   /* only show linked members publicly */
         .map(m => `
           <div class="gotra-member-card">
-            <a href="/vanshawali.html?person=${m.publicId}">${m.personName}</a>
-            <div class="gmc-meta">${m.relationOrRole ? m.relationOrRole + " · " : ""}${[m.village, m.district, m.state].filter(Boolean).join(", ")}</div>
+            <a href="/vanshawali.html?person=${encodeURIComponent(m.publicId)}">${escapeHtml(m.personName)}</a>
+            <div class="gmc-meta">${escapeHtml(`${m.relationOrRole ? m.relationOrRole + " · " : ""}${[m.village, m.district, m.state].filter(Boolean).join(", ")}`)}</div>
           </div>`)
         .join("");
 
       gotraDetailContent.innerHTML = `
         <div class="gotra-detail-card">
-          <h2>${gotra.name}</h2>
+          <h2>${escapeHtml(gotra.name)}</h2>
           ${gotra.originPlace
-            ? `<p style="color:var(--muted);font-size:14px;margin-bottom:12px">${gotra.originPlace}${gotra.originPeriod ? " · " + gotra.originPeriod : ""}</p>`
+            ? `<p style="color:var(--muted);font-size:14px;margin-bottom:12px">${escapeHtml(`${gotra.originPlace}${gotra.originPeriod ? " · " + gotra.originPeriod : ""}`)}</p>`
             : ""}
           <div class="gotra-stats">
             <div class="gotra-stat"><b>${membersList.length || roots.length}</b><span>सदस्य</span></div>
             <div class="gotra-stat"><b>${branches.length}</b><span>${I18n.t("genealogy.branches")}</span></div>
           </div>
           ${gotra.historicalDetails
-            ? `<div class="gotra-detail-section"><h3>इतिहास</h3><p style="color:var(--muted);font-size:15px;line-height:1.8">${gotra.historicalDetails}</p></div>`
+            ? `<div class="gotra-detail-section"><h3>इतिहास</h3><p style="color:var(--muted);font-size:15px;line-height:1.8">${escapeHtml(gotra.historicalDetails)}</p></div>`
             : ""}
           <div class="gotra-detail-section">
             <h3>${I18n.t("genealogy.roots")}</h3>
@@ -185,7 +188,7 @@
           <div class="gotra-detail-section">
             <h3>${I18n.t("genealogy.branches")}</h3>
             ${branches.length
-              ? `<div class="rel-list">${branches.map(b => `<div class="rel-item">${b.name}${b.description ? ` <span class="rel-meta">${b.description}</span>` : ""}</div>`).join("")}</div>`
+              ? `<div class="rel-list">${branches.map(b => `<div class="rel-item">${escapeHtml(b.name)}${b.description ? ` <span class="rel-meta">${escapeHtml(b.description)}</span>` : ""}</div>`).join("")}</div>`
               : `<p class="rel-empty">${I18n.t("genealogy.noBranches")}</p>`}
           </div>
         </div>`;
@@ -211,9 +214,9 @@
         personContent.innerHTML = `
           <div class="person-profile-card">
             <div class="person-profile-header">
-              <div class="person-profile-avatar">${(data.person.fullName || "?").charAt(0)}</div>
+              <div class="person-profile-avatar">${escapeHtml((data.person.fullName || "?").charAt(0))}</div>
               <div class="person-profile-info">
-                <h2>${data.person.fullName}</h2>
+                <h2>${escapeHtml(data.person.fullName)}</h2>
                 <p style="color:var(--muted)">${I18n.t("genealogy.restrictedProfile")}</p>
               </div>
             </div>
@@ -225,7 +228,7 @@
       const tags = [];
       if (p.generation) tags.push(`<span class="tag gen">${I18n.t("genealogy.generation")} ${p.generation}</span>`);
       tags.push(`<span class="tag ${p.isLiving ? "living" : "deceased"}">${p.isLiving ? I18n.t("genealogy.living") : I18n.t("genealogy.deceased")}</span>`);
-      (data.gotras || []).forEach(g => tags.push(`<span class="tag gotra">${g.name}</span>`));
+      (data.gotras || []).forEach(g => tags.push(`<span class="tag gotra">${escapeHtml(g.name)}</span>`));
 
       const shareUrl = `${location.origin}/vanshawali.html?person=${p.publicId}`;
 
@@ -236,8 +239,8 @@
           const name = r.fullName || r.full_name || "?";
           const meta = [r.birthYear, r.deathYear ? "– " + r.deathYear : "", r.village].filter(Boolean).join(" ");
           return `<div class="rel-item">
-            ${pid ? `<a href="/vanshawali.html?person=${pid}">${name}</a>` : `<span>${name}</span>`}
-            <span class="rel-meta">${meta}</span>
+            ${pid ? `<a href="/vanshawali.html?person=${encodeURIComponent(pid)}">${escapeHtml(name)}</a>` : `<span>${escapeHtml(name)}</span>`}
+            <span class="rel-meta">${escapeHtml(meta)}</span>
           </div>`;
         }).join("")}</div>`;
       }
@@ -248,8 +251,8 @@
           const pid = a.publicId || a.public_id;
           return `<div class="path-item">
             <span class="path-gen">${I18n.t("genealogy.generation")} ${(p.generation || 1) - (a.depth || 1)}</span>
-            ${pid ? `<a href="/vanshawali.html?person=${pid}">${a.fullName}</a>` : `<span>${a.fullName}</span>`}
-            <span class="path-meta">${a.birthYear || ""}${a.deathYear ? " – " + a.deathYear : ""}</span>
+            ${pid ? `<a href="/vanshawali.html?person=${encodeURIComponent(pid)}">${escapeHtml(a.fullName)}</a>` : `<span>${escapeHtml(a.fullName)}</span>`}
+            <span class="path-meta">${escapeHtml(`${a.birthYear || ""}${a.deathYear ? " – " + a.deathYear : ""}`)}</span>
           </div>`;
         }).join("")}</div>`;
       }
@@ -260,8 +263,8 @@
           const pid = d.publicId || d.public_id;
           return `<div class="path-item">
             <span class="path-gen">${I18n.t("genealogy.generation")} ${(p.generation || 1) + (d.depth || 1)}</span>
-            ${pid ? `<a href="/vanshawali.html?person=${pid}">${d.fullName}</a>` : `<span>${d.fullName}</span>`}
-            <span class="path-meta">${d.birthYear || ""}${d.deathYear ? " – " + d.deathYear : ""}</span>
+            ${pid ? `<a href="/vanshawali.html?person=${encodeURIComponent(pid)}">${escapeHtml(d.fullName)}</a>` : `<span>${escapeHtml(d.fullName)}</span>`}
+            <span class="path-meta">${escapeHtml(`${d.birthYear || ""}${d.deathYear ? " – " + d.deathYear : ""}`)}</span>
           </div>`;
         }).join("")}</div>`;
       }

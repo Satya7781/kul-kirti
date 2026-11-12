@@ -10,6 +10,9 @@
 
 (function () {
   "use strict";
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
 
   /* ── Member builder ──────────────────────────────────────────────────── */
   const memberList = document.querySelector("#pariwar-member-list");
@@ -27,7 +30,7 @@
     return `<option value="">— चुनें —</option>` +
       members.map(m =>
         `<option value="${m.clientId}" ${m.clientId === selected ? "selected" : ""}>
-          ${m.name || "नया सदस्य"}
+          ${escapeHtml(m.name || "नया सदस्य")}
         </option>`
       ).join("");
   }
@@ -42,11 +45,11 @@
         </div>
         <div class="form-row">
           <label>पूरा नाम *
-            <input data-f="name" value="${m.name || ""}" required maxlength="120"
+            <input data-f="name" value="${escapeHtml(m.name)}" required maxlength="120"
               placeholder="जैसे: मोहन सिंह">
           </label>
           <label>संबंध
-            <input data-f="relation" value="${m.relation || ""}" maxlength="80"
+            <input data-f="relation" value="${escapeHtml(m.relation)}" maxlength="80"
               placeholder="दादा, पिता, पुत्र...">
           </label>
         </div>
@@ -60,7 +63,7 @@
         </div>
         <div class="form-row">
           <label>जन्म वर्ष
-            <input data-f="birthYear" value="${m.birthYear || ""}" maxlength="20"
+            <input data-f="birthYear" value="${escapeHtml(m.birthYear)}" maxlength="20"
               placeholder="उदा. 1945">
           </label>
           <label>लिंग
@@ -193,18 +196,18 @@
         <div class="token-tree-card">
           <div class="ttc-header">
             <div>
-              <h3>${t.gotraName} — ${t.village || ""}</h3>
-              <p class="ttc-meta">भेजने वाले: ${t.creatorName} · ${new Date(t.submittedAt).toLocaleDateString("hi-IN")}</p>
+              <h3>${escapeHtml(t.gotraName)} — ${escapeHtml(t.village)}</h3>
+                  <p class="ttc-meta">भेजने वाले: ${escapeHtml(t.creatorName)} · ${new Date(t.submittedAt).toLocaleDateString("hi-IN")}</p>
             </div>
             <span class="ttc-status">${statusLabel[t.status] || t.status}</span>
           </div>
-          ${t.reviewNotes ? `<p class="ttc-review-note">Admin नोट: ${t.reviewNotes}</p>` : ""}
+          ${t.reviewNotes ? `<p class="ttc-review-note">Admin नोट: ${escapeHtml(t.reviewNotes)}</p>` : ""}
           <h4 style="margin:16px 0 8px;color:var(--maroon)">परिवार के सदस्य (${ms.length})</h4>
           ${ms.length ? `<div class="ttc-members">${ms.map(m => `
             <div class="ttc-member">
-              <strong>${m.name}</strong>
-              ${m.relation ? `<span class="ttc-rel">${m.relation}</span>` : ""}
-              ${m.birthYear ? `<span class="ttc-meta">${m.birthYear}</span>` : ""}
+              <strong>${escapeHtml(m.name)}</strong>
+              ${m.relation ? `<span class="ttc-rel">${escapeHtml(m.relation)}</span>` : ""}
+              ${m.birthYear ? `<span class="ttc-meta">${escapeHtml(m.birthYear)}</span>` : ""}
             </div>`).join("")}</div>` : "<p style='color:var(--muted)'>कोई सदस्य नहीं</p>"}
         </div>`;
     } catch (err) {

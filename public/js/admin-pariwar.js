@@ -8,6 +8,9 @@
 
 (function () {
   "use strict";
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
 
   const listEl = document.querySelector("#pariwar-trees-list");
   const filterBtns = document.querySelectorAll(".pft");
@@ -47,7 +50,7 @@
       } catch (_) { /* silent */ }
 
       const gotraOptions = `<option value="">— नया गोत्र बनाएं —</option>` +
-        allGotras.map(g => `<option value="${g.id}">${g.name} (${g.status})</option>`).join("");
+        allGotras.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)} (${escapeHtml(g.status)})</option>`).join("");
 
       listEl.innerHTML = trees.map(tree => {
         const members = Array.isArray(tree.familyMembers) ? tree.familyMembers : [];
@@ -56,11 +59,11 @@
           <div class="pariwar-tree-card" data-tree-id="${tree.id}">
             <div class="ptc-header">
               <div>
-                <h4>${tree.gotraName}</h4>
+                <h4>${escapeHtml(tree.gotraName)}</h4>
                 <div class="ptc-meta">
-                  <span>📛 ${tree.creatorName}</span>
-                  ${tree.creatorContact ? `<span>📞 ${tree.creatorContact}</span>` : ""}
-                  ${tree.village ? `<span>🏘️ ${tree.village}${tree.district ? ", " + tree.district : ""}${tree.state ? ", " + tree.state : ""}</span>` : ""}
+                  <span>📛 ${escapeHtml(tree.creatorName)}</span>
+                  ${tree.creatorContact ? `<span>📞 ${escapeHtml(tree.creatorContact)}</span>` : ""}
+                  ${tree.village ? `<span>🏘️ ${escapeHtml(`${tree.village}${tree.district ? ", " + tree.district : ""}${tree.state ? ", " + tree.state : ""}`)}</span>` : ""}
                   <span>👨‍👩‍👦 ${memberCount} सदस्य</span>
                   <span>📅 ${new Date(tree.submittedAt).toLocaleDateString("hi-IN")}</span>
                 </div>
@@ -74,15 +77,15 @@
                 <div class="ptc-members-grid">
                   ${members.map(m => `
                     <div class="ptc-member">
-                      <strong>${m.name}</strong>
-                      ${m.relation ? `<span>${m.relation}</span>` : ""}
-                      ${m.birthYear ? `<span>${m.birthYear}</span>` : ""}
+                      <strong>${escapeHtml(m.name)}</strong>
+                        ${m.relation ? `<span>${escapeHtml(m.relation)}</span>` : ""}
+                        ${m.birthYear ? `<span>${escapeHtml(m.birthYear)}</span>` : ""}
                       ${m.gender && m.gender !== "unknown" ? `<span>${m.gender === "male" ? "पुरुष" : m.gender === "female" ? "महिला" : "अन्य"}</span>` : ""}
                     </div>`).join("")}
                 </div>
               </details>` : ""}
 
-            ${tree.notes ? `<p class="ptc-notes">${tree.notes}</p>` : ""}
+            ${tree.notes ? `<p class="ptc-notes">${escapeHtml(tree.notes)}</p>` : ""}
 
             ${tree.status === "pending" ? `
               <div class="ptc-actions">
@@ -109,7 +112,7 @@
             ${tree.status === "linked" ? `
               <p class="ptc-linked-note">
                 ✅ ${memberCount} सदस्य वंशावली में जोड़े गए।
-                ${tree.reviewNotes ? " · " + tree.reviewNotes : ""}
+                ${tree.reviewNotes ? " · " + escapeHtml(tree.reviewNotes) : ""}
               </p>` : ""}
           </div>`;
       }).join("");
