@@ -1241,3 +1241,99 @@ adminFamilyForm?.addEventListener("submit", async e => {
     }
   });
 }());
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UI/UX ENHANCEMENTS — 2025
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Header scroll shadow ────────────────────────────────────────────── */
+(function initHeaderScroll() {
+  const header = document.querySelector(".site-header");
+  if (!header) return;
+  const toggle = () => header.classList.toggle("scrolled", window.scrollY > 6);
+  window.addEventListener("scroll", toggle, { passive: true });
+  toggle();
+}());
+
+/* ── 2. Reveal-on-scroll (IntersectionObserver) ─────────────────────────── */
+(function initReveal() {
+  if (!("IntersectionObserver" in window)) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+  /* Mark sections that should animate in */
+  const targets = document.querySelectorAll(
+    ".section, .page-hero, .hero, .heritage-card, " +
+    ".portal-card, .aside-card, .chapter-list > div, " +
+    ".gotra-dir-card, .village-card, .stat-card, " +
+    ".pariwar-step, .token-lookup-box, .pariwar-tree-card"
+  );
+
+  const obs = new IntersectionObserver((entries, o) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add("revealed");
+      o.unobserve(entry.target);
+    });
+  }, { threshold: 0.08, rootMargin: "0px 0px -40px 0px" });
+
+  targets.forEach(el => {
+    el.classList.add("reveal-on-scroll");
+    obs.observe(el);
+  });
+}());
+
+/* ── 3. Staggered list children ─────────────────────────────────────────── */
+(function initStaggered() {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  document.querySelectorAll(
+    ".portal-grid, .gotra-directory-grid, .village-grid, " +
+    ".dashboard-grid, .heritage-grid, .chapter-list, .ptc-members-grid"
+  ).forEach(grid => {
+    Array.from(grid.children).forEach((child, i) => {
+      child.style.transitionDelay = `${i * 55}ms`;
+    });
+  });
+}());
+
+/* ── 4. Smooth nav active line on mobile ────────────────────────────────── */
+(function improveNavHighlight() {
+  const path = window.location.pathname;
+  document.querySelectorAll(".main-nav a").forEach(link => {
+    const href = link.getAttribute("href")?.split("?")[0];
+    if (!href) return;
+    const isHome = href === "/" && (path === "/" || path === "/index.html");
+    const isMatch = !isHome && href !== "/" && path.includes(href.replace(/^\//, "").replace(".html",""));
+    if (isHome || isMatch) {
+      link.classList.add("active");
+      link.setAttribute("aria-current", "page");
+    }
+  });
+}());
+
+/* ── 5. Copy-to-clipboard helper for public profile links ───────────────── */
+document.addEventListener("click", e => {
+  const btn = e.target.closest(".profile-share-btn");
+  if (!btn) return;
+  const url = btn.dataset.url || window.location.href;
+  navigator.clipboard?.writeText(url).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = "✓ कॉपी हो गया";
+    setTimeout(() => { btn.innerHTML = orig; }, 2200);
+  }).catch(() => {});
+});
+
+/* ── 6. Auto-resize textareas ───────────────────────────────────────────── */
+document.querySelectorAll("textarea").forEach(ta => {
+  ta.style.overflowY = "hidden";
+  const resize = () => {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  };
+  ta.addEventListener("input", resize);
+});
+
+/* ── 7. Touch-friendly active states for buttons ────────────────────────── */
+document.querySelectorAll(".button, .portal-card, .gotra-dir-card, .village-card").forEach(el => {
+  el.addEventListener("touchstart", () => el.classList.add("touch-active"), { passive: true });
+  el.addEventListener("touchend",   () => el.classList.remove("touch-active"), { passive: true });
+});

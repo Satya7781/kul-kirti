@@ -2012,3 +2012,1080 @@ html[lang="hi"] .result-card h3 {
   .pariwar-trees-list { padding: 12px 14px; }
   .pariwar-filter-tabs { padding: 10px 14px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2025 UI/UX ENHANCEMENT — pages layer
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page hero — richer grain overlay + entrance animation ─────────────── */
+.page-hero {
+  position: relative;
+  overflow: hidden;
+}
+.page-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(228,197,126,.15) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, black 25%, black 75%, transparent);
+}
+.page-hero .shell > * {
+  animation: pageHeroIn 0.5s cubic-bezier(.22,.68,0,1.2) both;
+}
+.page-hero .shell > *:nth-child(1) { animation-delay: 60ms; }
+.page-hero .shell > *:nth-child(2) { animation-delay: 130ms; }
+.page-hero .shell > *:nth-child(3) { animation-delay: 200ms; }
+@keyframes pageHeroIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-hero h1 em {
+  text-shadow: 0 0 32px rgba(228,197,126,.3);
+}
+
+/* ── Chapter cards — richer hover ──────────────────────────────────────── */
+.chapter-list > div {
+  border-radius: var(--radius-sm);
+  transition: transform 250ms cubic-bezier(.22,.68,0,1.2),
+              box-shadow 250ms ease, border-left-color 150ms ease;
+  border-left: 3px solid transparent;
+}
+.chapter-list > div:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(53,37,28,.1);
+  border-left-color: var(--gold);
+}
+.chapter-list b {
+  transition: transform 250ms cubic-bezier(.22,.68,0,1.2);
+  display: inline-block;
+}
+.chapter-list > div:hover b { transform: scale(1.12); }
+
+/* ── Aside cards ────────────────────────────────────────────────────────── */
+.aside-card {
+  border-radius: var(--radius-sm);
+  transition: transform 250ms cubic-bezier(.22,.68,0,1.2),
+              box-shadow 250ms ease;
+}
+.aside-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(53,37,28,.1);
+}
+
+/* ── Back link ──────────────────────────────────────────────────────────── */
+.vw-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--maroon);
+  margin-bottom: 24px;
+  opacity: .75;
+  transition: opacity 150ms ease, transform 150ms ease;
+  border-bottom: 1px solid rgba(109,23,37,.2);
+  padding-bottom: 3px;
+}
+.vw-back-link:hover {
+  opacity: 1;
+  transform: translateX(-3px);
+}
+
+/* ── Genealogy search form ──────────────────────────────────────────────── */
+.genealogy-search-form {
+  display: flex;
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 auto 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 6px 6px 20px;
+  box-shadow: 0 4px 20px rgba(53,37,28,.07);
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+.genealogy-search-form:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 4px 24px rgba(196,154,69,.18);
+}
+.genealogy-search-form input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: 15px "Noto Sans Devanagari","Source Sans 3",sans-serif;
+  color: var(--brown);
+  min-width: 0;
+}
+.genealogy-search-form .button {
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size: 13px;
+}
+
+/* Search results live region */
+.genealogy-search-results {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+/* ── Person search cards ────────────────────────────────────────────────── */
+.person-search-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin: 8px 0;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  animation: resultIn .2s ease both;
+}
+.person-search-card:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 18px rgba(53,37,28,.09);
+  border-color: rgba(196,154,69,.35);
+}
+.person-search-card h4 {
+  font-size: 17px;
+  color: var(--maroon);
+  margin: 0 0 2px;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+}
+.person-search-card .person-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Person profile card ────────────────────────────────────────────────── */
+.person-profile-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  box-shadow: 0 6px 30px rgba(53,37,28,.07);
+}
+.person-profile-header {
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.person-profile-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--cream) 0%, rgba(196,154,69,.15) 100%);
+  border: 2px solid var(--gold);
+  display: grid;
+  place-items: center;
+  font: 700 30px "Noto Serif Devanagari","Playfair Display",serif;
+  color: var(--maroon);
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(196,154,69,.2);
+}
+.person-profile-info h2 {
+  font-size: 26px;
+  color: var(--maroon);
+  margin: 0 0 5px;
+}
+.person-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  padding: 3px 10px;
+  border-radius: 99px;
+  line-height: 1.4;
+}
+.tag.gen      { background: rgba(196,154,69,.18); color: var(--maroon); }
+.tag.living   { background: #dcebd8; color: #285d2e; }
+.tag.deceased { background: var(--cream); color: var(--muted); }
+.tag.gotra    { background: rgba(109,23,37,.08); color: var(--maroon); }
+
+/* Relationship sections */
+.rel-section {
+  margin-bottom: 20px;
+}
+.rel-section h3 {
+  font-size: 15px;
+  color: var(--maroon);
+  margin: 0 0 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rel-section h3::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: var(--gold);
+  border-radius: 2px;
+}
+.rel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rel-item {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 14px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.rel-item:hover { border-color: var(--gold); box-shadow: 0 2px 10px rgba(196,154,69,.12); }
+.rel-item a { color: var(--maroon); font-weight: 600; }
+.rel-meta { font-size: 11px; color: var(--muted); margin-left: 5px; }
+.rel-empty { font-size: 13px; color: var(--muted); font-style: italic; }
+
+/* Ancestor / descendant paths */
+.ancestor-path, .descendant-path {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+}
+.path-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(109,23,37,.06);
+  font-size: 14px;
+}
+.path-item:last-child { border-bottom: 0; }
+.path-gen {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  min-width: 56px;
+}
+.path-item a { color: var(--maroon); font-weight: 600; }
+.path-meta { font-size: 11px; color: var(--muted); }
+
+/* Share button */
+.profile-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--maroon);
+  border: 1px solid var(--line);
+  background: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 11px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.profile-share-btn:hover {
+  background: var(--maroon-05);
+  border-color: rgba(109,23,37,.25);
+}
+
+/* ── Gotra directory grid ───────────────────────────────────────────────── */
+.gotra-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+.gotra-dir-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  border-top: 3px solid transparent;
+  transition: transform 250ms cubic-bezier(.22,.68,0,1.2),
+              box-shadow 250ms ease, border-top-color 150ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gotra-dir-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 36px rgba(53,37,28,.1);
+  border-top-color: var(--gold);
+}
+.gotra-dir-card h3 {
+  font-size: 20px;
+  color: var(--maroon);
+  margin: 0;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+}
+.gotra-meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.gotra-meta b { color: var(--gold); font-weight: 700; }
+.gotra-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  flex: 1;
+}
+.gotra-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--maroon);
+  margin-top: auto;
+  transition: color 150ms ease;
+}
+.gotra-dir-card:hover .gotra-link { color: var(--gold); }
+
+/* ── Village grid ───────────────────────────────────────────────────────── */
+.village-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+.village-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  border-left: 3px solid transparent;
+}
+.village-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(53,37,28,.09);
+  border-left-color: var(--gold);
+}
+.village-card h4 {
+  font-size: 16px;
+  color: var(--maroon);
+  margin: 0 0 4px;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+}
+.village-card .village-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+.village-card .village-count {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold);
+  font-family: "Playfair Display",serif;
+  line-height: 1;
+  margin-top: 10px;
+}
+
+/* ── Gotra detail card ──────────────────────────────────────────────────── */
+.gotra-detail-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  box-shadow: 0 6px 30px rgba(53,37,28,.07);
+}
+.gotra-detail-card h2 {
+  font-size: 28px;
+  color: var(--maroon);
+  margin: 0 0 10px;
+}
+.gotra-stats {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.gotra-stat {
+  text-align: center;
+  min-width: 70px;
+}
+.gotra-stat b {
+  display: block;
+  font-size: 26px;
+  color: var(--gold);
+  font-family: "Playfair Display",serif;
+  line-height: 1;
+}
+.gotra-stat span { font-size: 11px; color: var(--muted); }
+.gotra-detail-section {
+  margin-bottom: 22px;
+}
+.gotra-detail-section h3 {
+  font-size: 17px;
+  color: var(--maroon);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+.gotra-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.gotra-member-card {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.gotra-member-card:hover {
+  border-color: rgba(196,154,69,.4);
+  box-shadow: 0 3px 12px rgba(53,37,28,.08);
+}
+.gotra-member-card a { color: var(--maroon); font-weight: 600; font-size: 14px; }
+.gotra-member-card .gmc-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ── Interactive family tree canvas ────────────────────────────────────── */
+.tree-section-title {
+  font-size: 20px;
+  color: var(--maroon);
+  margin: 32px 0 14px;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+  font-weight: 600;
+}
+.family-tree-canvas {
+  position: relative;
+  min-height: 280px;
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  padding: 20px;
+  box-shadow: inset 0 2px 8px rgba(53,37,28,.04);
+}
+.tree-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.tree-nodes-layer {
+  position: relative;
+  z-index: 1;
+  min-height: 240px;
+}
+.tree-node-card {
+  display: inline-block;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  min-width: 150px;
+  text-align: center;
+  cursor: pointer;
+  position: absolute;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  box-shadow: 0 2px 10px rgba(53,37,28,.06);
+}
+.tree-node-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(53,37,28,.12);
+  border-color: rgba(196,154,69,.4);
+  z-index: 2;
+}
+.tree-node-card.selected {
+  border-color: var(--maroon);
+  box-shadow: 0 0 0 2px rgba(109,23,37,.14), 0 4px 16px rgba(53,37,28,.12);
+}
+.node-name {
+  font-weight: 700;
+  color: var(--maroon);
+  font-size: 13px;
+  font-family: "Noto Sans Devanagari","Source Sans 3",sans-serif;
+  line-height: 1.3;
+}
+.node-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.node-gen {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  background: rgba(196,154,69,.12);
+  color: var(--maroon);
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-top: 5px;
+}
+.node-expand-btn {
+  display: block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  margin: 6px auto 0;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  color: var(--gold);
+  font-size: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.node-expand-btn:hover { background: var(--gold); color: #fff; border-color: var(--gold); }
+
+.tree-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.tree-controls .button {
+  font-size: 12px;
+  padding: 8px 14px;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Mera Pariwar — 3-step guide ────────────────────────────────────────── */
+.pariwar-steps-section {
+  background: linear-gradient(135deg, var(--cream) 0%, rgba(237,225,202,.4) 100%);
+  padding: 32px 0;
+}
+.pariwar-steps {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  flex-wrap: wrap;
+  counter-reset: step;
+}
+.pariwar-step {
+  flex: 1 1 220px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  margin: 6px;
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.pariwar-step:hover { box-shadow: 0 6px 22px rgba(53,37,28,.09); transform: translateY(-2px); }
+.step-num {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--maroon), var(--maroon-dark));
+  color: var(--gold-light);
+  font: 700 18px "Noto Serif Devanagari",serif;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 3px 12px rgba(109,23,37,.25);
+}
+.pariwar-step b { display: block; color: var(--maroon); font-size: 14px; margin-bottom: 4px; }
+.pariwar-step p { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.6; }
+.pariwar-step-arrow {
+  align-self: center;
+  font-size: 20px;
+  color: var(--gold);
+  opacity: .5;
+  margin: 6px -6px;
+  flex-shrink: 0;
+}
+
+/* Pariwar form layout */
+.pariwar-form-layout {
+  display: grid;
+  grid-template-columns: .65fr 1.35fr;
+  gap: 60px;
+  align-items: start;
+}
+.pariwar-form-side h2 {
+  font-size: 34px;
+  color: var(--maroon);
+  margin: 8px 0 0;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+  line-height: 1.2;
+}
+.pariwar-form-side h2 em {
+  color: var(--gold);
+  font-style: normal;
+}
+.pariwar-tips {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+}
+.pariwar-tips li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(109,23,37,.08);
+}
+.pariwar-tips li:last-child { border-bottom: 0; }
+.pariwar-main-form {
+  border-radius: var(--radius-md);
+  overflow: visible;
+}
+.form-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px solid rgba(196,154,69,.25);
+  padding-bottom: 8px;
+  margin: 22px 0 14px;
+  font-family: "Source Sans 3",sans-serif;
+}
+
+/* Success box */
+.pariwar-success-box {
+  background: linear-gradient(135deg, #f0faf0 0%, #e8f7e8 100%);
+  border: 1px solid #c3e6c5;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-top: 20px;
+  animation: msgSlide .3s ease both;
+}
+.pariwar-success-box h3 {
+  color: #1f6b22;
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.token-label { font-weight: 700; color: #1f6b22; font-size: 13px; margin-top: 14px !important; }
+.token-box {
+  font-family: "Courier New", monospace;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: var(--maroon);
+  background: #fff;
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  text-align: center;
+  margin: 10px 0;
+  word-break: break-all;
+  box-shadow: 0 3px 14px rgba(196,154,69,.15);
+}
+
+/* Token lookup */
+.token-lookup-box {
+  max-width: 540px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 28px 32px;
+  box-shadow: 0 4px 20px rgba(53,37,28,.07);
+}
+.token-lookup-box h3 {
+  color: var(--maroon);
+  font-size: 18px;
+  margin: 0 0 6px;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+}
+.token-lookup-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.token-lookup-form input {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  font: 14px "Courier New",monospace;
+  letter-spacing: .1em;
+  outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.token-lookup-form input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(196,154,69,.12);
+}
+
+/* Token tree result */
+.token-lookup-result { margin-top: 20px; }
+.token-tree-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ttc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--ivory);
+  border-bottom: 1px solid var(--line);
+}
+.ttc-header h3 { color: var(--maroon); font-size: 17px; margin: 0 0 4px; }
+.ttc-meta { font-size: 12px; color: var(--muted); }
+.ttc-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.ttc-members { padding: 12px 18px; }
+.ttc-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(109,23,37,.06);
+  font-size: 13px;
+}
+.ttc-member:last-child { border-bottom: 0; }
+.ttc-member strong { color: var(--maroon); }
+.ttc-rel {
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--cream);
+  color: var(--muted);
+  padding: 1px 7px;
+  border-radius: 99px;
+}
+
+/* ── Admin panel improvements ───────────────────────────────────────────── */
+.admin-submission {
+  border-radius: var(--radius-sm);
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+.admin-submission:hover {
+  box-shadow: 0 4px 16px rgba(53,37,28,.07);
+  border-color: rgba(196,154,69,.3);
+}
+.admin-actions button {
+  border-radius: 99px;
+  padding: 6px 14px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.admin-actions button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0,0,0,.1);
+}
+.approve { font-weight: 700; }
+.reject  { font-weight: 700; }
+
+/* Admin pariwar tab */
+.pariwar-filter-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 22px;
+  background: rgba(237,225,202,.35);
+  border-bottom: 1px solid var(--line);
+}
+.pft {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  padding: 5px 14px;
+  border-radius: 99px;
+  font: 600 12px "Source Sans 3","Noto Sans Devanagari",sans-serif;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.pft.active, .pft:hover {
+  background: var(--maroon);
+  color: #fff;
+  border-color: var(--maroon);
+}
+.pariwar-trees-list { padding: 14px 22px; }
+.pariwar-tree-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius-sm);
+  margin: 10px 0;
+  overflow: hidden;
+  transition: box-shadow 150ms ease;
+}
+.pariwar-tree-card:hover { box-shadow: 0 4px 18px rgba(53,37,28,.08); }
+.ptc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+}
+.ptc-header h4 {
+  color: var(--maroon);
+  font-size: 16px;
+  margin: 0 0 3px;
+  font-family: "Noto Serif Devanagari","Playfair Display",serif;
+}
+.ptc-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.ptc-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  padding: 3px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+.ptc-pending  { background: #fdf3d8; color: #7a5500; }
+.ptc-linked   { background: #dcebd8; color: #285d2e; }
+.ptc-rejected { background: #f7dede; color: #842d2d; }
+.ptc-members-details { padding: 0 18px 12px; }
+.ptc-members-details summary {
+  font-size: 13px;
+  color: var(--maroon);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.ptc-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+.ptc-member {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.ptc-member strong { color: var(--maroon); display: block; }
+.ptc-member span { color: var(--muted); font-size: 11px; }
+.ptc-actions {
+  border-top: 1px solid var(--line);
+  padding: 12px 18px;
+  background: rgba(247,240,227,.5);
+}
+.ptc-link-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.ptc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--maroon);
+  flex: 1;
+  min-width: 180px;
+}
+.ptc-label select, .ptc-label input {
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: 13px "Source Sans 3","Noto Sans Devanagari",sans-serif;
+  color: var(--brown);
+  outline: none;
+  transition: border-color 150ms ease;
+  width: 100%;
+}
+.ptc-label select:focus, .ptc-label input:focus { border-color: var(--gold); }
+.ptc-linked-note {
+  padding: 10px 18px;
+  font-size: 13px;
+  color: #285d2e;
+  margin: 0;
+  background: rgba(220,235,216,.4);
+  border-top: 1px solid var(--line);
+}
+
+/* ── Stat dashboard ─────────────────────────────────────────────────────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+  border-top: 3px solid transparent;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-top-color 150ms ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(53,37,28,.09);
+  border-top-color: var(--gold);
+}
+.stat-value {
+  font: 700 28px "Playfair Display","Noto Serif Devanagari",serif;
+  color: var(--maroon);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+  font-family: "Noto Sans Devanagari","Source Sans 3",sans-serif;
+}
+
+/* ── Import UI ──────────────────────────────────────────────────────────── */
+.import-upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border: 2px dashed rgba(109,23,37,.2);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  background: var(--ivory);
+  font-size: 13px;
+  color: var(--muted);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.import-upload-label:hover { border-color: var(--gold); background: rgba(196,154,69,.05); }
+.import-upload-label input[type="file"] { display: none; }
+
+/* Import table */
+.import-preview-table-wrap {
+  overflow-x: auto;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.import-preview-table th {
+  background: var(--ivory);
+  color: var(--maroon);
+  font-weight: 700;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: nowrap;
+}
+.import-preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(109,23,37,.06);
+  color: var(--brown);
+}
+.import-preview-table tr.row-invalid { background: rgba(247,222,222,.3); }
+.import-preview-table tr.row-valid:hover { background: rgba(196,154,69,.04); }
+.import-preview-table .cell-errors { color: #842d2d; font-size: 11px; }
+.import-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--cream);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--maroon);
+  margin-bottom: 10px;
+}
+.badge-valid   { background: #dcebd8; color: #285d2e; border-radius: 99px; padding: 2px 10px; }
+.badge-invalid { background: #f7dede; color: #842d2d; border-radius: 99px; padding: 2px 10px; }
+
+/* ── Autocomplete suggestions ───────────────────────────────────────────── */
+.autocomplete-suggestions {
+  position: absolute;
+  left: 0; right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 28px rgba(53,37,28,.12);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 50;
+  display: none;
+}
+.autocomplete-suggestions.show { display: block; }
+.suggestion-item {
+  padding: 9px 13px;
+  font-size: 14px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(109,23,37,.06);
+  transition: background 100ms ease;
+}
+.suggestion-item:last-child { border-bottom: 0; }
+.suggestion-item:hover { background: var(--ivory); }
+.sug-name { font-weight: 600; color: var(--maroon); }
+.sug-meta { font-size: 11px; color: var(--muted); }
+
+/* ── Pagination ─────────────────────────────────────────────────────────── */
+.genealogy-pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 18px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.genealogy-pagination button {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--maroon);
+  padding: 6px 14px;
+  border-radius: 99px;
+  font: 600 12px "Source Sans 3","Noto Sans Devanagari",sans-serif;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.genealogy-pagination button:hover { background: var(--cream); border-color: var(--gold); }
+.genealogy-pagination button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ── Responsive fixes ───────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .pariwar-form-layout { grid-template-columns: 1fr; gap: 28px; }
+  .gotra-directory-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+}
+@media (max-width: 720px) {
+  .person-profile-card { padding: 20px; }
+  .gotra-detail-card { padding: 20px; }
+  .pariwar-tips li { align-items: flex-start; }
+  .pariwar-steps { flex-direction: column; }
+  .pariwar-step-arrow { transform: rotate(90deg); align-self: center; margin: 0; }
+  .token-lookup-form { flex-direction: column; }
+  .ptc-link-form { flex-direction: column; }
+  .ptc-label { min-width: 100%; }
+  .genealogy-search-form { border-radius: var(--radius-sm); }
+  .tree-controls { justify-content: center; }
+  .pariwar-trees-list { padding: 10px 14px; }
+  .pariwar-filter-tabs { padding: 10px 14px; }
+  .import-upload-label { width: 100%; justify-content: center; }
+  .dashboard-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .village-grid { grid-template-columns: 1fr 1fr; }
+  .gotra-directory-grid { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr 1fr; }
+  .person-profile-header { flex-direction: column; align-items: center; text-align: center; }
+  .person-profile-info h2 { text-align: center; }
+  .person-tags { justify-content: center; }
+}
