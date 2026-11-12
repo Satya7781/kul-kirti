@@ -1528,3 +1528,58 @@ html[lang="hi"] .result-card h3 {
 }
 .amp-panel { display: none; }
 .amp-panel.active { display: block; }
+
+/* ── Vanshawali back link ───────────────────────────────────────────────── */
+.vw-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--maroon);
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--gold);
+  padding-bottom: 3px;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.vw-back-link:hover { color: var(--maroon-dark); border-color: var(--maroon); }
+
+/* Person profile share button */
+.profile-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--maroon);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.profile-share-btn:hover {
+  background: var(--cream);
+  border-color: var(--gold);
+}
+
+/* Gotra member grid in gotra detail */
+.gotra-member-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.gotra-member-card {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.gotra-member-card:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-soft);
+}
+.gotra-member-card a { color: var(--maroon); font-weight: 600; font-size: 14px; }
+.gotra-member-card .gmc-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }

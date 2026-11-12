@@ -30,6 +30,8 @@
     <div id="shared-header"></div>
 
     <main id="main-content">
+
+      <!-- ── HERO ──────────────────────────────────────────────────────── -->
       <section class="page-hero compact">
         <div class="shell">
           <p class="eyebrow light" data-i18n="vanshawali.heroEyebrow">वंशावली / Family Genealogy</p>
@@ -41,55 +43,9 @@
         </div>
       </section>
 
-      <section class="section">
-        <div class="shell article-layout">
-          <article class="article-content">
-            <div id="published-tree">
-              <h2 data-i18n="vanshawali.treeH2">वंशावली कैसे जुड़ेगी?</h2>
-              <p data-i18n="vanshawali.treeBody">परिवार का विवरण user form से submission के रूप में आएगा। Admin प्रमाण और संबंधों की समीक्षा करेगा। स्वीकृत विवरण ही प्रकाशित परिवार रिकॉर्ड से जुड़ेगा।</p>
-              <div class="flow-list">
-                <div><b>01</b><span data-i18n="vanshawali.flow1">गोत्र → गांव → परिवार शाखा</span></div>
-                <div><b>02</b><span data-i18n="vanshawali.flow2">हर व्यक्ति का unique ID और parent links</span></div>
-                <div><b>03</b><span data-i18n="vanshawali.flow3">संबंध की source और verification स्थिति</span></div>
-                <div><b>04</b><span data-i18n="vanshawali.flow4">गोपनीयता के अनुसार सार्वजनिक प्रदर्शन</span></div>
-              </div>
-            </div>
-            <a class="button button-maroon" href="/submit.html">
-              <span data-i18n="vanshawali.btnSubmit">अपनी वंशावली भेजें</span> <span>→</span>
-            </a>
-          </article>
-
-          <!-- Decorative tree visual -->
-          <div class="tree-visual" aria-hidden="true">
-            <div class="tree-node root" data-i18n="vanshawali.nodeRoot">परिवार शाखा</div>
-            <div class="tree-line vertical"></div>
-            <div class="tree-children">
-              <div class="tree-branch">
-                <div class="tree-line short"></div>
-                <div class="tree-node" data-i18n="vanshawali.nodeAncestor">पूर्वज</div>
-                <div class="tree-line vertical small"></div>
-                <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
-              </div>
-              <div class="tree-branch">
-                <div class="tree-line short"></div>
-                <div class="tree-node" data-i18n="vanshawali.nodeFamily">परिवार</div>
-                <div class="tree-line vertical small"></div>
-                <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── GENEALOGY EXPLORER ────────────────────────────────────────── -->
-      <!-- Person search bar -->
-      <section class="section genealogy-explorer-section">
+      <!-- ── SEARCH BAR (always visible) ───────────────────────────────── -->
+      <section class="section vw-search-section" style="padding:32px 0 0">
         <div class="shell">
-          <div class="section-heading centered">
-            <p class="eyebrow" data-i18n="genealogy.explorerEyebrow">वंशावली खोज</p>
-            <h2 data-i18n="genealogy.explorerH2">व्यक्ति खोजें</h2>
-            <div class="ornament"><span>◆</span></div>
-          </div>
           <form id="genealogy-search-form" class="genealogy-search-form">
             <input id="genealogy-search-input" type="search"
               data-i18n-placeholder="genealogy.searchPh"
@@ -102,59 +58,117 @@
         </div>
       </section>
 
-      <!-- Gotra directory -->
-      <section class="section genealogy-gotras-section" style="padding-top:0">
-        <div class="shell">
-          <div class="section-heading centered">
-            <p class="eyebrow" data-i18n="genealogy.gotraDirEyebrow">गोत्र निर्देशिका</p>
-            <h2 data-i18n="genealogy.gotraDirH2">सत्यापित गोत्र</h2>
-            <div class="ornament"><span>◆</span></div>
-          </div>
-          <div id="gotra-directory" class="gotra-directory-grid"></div>
-        </div>
-      </section>
+      <!-- ═══════════════════════════════════════════════════════════════
+           HOME VIEW — Gotra directory + Village grid + "how it works"
+           Shown by default when no ?gotra= or ?person= param.
+           ═══════════════════════════════════════════════════════════════ -->
+      <div id="vw-home-view">
 
-      <!-- Gotra detail (shown when ?gotra=ID) -->
+        <!-- How it works -->
+        <section class="section" style="padding-top:48px;padding-bottom:24px">
+          <div class="shell article-layout">
+            <article class="article-content">
+              <h2 data-i18n="vanshawali.treeH2">वंशावली कैसे जुड़ेगी?</h2>
+              <p data-i18n="vanshawali.treeBody">परिवार का विवरण form से आएगा। Admin समीक्षा करेगा। स्वीकृत विवरण प्रकाशित होगा।</p>
+              <div class="flow-list">
+                <div><b>01</b><span data-i18n="vanshawali.flow1">गोत्र → गांव → परिवार शाखा</span></div>
+                <div><b>02</b><span data-i18n="vanshawali.flow2">हर व्यक्ति का unique ID और parent links</span></div>
+                <div><b>03</b><span data-i18n="vanshawali.flow3">संबंध की source और verification स्थिति</span></div>
+                <div><b>04</b><span data-i18n="vanshawali.flow4">गोपनीयता के अनुसार सार्वजनिक प्रदर्शन</span></div>
+              </div>
+              <a class="button button-maroon" href="/submit.html" style="display:inline-flex;margin-top:20px">
+                <span data-i18n="vanshawali.btnSubmit">अपनी वंशावली भेजें</span> <span>→</span>
+              </a>
+            </article>
+            <!-- Decorative tree -->
+            <div class="tree-visual" aria-hidden="true">
+              <div class="tree-node root" data-i18n="vanshawali.nodeRoot">परिवार शाखा</div>
+              <div class="tree-line vertical"></div>
+              <div class="tree-children">
+                <div class="tree-branch">
+                  <div class="tree-line short"></div>
+                  <div class="tree-node" data-i18n="vanshawali.nodeAncestor">पूर्वज</div>
+                  <div class="tree-line vertical small"></div>
+                  <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
+                </div>
+                <div class="tree-branch">
+                  <div class="tree-line short"></div>
+                  <div class="tree-node" data-i18n="vanshawali.nodeFamily">परिवार</div>
+                  <div class="tree-line vertical small"></div>
+                  <div class="tree-node muted" data-i18n="vanshawali.nodeGen2">पीढ़ी २</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Gotra directory -->
+        <section class="section genealogy-gotras-section" style="padding-top:0">
+          <div class="shell">
+            <div class="section-heading centered">
+              <p class="eyebrow" data-i18n="genealogy.gotraDirEyebrow">गोत्र निर्देशिका</p>
+              <h2 data-i18n="genealogy.gotraDirH2">सत्यापित गोत्र</h2>
+              <div class="ornament"><span>◆</span></div>
+            </div>
+            <div id="gotra-directory" class="gotra-directory-grid"></div>
+          </div>
+        </section>
+
+        <!-- Village directory -->
+        <section class="section genealogy-villages-section" style="padding-top:0">
+          <div class="shell">
+            <div class="section-heading centered">
+              <p class="eyebrow" data-i18n="genealogy.villageDirEyebrow">गांव निर्देशिका</p>
+              <h2 data-i18n="genealogy.villageDirH2">परिवार गांव अनुसार</h2>
+              <div class="ornament"><span>◆</span></div>
+            </div>
+            <div id="village-directory" class="village-grid"></div>
+          </div>
+        </section>
+
+      </div><!-- /#vw-home-view -->
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           GOTRA DETAIL VIEW — shown when ?gotra=ID
+           ═══════════════════════════════════════════════════════════════ -->
       <section id="gotra-detail-section" class="section" hidden>
         <div class="shell">
+          <a class="vw-back-link" href="/vanshawali.html">← सभी गोत्र</a>
           <div id="gotra-detail-content"></div>
         </div>
       </section>
 
-      <!-- Person profile (shown when ?person=PUBLICID) -->
+      <!-- ═══════════════════════════════════════════════════════════════
+           PERSON PROFILE VIEW — shown when ?person=PUBLICID
+           ═══════════════════════════════════════════════════════════════ -->
       <section id="person-profile-section" class="section" hidden>
         <div class="shell">
+          <a class="vw-back-link" href="javascript:history.back()">← वापस जाएं</a>
           <div id="person-profile-content"></div>
-          <!-- Interactive SVG tree (loaded when ?person=PUBLICID) -->
+
+          <!-- Interactive family tree (auto-shown below profile) -->
           <div id="person-tree-section" hidden>
             <h3 class="tree-section-title" data-i18n="genealogy.treeTitle">परिवार वृक्ष</h3>
             <div id="family-tree-canvas" class="family-tree-canvas">
               <svg id="tree-svg" class="tree-svg" xmlns="http://www.w3.org/2000/svg"></svg>
-              <div id="tree-nodes" class="tree-nodes-layer"></div>
+              <div id="tree-nodes-layer" class="tree-nodes-layer"></div>
             </div>
             <div class="tree-controls">
-              <button id="tree-expand-all" class="button button-outline-dark" type="button" data-i18n="genealogy.expandAll">सभी खोलें</button>
-              <button id="tree-collapse-all" class="button button-outline-dark" type="button" data-i18n="genealogy.collapseAll">सभी बंद करें</button>
-              <button id="tree-print" class="button button-outline-dark" type="button" data-i18n="genealogy.printTree">प्रिंट</button>
+              <button id="tree-expand-all" class="button button-outline-dark" type="button"
+                data-i18n="genealogy.expandAll">सभी खोलें</button>
+              <button id="tree-collapse-all" class="button button-outline-dark" type="button"
+                data-i18n="genealogy.collapseAll">सभी बंद करें</button>
+              <button id="tree-print" class="button button-outline-dark" type="button"
+                data-i18n="genealogy.printTree">प्रिंट</button>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Village directory section -->
-      <section class="section genealogy-villages-section" style="padding-top:0">
-        <div class="shell">
-          <div class="section-heading centered">
-            <p class="eyebrow" data-i18n="genealogy.villageDirEyebrow">गांव निर्देशिका</p>
-            <h2 data-i18n="genealogy.villageDirH2">परिवार गांव अनुसार</h2>
-            <div class="ornament"><span>◆</span></div>
-          </div>
-          <div id="village-directory" class="village-grid"></div>
-        </div>
-      </section>
     </main>
 
     <div id="shared-footer"></div>
     <script src="app.js"></script>
+    <script src="/public/js/vanshawali-explorer.js"></script>
   </body>
 </html>
