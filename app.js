@@ -46,6 +46,7 @@ const headerMarkup = `
       <a href="/vanshawali.html" data-i18n="nav.vanshawali"></a>
       <a href="/samiti.html"   data-i18n="nav.samiti"></a>
       <a href="/submit.html"   data-i18n="nav.submit"></a>
+      <a href="/mera-pariwar.html" data-i18n="nav.meraPariwar">मेरा परिवार</a>
     </nav>
     <a class="admin-link" href="/admin.html" data-i18n="nav.admin"></a>
     <button class="language-switch" type="button">
@@ -705,6 +706,12 @@ const adminViews = {
   submissions:      document.querySelector("#admin-submissions"),
   gotras:           document.querySelector("#admin-gotras"),
   "family-builder": document.querySelector("#admin-family-builder"),
+  people:           document.querySelector("#admin-people"),
+  "genealogy-contributions": document.querySelector("#admin-genealogy-contributions"),
+  dashboard:        document.querySelector("#admin-dashboard"),
+  import:           document.querySelector("#admin-import"),
+  "branch-mgmt":    document.querySelector("#admin-branch-mgmt"),
+  "pariwar-trees":  document.querySelector("#admin-pariwar-trees"),
 };
 
 adminTabs.forEach(tab => {

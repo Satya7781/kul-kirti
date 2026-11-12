@@ -386,3 +386,54 @@ CREATE INDEX IF NOT EXISTS user_branch_perms_branch_idx ON user_branch_permissio
 -- Adds a nullable FK so each gotra_member can reference its full people record.
 ALTER TABLE gotra_members ADD COLUMN IF NOT EXISTS linked_person_id UUID REFERENCES people(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS gotra_members_linked_person_idx ON gotra_members (linked_person_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PUBLIC FAMILY TREE SYSTEM
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Allows anyone to submit their own family tree without an admin account.
+-- The tree is stored in draft status until admin reviews it.
+-- created_by on people is made nullable so public-submitted people work.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ── 14. PUBLIC FAMILY TREES ────────────────────────────────────────────────
+-- Each public submission is one family tree with a list of members (JSONB).
+-- Statuses: draft (saved by user), pending (submitted for review),
+--           approved (linked into main genealogy), rejected.
+
+CREATE TABLE IF NOT EXISTS public_family_trees (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  token            TEXT UNIQUE NOT NULL DEFAULT upper(substr(replace(gen_random_uuid()::text,'-',''),1,16)),
+  creator_name     TEXT NOT NULL,
+  creator_contact  TEXT,
+  gotra_name       TEXT NOT NULL,
+  village          TEXT,
+  district         TEXT,
+  state            TEXT,
+  family_members   JSONB NOT NULL DEFAULT '[]'::jsonb,
+  notes            TEXT,
+  status           TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'approved', 'rejected', 'linked')),
+  -- After admin links this tree into the main genealogy:
+  linked_gotra_id  UUID REFERENCES gotras(id),
+  reviewed_by      UUID REFERENCES admins(id),
+  review_notes     TEXT,
+  submitted_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at      TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS pft_status_idx ON public_family_trees (status);
+CREATE INDEX IF NOT EXISTS pft_gotra_name_idx ON public_family_trees (gotra_name);
+CREATE INDEX IF NOT EXISTS pft_token_idx ON public_family_trees (token);
+
+-- ── Allow people.created_by to be NULL ─────────────────────────────────────
+-- Public-submitted people are created without an admin account.
+ALTER TABLE people ALTER COLUMN created_by DROP NOT NULL;
+
+-- ── Allow family_branches.created_by to be NULL ────────────────────────────
+ALTER TABLE family_branches ALTER COLUMN created_by DROP NOT NULL;
+
+-- ── Allow gotras to be created in draft by system (NULL created_by) ────────
+ALTER TABLE gotras ALTER COLUMN created_by DROP NOT NULL;
+
+-- ── Allow person_relationships.created_by to be NULL ──────────────────────
+ALTER TABLE person_relationships ALTER COLUMN created_by DROP NOT NULL;

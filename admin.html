@@ -82,6 +82,9 @@
                 data-i18n="admin.tabImport">आयात</button>
               <button class="admin-tab" data-admin-view="branch-mgmt" type="button"
                 data-i18n="admin.tabBranchMgmt">शाखा प्रबंधन</button>
+              <button class="admin-tab" data-admin-view="pariwar-trees" type="button">
+                परिवार वृक्ष
+              </button>
             </div>
 
             <!-- ── SUBMISSIONS VIEW ─────────────────────────────────── -->
@@ -409,6 +412,17 @@
               <div id="branch-list" class="admin-people-list"></div>
             </div>
 
+            <!-- ── PARIWAR TREES VIEW ─────────────────────────────────── -->
+            <div id="admin-pariwar-trees" class="admin-pariwar-view" hidden>
+              <!-- Filter tabs -->
+              <div class="pariwar-filter-tabs">
+                <button class="pft active" data-pft-status="pending">⏳ लंबित</button>
+                <button class="pft" data-pft-status="linked">✅ जुड़े हुए</button>
+                <button class="pft" data-pft-status="rejected">❌ अस्वीकृत</button>
+              </div>
+              <div id="pariwar-trees-list" class="pariwar-trees-list"></div>
+            </div>
+
           </div><!-- /#admin-panel -->
         </div><!-- /.shell -->
       </section>
@@ -416,5 +430,6 @@
 
     <div id="shared-footer"></div>
     <script src="app.js"></script>
+    <script src="/public/js/admin-pariwar.js"></script>
   </body>
 </html>

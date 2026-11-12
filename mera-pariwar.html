@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>मेरा परिवार वृक्ष | कुलकीर्ति</title>
+    <meta name="description" content="अपना परिवार वृक्ष बनाएं और कुलकीर्ति के अभिलेखागार में जोड़ें।" />
+    <meta name="robots" content="noindex" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <main id="main-content">
+
+      <!-- ── HERO ──────────────────────────────────────────────────────── -->
+      <section class="page-hero compact">
+        <div class="shell">
+          <p class="eyebrow light">मेरा परिवार वृक्ष</p>
+          <h1>अपना परिवार वृक्ष<br /><em>बनाएं और साझा करें</em></h1>
+          <p>अपने परिवार की जानकारी भरें। Admin समीक्षा के बाद यह वंशावली में जुड़ जाएगा।</p>
+        </div>
+      </section>
+
+      <!-- ── HOW IT WORKS ───────────────────────────────────────────────── -->
+      <section class="section pariwar-steps-section">
+        <div class="shell">
+          <div class="pariwar-steps">
+            <div class="pariwar-step"><span class="step-num">१</span><div><b>जानकारी भरें</b><p>अपना नाम, गोत्र, गांव और परिवार के सदस्यों की जानकारी दर्ज करें।</p></div></div>
+            <div class="pariwar-step-arrow">→</div>
+            <div class="pariwar-step"><span class="step-num">२</span><div><b>सबमिट करें</b><p>आपको एक unique token मिलेगा — उसे सुरक्षित रखें।</p></div></div>
+            <div class="pariwar-step-arrow">→</div>
+            <div class="pariwar-step"><span class="step-num">३</span><div><b>Admin जोड़ेंगे</b><p>Admin आपके परिवार को वंशावली से जोड़ेंगे और सूचित करेंगे।</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── MAIN FORM ──────────────────────────────────────────────────── -->
+      <section class="section forms-section" style="padding-top:0">
+        <div class="shell">
+          <div class="pariwar-form-layout">
+
+            <!-- Left — instructions -->
+            <div class="pariwar-form-side">
+              <p class="eyebrow">निर्देश</p>
+              <h2>परिवार की जानकारी<br /><em>सुरक्षित रखें</em></h2>
+              <div class="ornament"><span>◆</span></div>
+              <ul class="pariwar-tips">
+                <li>🔑 Submit के बाद मिला <b>Token</b> सुरक्षित रखें — इसी से आप अपना tree देख सकते हैं।</li>
+                <li>📋 पहले सभी सदस्य जोड़ें, फिर हर सदस्य के पिता/माता उसी सूची से चुनें।</li>
+                <li>🏘️ गोत्र का सही नाम लिखें — Admin बाद में इसमें ऐतिहासिक विवरण जोड़ेंगे।</li>
+                <li>✅ सभी जानकारी Admin समीक्षा के बाद ही प्रकाशित होगी।</li>
+              </ul>
+              <div id="pariwar-success" class="pariwar-success-box" hidden>
+                <h3>✅ सफलतापूर्वक भेजा गया!</h3>
+                <p>आपका परिवार वृक्ष समीक्षा के लिए भेज दिया गया है।</p>
+                <p class="token-label">आपका Token (सुरक्षित रखें):</p>
+                <div class="token-box" id="pariwar-token-display"></div>
+                <button class="button button-outline-dark" id="copy-token-btn" type="button">
+                  📋 Token कॉपी करें
+                </button>
+                <div style="margin-top:16px">
+                  <a id="view-tree-link" class="button button-gold" href="#" target="_blank">
+                    अपना tree देखें →
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right — form -->
+            <form id="pariwar-form" class="record-form pariwar-main-form">
+
+              <!-- STEP 1: Your info + gotra + location -->
+              <div class="form-section-title">आपकी जानकारी</div>
+              <div class="form-row">
+                <label>
+                  आपका नाम *
+                  <input name="creatorName" required maxlength="120" placeholder="जैसे: रामसिंह गेहलोत" />
+                </label>
+                <label>
+                  संपर्क (वैकल्पिक)
+                  <input name="creatorContact" maxlength="120" placeholder="मोबाइल या ईमेल" />
+                </label>
+              </div>
+
+              <div class="form-section-title">परिवार की जानकारी</div>
+              <div class="form-row">
+                <label>
+                  गोत्र *
+                  <input name="gotraName" required maxlength="120" placeholder="जैसे: सिसोदिया, राठौड़" />
+                </label>
+                <label>
+                  गांव *
+                  <input name="village" required maxlength="120" placeholder="मूल गांव का नाम" />
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  जिला
+                  <input name="district" maxlength="120" />
+                </label>
+                <label>
+                  राज्य
+                  <input name="state" maxlength="120" />
+                </label>
+              </div>
+
+              <!-- STEP 2: Family members dynamic builder -->
+              <div class="form-section-title">परिवार के सदस्य</div>
+              <div class="family-builder">
+                <div class="builder-heading">
+                  <div>
+                    <p class="eyebrow">सदस्य सूची</p>
+                    <h3>एक-एक करके जोड़ें</h3>
+                  </div>
+                  <button id="pariwar-add-member" class="button button-outline-dark" type="button">
+                    + सदस्य जोड़ें
+                  </button>
+                </div>
+                <p class="form-note">पहले सभी सदस्य जोड़ें, फिर हर सदस्य के "पिता" और "माता" ड्रॉपडाउन से चुनें।</p>
+                <div id="pariwar-member-list"></div>
+              </div>
+
+              <label>
+                अतिरिक्त जानकारी
+                <textarea name="notes" rows="3" maxlength="1000"
+                  placeholder="कोई विशेष जानकारी, दस्तावेज़ का उल्लेख, या सन्दर्भ..."></textarea>
+              </label>
+
+              <div id="pariwar-form-message" class="form-message" role="status"></div>
+              <button class="button button-maroon" type="submit" style="width:100%">
+                परिवार वृक्ष भेजें <span>→</span>
+              </button>
+              <small class="form-note" style="text-align:center;display:block;margin-top:8px">
+                Submit के बाद मिला Token सुरक्षित रखें।
+              </small>
+            </form>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ── VIEW OWN TREE BY TOKEN ─────────────────────────────────────── -->
+      <section class="section" style="padding-top:0;padding-bottom:60px">
+        <div class="shell">
+          <div class="token-lookup-box">
+            <h3>Token से अपना tree देखें</h3>
+            <p class="form-note">अगर आपके पास पहले से token है, तो नीचे डालकर अपना tree देखें।</p>
+            <form id="token-lookup-form" class="token-lookup-form">
+              <input id="token-input" type="text" maxlength="20"
+                placeholder="आपका 16-अंकों का token" autocomplete="off" />
+              <button class="button button-outline-dark" type="submit">देखें →</button>
+            </form>
+            <div id="token-lookup-result" class="token-lookup-result" hidden></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+    <script src="/public/js/mera-pariwar.js"></script>
+  </body>
+</html>

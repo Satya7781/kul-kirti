@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Admin Login | कुलकीर्ति</title>
+    <meta name="robots" content="noindex,nofollow" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Serif+Devanagari:wght@600;700&family=Playfair+Display:wght@600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+
+    <style>
+      body { display:grid; min-height:100vh; place-items:center; background:var(--ivory); }
+      .login-card {
+        background:#fff; border:1px solid var(--line); border-radius:var(--radius-lg);
+        box-shadow:var(--shadow-medium); padding:40px 36px; width:min(420px,calc(100vw - 48px));
+      }
+      .login-brand {
+        display:flex; align-items:center; gap:12px; justify-content:center; margin-bottom:28px;
+      }
+      .login-brand .brand-mark {
+        width:46px; height:46px; border:1px solid var(--gold); display:grid;
+        place-items:center; color:var(--maroon);
+        font:600 22px "Noto Serif Devanagari",serif; border-radius:4px;
+      }
+      .login-brand strong { font:600 22px "Noto Serif Devanagari",serif; color:var(--maroon); }
+      .login-card h2 {
+        text-align:center; color:var(--maroon); font-size:20px; margin:0 0 6px;
+        font-family:"Noto Serif Devanagari","Playfair Display",serif;
+      }
+      .login-card .login-sub {
+        text-align:center; font-size:13px; color:var(--muted); margin-bottom:28px;
+      }
+      .login-card label {
+        display:flex; flex-direction:column; gap:5px; color:var(--maroon);
+        font-size:13px; font-weight:600; margin-bottom:16px;
+        font-family:"Noto Sans Devanagari","Source Sans 3",sans-serif;
+      }
+      .login-card input {
+        border:1px solid var(--line); background:var(--ivory); padding:11px 13px;
+        border-radius:var(--radius-sm); font:14px "Source Sans 3",sans-serif;
+        color:var(--brown); outline:none; transition:border-color .15s, box-shadow .15s;
+      }
+      .login-card input:focus {
+        border-color:var(--gold); box-shadow:0 0 0 3px rgba(196,154,69,.15);
+      }
+      .login-card .button { width:100%; justify-content:center; margin-top:4px; }
+      #login-error {
+        font-size:13px; color:#842d2d; background:#f7dede; padding:9px 12px;
+        border-radius:var(--radius-sm); margin-bottom:14px; display:none;
+        border-left:3px solid #c42d2d;
+      }
+      #login-error.show { display:block; }
+      .login-back {
+        display:block; text-align:center; margin-top:18px; font-size:13px;
+        color:var(--muted); text-decoration:none;
+      }
+      .login-back:hover { color:var(--maroon); }
+    </style>
+  </head>
+  <body>
+    <div class="login-card">
+      <div class="login-brand">
+        <span class="brand-mark">कु</span>
+        <strong>कुलकीर्ति</strong>
+      </div>
+      <h2>Admin Login</h2>
+      <p class="login-sub">यह क्षेत्र केवल अधिकृत admin के लिए है।</p>
+
+      <div id="login-error" role="alert"></div>
+
+      <form id="admin-login-form">
+        <label>
+          Email
+          <input id="admin-email" type="email" required autocomplete="username"
+            placeholder="admin@example.com" />
+        </label>
+        <label>
+          Password
+          <input id="admin-password" type="password" required autocomplete="current-password"
+            placeholder="••••••••" />
+        </label>
+        <button class="button button-maroon" type="submit" id="login-btn">
+          Login <span>→</span>
+        </button>
+      </form>
+
+      <a class="login-back" href="/">← होम पर जाएं</a>
+    </div>
+
+    <script>
+      const form     = document.getElementById("admin-login-form");
+      const errorEl  = document.getElementById("login-error");
+      const loginBtn = document.getElementById("login-btn");
+      let busy = false;
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        busy = true;
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = "लोड हो रहा है...";
+        errorEl.classList.remove("show");
+
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email:    document.getElementById("admin-email").value,
+              password: document.getElementById("admin-password").value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            errorEl.textContent = data.error || "Login failed.";
+            errorEl.classList.add("show");
+            return;
+          }
+          // Redirect to admin panel after successful login
+          const dest = new URLSearchParams(location.search).get("next") || "/admin.html";
+          window.location.href = dest;
+        } catch (_) {
+          errorEl.textContent = "Network error — please try again.";
+          errorEl.classList.add("show");
+        } finally {
+          busy = false;
+          loginBtn.disabled = false;
+          loginBtn.innerHTML = "Login <span>→</span>";
+        }
+      });
+    </script>
+  </body>
+</html>

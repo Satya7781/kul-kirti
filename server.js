@@ -1413,6 +1413,270 @@ app.post("/api/admin/vanshawali/assign-branch", auth, async (request, response, 
   } catch (error) { next(error); }
 });
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN PANEL PROTECTION
+   ───────────────────────────────────────────────────────────────────────────
+   /admin.html must ONLY be served to authenticated admins.
+   Any unauthenticated request to that path gets redirected to /admin-login.html.
+   The static middleware that follows would otherwise serve it to anyone.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+app.get("/admin.html", (request, response, next) => {
+  const token = request.cookies.kulkirti_admin ||
+    request.headers.authorization?.replace("Bearer ", "");
+  try {
+    jwt.verify(token, jwtSecret);
+    next(); // valid admin token → let static middleware serve admin.html
+  } catch {
+    response.redirect("/admin-login.html");
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PUBLIC FAMILY TREE SYSTEM
+   ───────────────────────────────────────────────────────────────────────────
+   Anyone can create their own family tree.  No account needed.
+   They get back a unique token they can use to retrieve/edit their tree.
+   The admin reviews pending trees and can link them into the main genealogy.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── Public: submit a new family tree ─────────────────────────────────────
+app.post("/api/pariwar/create", async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const creatorName  = clean(input.creatorName, 120);
+    const gotraName    = clean(input.gotraName, 120);
+    const village      = clean(input.village, 120);
+
+    if (!creatorName) return response.status(400).json({
+      error: msg(request, "आपका नाम आवश्यक है।", "Your name is required.")
+    });
+    if (!gotraName) return response.status(400).json({
+      error: msg(request, "गोत्र का नाम आवश्यक है।", "Gotra name is required.")
+    });
+
+    const rawMembers = Array.isArray(input.familyMembers)
+      ? input.familyMembers.slice(0, 500).map(m => ({
+          clientId: clean(m.clientId, 80),
+          name:     clean(m.name, 120),
+          gender:   clean(m.gender, 20),
+          relation: clean(m.relation, 80),
+          birthYear: clean(m.birthYear, 20),
+          deathYear: clean(m.deathYear, 20),
+          fatherId:  clean(m.fatherId, 80),
+          motherId:  clean(m.motherId, 80),
+          notes:     clean(m.notes, 300),
+        })).filter(m => m.name)
+      : [];
+
+    const result = await pool.query(
+      `INSERT INTO public_family_trees
+         (creator_name, creator_contact, gotra_name, village, district, state, family_members, notes, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending')
+       RETURNING id, token`,
+      [creatorName, clean(input.creatorContact, 120), gotraName, village,
+       clean(input.district, 120), clean(input.state, 120),
+       JSON.stringify(rawMembers), clean(input.notes, 1000)]
+    );
+
+    response.status(201).json({
+      id:    result.rows[0].id,
+      token: result.rows[0].token,
+      message: msg(request,
+        "आपका परिवार वृक्ष सफलतापूर्वक भेज दिया गया है। Admin समीक्षा के बाद यह प्रकाशित होगा।",
+        "Your family tree has been submitted successfully. It will be published after admin review.")
+    });
+  } catch (error) { next(error); }
+});
+
+// ── Public: get own tree by token (so user can view/share their submission) ─
+app.get("/api/pariwar/:token", async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, token, creator_name AS "creatorName", gotra_name AS "gotraName",
+              village, district, state, family_members AS "familyMembers",
+              notes, status, submitted_at AS "submittedAt", review_notes AS "reviewNotes"
+       FROM public_family_trees WHERE token = $1`,
+      [clean(request.params.token, 20)]
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: "Tree not found." });
+    // Don't expose internal IDs or reviewer info to public
+    const { id, ...safe } = result.rows[0];
+    response.json({ tree: safe });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: list pending family trees ─────────────────────────────────────
+app.get("/api/admin/pariwar", auth, async (request, response, next) => {
+  try {
+    const status = clean(request.query.status, 20) || "pending";
+    const result = await pool.query(
+      `SELECT id, token, creator_name AS "creatorName", creator_contact AS "creatorContact",
+              gotra_name AS "gotraName", village, district, state,
+              family_members AS "familyMembers", notes, status,
+              linked_gotra_id AS "linkedGotraId",
+              submitted_at AS "submittedAt", review_notes AS "reviewNotes"
+       FROM public_family_trees
+       WHERE status = $1 ORDER BY submitted_at DESC`,
+      [status]
+    );
+    response.json({ trees: result.rows });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: approve + link a public family tree into the main genealogy ────
+// This is the "simple linking" endpoint:
+//  1. Optionally create or use an existing gotra.
+//  2. Create a person record for each family member.
+//  3. Wire parent-child relationships.
+//  4. Mark the tree as linked.
+app.post("/api/admin/pariwar/:id/link", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    // Fetch the tree
+    const treeResult = await client.query(
+      "SELECT * FROM public_family_trees WHERE id = $1 FOR UPDATE",
+      [request.params.id]
+    );
+    if (!treeResult.rows[0]) return response.status(404).json({ error: "Tree not found." });
+    const tree = treeResult.rows[0];
+
+    const input      = request.body || {};
+    const reviewNotes = clean(input.reviewNotes, 500);
+
+    await client.query("BEGIN");
+
+    // 1. Resolve gotra — use existing or create a draft one
+    let gotraId = clean(input.gotraId, 80) || tree.linked_gotra_id;
+    if (!gotraId) {
+      // Check if a gotra with this name already exists
+      const existing = await client.query(
+        "SELECT id FROM gotras WHERE name ILIKE $1 LIMIT 1",
+        [tree.gotra_name]
+      );
+      if (existing.rows[0]) {
+        gotraId = existing.rows[0].id;
+      } else {
+        // Create draft gotra — admin will add details later
+        const newGotra = await client.query(
+          `INSERT INTO gotras (name, status, created_by) VALUES ($1, 'draft', $2) RETURNING id`,
+          [tree.gotra_name, request.admin.id]
+        );
+        gotraId = newGotra.rows[0].id;
+      }
+    }
+
+    // 2. Build a clientId → new UUID map for all family members
+    const members = Array.isArray(tree.family_members) ? tree.family_members : [];
+    const idMap   = new Map(); // clientId → people.id
+
+    // First pass: create all people
+    for (const member of members) {
+      if (!member.name) continue;
+      const isLiving = member.deathYear ? false : true;
+      const personResult = await client.query(
+        `INSERT INTO people
+           (full_name, village, district, state, is_living, status, visibility, created_by, updated_by)
+         VALUES ($1,$2,$3,$4,$5,'verified','public',$6,$6)
+         RETURNING id, public_id`,
+        [member.name, tree.village, tree.district, tree.state, isLiving, request.admin.id]
+      );
+      const personId = personResult.rows[0].id;
+      idMap.set(member.clientId, personId);
+
+      // Link to gotra
+      await client.query(
+        `INSERT INTO person_gotra_links (person_id, gotra_id, is_root)
+         VALUES ($1,$2,false) ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+        [personId, gotraId]
+      );
+
+      // Add to gotra_members
+      await client.query(
+        `INSERT INTO gotra_members (gotra_id, person_name, village, district, state, notes, linked_person_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
+        [gotraId, member.name, tree.village, tree.district, tree.state,
+         member.notes || null, personId]
+      );
+    }
+
+    // Second pass: wire parent-child relationships
+    for (const member of members) {
+      const childId = idMap.get(member.clientId);
+      if (!childId) continue;
+
+      if (member.fatherId && idMap.has(member.fatherId)) {
+        const fatherId = idMap.get(member.fatherId);
+        const v = await genealogy.validateRelationship(pool, fatherId, childId, "biological");
+        if (v.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+             VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
+            [fatherId, childId, request.admin.id]
+          );
+        }
+      }
+      if (member.motherId && idMap.has(member.motherId)) {
+        const motherId = idMap.get(member.motherId);
+        const v = await genealogy.validateRelationship(pool, motherId, childId, "biological");
+        if (v.valid) {
+          await client.query(
+            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+             VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
+            [motherId, childId, request.admin.id]
+          );
+        }
+      }
+    }
+
+    // 3. Mark tree as linked
+    await client.query(
+      `UPDATE public_family_trees
+       SET status='linked', linked_gotra_id=$1, reviewed_by=$2, review_notes=$3, reviewed_at=NOW()
+       WHERE id=$4`,
+      [gotraId, request.admin.id, reviewNotes, tree.id]
+    );
+
+    await genealogy.logAudit(pool, request.admin.id, "link_public_tree", "public_family_tree", tree.id,
+      { gotraId, membersLinked: idMap.size });
+    await client.query("COMMIT");
+
+    response.json({
+      gotraId,
+      membersLinked: idMap.size,
+      message: msg(request,
+        `${idMap.size} सदस्य गोत्र "${tree.gotra_name}" में जोड़े गए।`,
+        `${idMap.size} members linked to Gotra "${tree.gotra_name}".`)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
+});
+
+// ── Admin: reject a public family tree ───────────────────────────────────
+app.post("/api/admin/pariwar/:id/reject", auth, async (request, response, next) => {
+  try {
+    await pool.query(
+      `UPDATE public_family_trees SET status='rejected', reviewed_by=$1, review_notes=$2, reviewed_at=NOW() WHERE id=$3`,
+      [request.admin.id, clean(request.body.reviewNotes, 500), request.params.id]
+    );
+    response.json({ message: msg(request, "अस्वीकृत कर दिया गया।", "Rejected.") });
+  } catch (error) { next(error); }
+});
+
+// ── Admin: get all gotras including draft ones (for linking UI) ───────────
+app.get("/api/admin/gotras/all", auth, async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, status FROM gotras ORDER BY name`
+    );
+    response.json({ gotras: result.rows });
+  } catch (error) { next(error); }
+});
+
 app.use(express.static(root));
 /* Custom 404 — served for any URL that doesn't match a static file or API route */
 app.use((request, response) => {

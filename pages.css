@@ -1583,3 +1583,432 @@ html[lang="hi"] .result-card h3 {
 }
 .gotra-member-card a { color: var(--maroon); font-weight: 600; font-size: 14px; }
 .gotra-member-card .gmc-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MERA PARIWAR — Public Family Tree Builder
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 3-step flow ─────────────────────────────────────────────────────────── */
+.pariwar-steps-section { background: var(--cream); padding: 36px 0; }
+
+.pariwar-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pariwar-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  flex: 1 1 220px;
+  max-width: 280px;
+}
+
+.pariwar-step .step-num {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  background: var(--gold);
+  color: #fff;
+  border-radius: 50%;
+  font: 700 16px "Playfair Display", serif;
+  flex-shrink: 0;
+}
+
+.pariwar-step b { display: block; color: var(--maroon); font-size: 15px; margin-bottom: 4px; }
+.pariwar-step p { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.6; }
+
+.pariwar-step-arrow {
+  font-size: 22px;
+  color: var(--gold);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ── Form layout ─────────────────────────────────────────────────────────── */
+.pariwar-form-layout {
+  display: grid;
+  grid-template-columns: .6fr 1.4fr;
+  gap: 60px;
+  align-items: start;
+}
+
+.pariwar-form-side h2 {
+  font-size: 36px;
+  color: var(--maroon);
+  font-family: "Noto Serif Devanagari", "Playfair Display", serif;
+  line-height: 1.25;
+  margin: 0 0 4px;
+}
+
+.pariwar-tips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pariwar-tips li {
+  font-size: 14px;
+  color: var(--muted);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.65;
+}
+
+.pariwar-tips li:last-child { border-bottom: none; }
+
+/* ── Form section titles ─────────────────────────────────────────────────── */
+.pariwar-main-form { background: #fff; border-radius: var(--radius-md); }
+
+.form-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-family: "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+}
+
+/* ── Success box ─────────────────────────────────────────────────────────── */
+.pariwar-success-box {
+  background: #f0faf0;
+  border: 1px solid #5a9d4e;
+  border-radius: var(--radius-md);
+  padding: 24px;
+  margin-top: 20px;
+}
+
+.pariwar-success-box h3 {
+  color: #285d2e;
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.pariwar-success-box p {
+  color: #285d2e;
+  font-size: 14px;
+  margin: 4px 0;
+}
+
+.token-label {
+  font-weight: 700;
+  margin-top: 14px !important;
+}
+
+.token-box {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .15em;
+  color: var(--maroon);
+  background: var(--ivory);
+  border: 2px solid var(--gold);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  text-align: center;
+  margin: 10px 0;
+  word-break: break-all;
+}
+
+/* ── Token lookup ────────────────────────────────────────────────────────── */
+.token-lookup-box {
+  max-width: 560px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 28px 30px;
+  box-shadow: var(--shadow-soft);
+}
+
+.token-lookup-box h3 {
+  color: var(--maroon);
+  font-size: 18px;
+  margin: 0 0 6px;
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+.token-lookup-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.token-lookup-form input {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+  font: 15px monospace;
+  letter-spacing: .1em;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.token-lookup-form input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(196,154,69,.15);
+}
+
+.token-lookup-result {
+  margin-top: 20px;
+}
+
+/* Token tree card */
+.token-tree-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ttc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--ivory);
+}
+
+.ttc-header h3 {
+  color: var(--maroon);
+  font-size: 17px;
+  margin: 0 0 4px;
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+.ttc-meta { font-size: 12px; color: var(--muted); }
+
+.ttc-status {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--cream);
+  color: var(--maroon);
+  white-space: nowrap;
+}
+
+.ttc-review-note {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 18px;
+  background: #fffbf0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+  font-style: italic;
+}
+
+.ttc-members { padding: 12px 18px; }
+
+.ttc-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.ttc-member:last-child { border-bottom: none; }
+.ttc-member strong { color: var(--maroon); }
+.ttc-rel { font-size: 11px; color: var(--muted); background: var(--cream); padding: 1px 6px; border-radius: 99px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN — Pariwar Trees tab
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pariwar-filter-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 14px 22px;
+  background: rgba(237,225,202,.4);
+  border-bottom: 1px solid var(--line);
+}
+
+.pft {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font: 600 12px "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.pft.active, .pft:hover {
+  background: var(--maroon);
+  color: #fff;
+  border-color: var(--maroon);
+}
+
+.pariwar-trees-list { padding: 16px 22px; }
+
+/* Tree card */
+.pariwar-tree-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius-sm);
+  margin: 10px 0;
+  overflow: hidden;
+  transition: box-shadow var(--transition-fast);
+}
+
+.pariwar-tree-card:hover { box-shadow: var(--shadow-soft); }
+
+.ptc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.ptc-header h4 {
+  color: var(--maroon);
+  font-size: 17px;
+  margin: 0 0 4px;
+  font-family: "Noto Serif Devanagari", serif;
+}
+
+.ptc-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ptc-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+.ptc-pending  { background: #fff9e6; color: #7a5c00; }
+.ptc-linked   { background: #dcebd8; color: #285d2e; }
+.ptc-rejected { background: #f7dede; color: #842d2d; }
+
+.ptc-members-details {
+  padding: 0 18px 12px;
+}
+
+.ptc-members-details summary {
+  font-size: 13px;
+  color: var(--maroon);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.ptc-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ptc-member {
+  background: var(--ivory);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ptc-member strong { color: var(--maroon); }
+.ptc-member span { font-size: 11px; color: var(--muted); }
+
+.ptc-notes {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 6px 18px 10px;
+  margin: 0;
+  font-style: italic;
+}
+
+.ptc-actions {
+  border-top: 1px solid var(--line);
+  padding: 14px 18px;
+  background: rgba(247,240,227,.5);
+}
+
+.ptc-link-form {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.ptc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--maroon);
+  flex: 1;
+  min-width: 180px;
+}
+
+.ptc-label select,
+.ptc-label input {
+  border: 1px solid var(--line);
+  background: var(--ivory);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: 13px "Source Sans 3", "Noto Sans Devanagari", sans-serif;
+  color: var(--brown);
+  outline: none;
+  transition: border-color .15s;
+  width: 100%;
+}
+
+.ptc-label select:focus,
+.ptc-label input:focus {
+  border-color: var(--gold);
+}
+
+.ptc-linked-note {
+  padding: 10px 18px;
+  font-size: 13px;
+  color: #285d2e;
+  margin: 0;
+  background: rgba(220, 235, 216, .4);
+  border-top: 1px solid var(--line);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .pariwar-form-layout { grid-template-columns: 1fr; gap: 28px; }
+}
+
+@media (max-width: 720px) {
+  .pariwar-steps { flex-direction: column; align-items: stretch; }
+  .pariwar-step  { max-width: 100%; }
+  .pariwar-step-arrow { text-align: center; transform: rotate(90deg); align-self: center; }
+  .ptc-link-form { flex-direction: column; }
+  .ptc-label { min-width: 100%; }
+  .token-lookup-form { flex-direction: column; }
+  .pariwar-trees-list { padding: 12px 14px; }
+  .pariwar-filter-tabs { padding: 10px 14px; }
+}
