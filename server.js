@@ -77,9 +77,24 @@ function msg(request, hi, en) {
 }
 
 function auth(request, response, next) {
-  const expectedOrigin = process.env.FRONTEND_ORIGIN || `${request.protocol}://${request.get("host")}`;
-  if (request.method !== "GET" && request.headers.origin && request.headers.origin !== expectedOrigin) {
-    return response.status(403).json({ error: "Cross-site request blocked." });
+  /* ── CSRF origin check ─────────────────────────────────────────────────
+     For non-GET mutating requests, verify the Origin header matches the
+     application host.  We honour:
+       1. The FRONTEND_ORIGIN env var (explicit allowlist — most reliable).
+       2. The incoming Host header with the correct protocol.
+          On Render (and most reverse proxies) the app sees http internally
+          while the client uses https; x-forwarded-proto fixes that.
+  ──────────────────────────────────────────────────────────────────────── */
+  if (request.method !== "GET" && request.headers.origin) {
+    const proto = request.headers["x-forwarded-proto"] || request.protocol;
+    const derivedOrigin = `${proto}://${request.get("host")}`;
+    const allowedOrigin = process.env.FRONTEND_ORIGIN || derivedOrigin;
+
+    // Normalise both sides: strip trailing slash, lowercase
+    const normalise = (s) => s.replace(/\/$/, "").toLowerCase();
+    if (normalise(request.headers.origin) !== normalise(allowedOrigin)) {
+      return response.status(403).json({ error: "Cross-site request blocked." });
+    }
   }
   const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
   try { request.admin = jwt.verify(token, jwtSecret); next(); }
