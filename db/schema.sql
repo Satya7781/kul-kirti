@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE INDEX IF NOT EXISTS people_public_id_idx ON people (public_id);
 CREATE INDEX IF NOT EXISTS people_name_idx ON people USING GIN (to_tsvector('simple', full_name));
 CREATE INDEX IF NOT EXISTS people_status_idx ON people (status);
+CREATE INDEX IF NOT EXISTS people_status_visibility_idx ON people (status, visibility);
 CREATE INDEX IF NOT EXISTS people_village_idx ON people (village);
 
 -- ── 3. PERSON-GOTRA LINKS ──────────────────────────────────────────────────
@@ -187,6 +188,7 @@ CREATE TABLE IF NOT EXISTS person_relationships (
 CREATE INDEX IF NOT EXISTS person_rel_parent_idx ON person_relationships (parent_id);
 CREATE INDEX IF NOT EXISTS person_rel_child_idx ON person_relationships (child_id);
 CREATE INDEX IF NOT EXISTS person_rel_status_idx ON person_relationships (status);
+CREATE INDEX IF NOT EXISTS person_rel_parent_status_idx ON person_relationships (parent_id, status);
 
 -- ── 5. GENEALOGY SOURCES ───────────────────────────────────────────────────
 -- Historical documents, photographs, certificates, manuscripts.

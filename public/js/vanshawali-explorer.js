@@ -13,10 +13,14 @@
    PUBLIC GENEALOGY EXPLORER
    ═══════════════════════════════════════════════════════════════════════════ */
 
-(function initGenealogyExplorer() {
-  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+/* Shared by the explorer IIFE and the top-level family-tree renderer. */
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[char]));
+}
+
+(function initGenealogyExplorer() {
   /* DOM handles */
   const homeView           = document.querySelector("#vw-home-view");
   const gotraDirectory     = document.querySelector("#gotra-directory");
@@ -28,6 +32,7 @@
   const searchForm         = document.querySelector("#genealogy-search-form");
   const searchInput        = document.querySelector("#genealogy-search-input");
   const searchResults      = document.querySelector("#genealogy-search-results");
+  document.querySelector("#vw-back-btn")?.addEventListener("click", () => history.back());
 
   /* Not on vanshawali.html */
   if (!homeView && !gotraDetailSection && !personSection) return;
@@ -72,11 +77,11 @@
           const meta = [p.birthYear, p.village].filter(Boolean).join(" · ");
           return `<div class="person-search-card">
             <div><h4>${escapeHtml(p.fullName)}</h4><div class="person-meta">${escapeHtml(meta)}</div></div>
-            <a class="result-tag" href="/vanshawali.html?person=${p.publicId}">${I18n.t("genealogy.viewProfile")}</a>
+            <a class="result-tag" href="/vanshawali.html?person=${encodeURIComponent(p.publicId)}">${I18n.t("genealogy.viewProfile")}</a>
           </div>`;
         }).join("");
     } catch (err) {
-      searchResults.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      searchResults.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -92,7 +97,7 @@
         return;
       }
       gotraDirectory.innerHTML = gotras.map(g => `
-        <a class="gotra-dir-card" href="/vanshawali.html?gotra=${g.id}">
+        <a class="gotra-dir-card" href="/vanshawali.html?gotra=${encodeURIComponent(g.id)}">
           <h3>${escapeHtml(g.name)}</h3>
           <div class="gotra-meta">
             <span><b>${g.personCount || 0}</b> ${I18n.t("genealogy.gotraPersons")}</span>
@@ -104,7 +109,7 @@
           <span class="gotra-link">${I18n.t("genealogy.viewDetail")} →</span>
         </a>`).join("");
     } catch (err) {
-      gotraDirectory.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      gotraDirectory.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -127,7 +132,7 @@
           <div class="village-meta">${I18n.t("genealogy.villagePeople")}</div>
         </div>`).join("");
     } catch (err) {
-      villageGrid.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      villageGrid.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -139,14 +144,11 @@
     try {
       const res = await fetch(`/api/genealogy/gotras/${id}`);
       if (!res.ok) throw new Error(I18n.t("common.error"));
-      const { gotra, branches, roots } = await res.json();
+      const { gotra, branches, roots, members } = await res.json();
 
-      /* Fetch linked members (needs auth in prod — falls back gracefully) */
-      let membersList = [];
-      try {
-        const mr = await fetch(`/api/admin/gotras/${id}/members`);
-        if (mr.ok) membersList = (await mr.json()).members || [];
-      } catch (_) { /* not logged in — that's fine for public view */ }
+      /* The public gotra endpoint already returns the safe member subset —
+         no need to call the auth-protected admin endpoint (401 + round-trip). */
+      const membersList = Array.isArray(members) ? members : [];
 
       const rootCards = roots.length
         ? roots.map(r => `
@@ -193,7 +195,7 @@
           </div>
         </div>`;
     } catch (err) {
-      gotraDetailContent.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      gotraDetailContent.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -230,7 +232,7 @@
       tags.push(`<span class="tag ${p.isLiving ? "living" : "deceased"}">${p.isLiving ? I18n.t("genealogy.living") : I18n.t("genealogy.deceased")}</span>`);
       (data.gotras || []).forEach(g => tags.push(`<span class="tag gotra">${escapeHtml(g.name)}</span>`));
 
-      const shareUrl = `${location.origin}/vanshawali.html?person=${p.publicId}`;
+      const shareUrl = `${location.origin}/vanshawali.html?person=${encodeURIComponent(p.publicId)}`;
 
       function relList(items, emptyKey) {
         if (!items?.length) return `<p class="rel-empty">${I18n.t("genealogy." + emptyKey)}</p>`;
@@ -272,20 +274,19 @@
       personContent.innerHTML = `
         <div class="person-profile-card">
           <div class="person-profile-header">
-            <div class="person-profile-avatar">${(p.fullName || "?").charAt(0)}</div>
+            <div class="person-profile-avatar">${escapeHtml((p.fullName || "?").charAt(0))}</div>
             <div class="person-profile-info">
-              <h2>${p.fullName}</h2>
+              <h2>${escapeHtml(p.fullName)}</h2>
               <p style="color:var(--muted);font-size:14px">
-                ${[p.birthYear, p.deathYear ? "– " + p.deathYear : "", p.village].filter(Boolean).join(" · ")}
+                ${escapeHtml([p.birthYear, p.deathYear ? "– " + p.deathYear : "", p.village].filter(Boolean).join(" · "))}
               </p>
               <div class="person-tags">${tags.join("")}</div>
-              <button class="profile-share-btn" style="margin-top:10px"
-                onclick="navigator.clipboard?.writeText('${shareUrl}').then(()=>{this.textContent='✓ कॉपी हो गया';setTimeout(()=>{this.textContent='🔗 प्रोफ़ाइल शेयर करें'},2000)}).catch(()=>{})">
+              <button class="profile-share-btn" style="margin-top:10px" type="button" data-share-url="${escapeHtml(shareUrl)}">
                 🔗 प्रोफ़ाइल शेयर करें
               </button>
             </div>
           </div>
-          ${p.biography ? `<p style="color:var(--muted);font-size:15px;line-height:1.8;margin-bottom:24px">${p.biography}</p>` : ""}
+          ${p.biography ? `<p style="color:var(--muted);font-size:15px;line-height:1.8;margin-bottom:24px">${escapeHtml(p.biography)}</p>` : ""}
           <div class="rel-section"><h3>${I18n.t("genealogy.parents")}</h3>${relList(data.parents, "noParents")}</div>
           <div class="rel-section"><h3>${I18n.t("genealogy.children")}</h3>${relList(data.children, "noChildren")}</div>
           <div class="rel-section"><h3>${I18n.t("genealogy.siblings")}</h3>${relList(data.siblings, "noSiblings")}</div>
@@ -299,11 +300,23 @@
           </div>
         </div>`;
 
+      /* Share button — external listener instead of inline onclick (CSP-safe). */
+      const shareBtn = personContent.querySelector(".profile-share-btn");
+      shareBtn?.addEventListener("click", async () => {
+        const copiedLabel = I18n.t("genealogy.shareCopied") || "✓ कॉपी हो गया";
+        const idleLabel   = shareBtn.textContent;
+        try {
+          await navigator.clipboard?.writeText(shareBtn.dataset.shareUrl);
+          shareBtn.textContent = copiedLabel;
+          setTimeout(() => { shareBtn.textContent = idleLabel; }, 2000);
+        } catch (_) { /* clipboard unavailable — leave label unchanged */ }
+      });
+
       /* Kick off the SVG tree renderer */
       _initFamilyTree(pubId, p.fullName, p.village);
 
     } catch (err) {
-      personContent.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      personContent.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 
@@ -412,8 +425,8 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
         : `${I18n.t("genealogy.generation")} ${node._depth + 1}`;
 
       card.innerHTML = `
-        <div class="node-name">${node._name || "?"}</div>
-        <div class="node-meta">${node._village || ""}</div>
+        <div class="node-name">${escapeHtml(node._name || "?")}</div>
+        <div class="node-meta">${escapeHtml(node._village || "")}</div>
         <span class="node-gen">${gen}</span>
         ${hasKids ? `<button class="node-expand-btn">${isOpen ? "−" : "+"}</button>` : ""}
       `;
@@ -422,7 +435,7 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
       card.addEventListener("click", e => {
         if (e.target.classList.contains("node-expand-btn")) return;
         if (node._pid && node._pid !== rootPubId) {
-          window.location.href = `/vanshawali.html?person=${node._pid}`;
+          window.location.href = `/vanshawali.html?person=${encodeURIComponent(node._pid)}`;
         }
       });
 

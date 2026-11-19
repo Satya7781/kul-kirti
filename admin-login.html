@@ -63,7 +63,7 @@
     </style>
   </head>
   <body>
-    <div class="login-card">
+    <main id="main-content" class="login-card">
       <div class="login-brand">
         <span class="brand-mark">कु</span>
         <strong>कुलकीर्ति</strong>
@@ -90,50 +90,8 @@
       </form>
 
       <a class="login-back" href="/">← होम पर जाएं</a>
-    </div>
+    </main>
 
-    <script>
-      const form     = document.getElementById("admin-login-form");
-      const errorEl  = document.getElementById("login-error");
-      const loginBtn = document.getElementById("login-btn");
-      let busy = false;
-
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (busy) return;
-        busy = true;
-        loginBtn.disabled = true;
-        loginBtn.innerHTML = "लोड हो रहा है...";
-        errorEl.classList.remove("show");
-
-        try {
-          const res = await fetch("/api/admin/login", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email:    document.getElementById("admin-email").value,
-              password: document.getElementById("admin-password").value,
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok) {
-            errorEl.textContent = data.error || "Login failed.";
-            errorEl.classList.add("show");
-            return;
-          }
-          // Redirect to admin panel after successful login
-          const dest = new URLSearchParams(location.search).get("next") || "/admin.html";
-          window.location.href = dest;
-        } catch (_) {
-          errorEl.textContent = "Network error — please try again.";
-          errorEl.classList.add("show");
-        } finally {
-          busy = false;
-          loginBtn.disabled = false;
-          loginBtn.innerHTML = "Login <span>→</span>";
-        }
-      });
-    </script>
+    <script src="/public/js/admin-login.js" defer></script>
   </body>
 </html>

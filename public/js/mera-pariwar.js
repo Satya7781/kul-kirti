@@ -76,7 +76,7 @@
           </label>
         </div>
         <label>नोट्स
-          <input data-f="notes" value="${m.notes || ""}" maxlength="300"
+          <input data-f="notes" value="${escapeHtml(m.notes || "")}" maxlength="300"
             placeholder="कोई विशेष जानकारी">
         </label>
       </div>`).join("");
@@ -136,7 +136,7 @@
       form.hidden = true;
       if (successBox) successBox.hidden = false;
       if (tokenDisplay) tokenDisplay.textContent = result.token;
-      if (viewLink) viewLink.href = `/mera-pariwar.html?token=${result.token}`;
+      if (viewLink) viewLink.href = `/mera-pariwar.html?token=${encodeURIComponent(result.token)}`;
 
     } catch (err) {
       if (msgEl) {
@@ -199,7 +199,7 @@
               <h3>${escapeHtml(t.gotraName)} — ${escapeHtml(t.village)}</h3>
                   <p class="ttc-meta">भेजने वाले: ${escapeHtml(t.creatorName)} · ${new Date(t.submittedAt).toLocaleDateString("hi-IN")}</p>
             </div>
-            <span class="ttc-status">${statusLabel[t.status] || t.status}</span>
+            <span class="ttc-status">${statusLabel[t.status] || escapeHtml(t.status)}</span>
           </div>
           ${t.reviewNotes ? `<p class="ttc-review-note">Admin नोट: ${escapeHtml(t.reviewNotes)}</p>` : ""}
           <h4 style="margin:16px 0 8px;color:var(--maroon)">परिवार के सदस्य (${ms.length})</h4>
@@ -211,7 +211,7 @@
             </div>`).join("")}</div>` : "<p style='color:var(--muted)'>कोई सदस्य नहीं</p>"}
         </div>`;
     } catch (err) {
-      resultEl.innerHTML = `<p style="color:#842d2d;font-size:14px">❌ ${err.message}</p>`;
+      resultEl.innerHTML = `<p style="color:#842d2d;font-size:14px">❌ ${escapeHtml(err.message)}</p>`;
     }
   }
 }());

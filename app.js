@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Kul-Kirti — app.js
  * -------------------
  * Shared application logic for all pages.
@@ -15,6 +15,15 @@
  *  - Copyright year rendered dynamically (Task 10)
  *  - Dead English hint-link conditions removed (Task 17)
  */
+
+/* Escape untrusted API data before it is interpolated into innerHTML.
+   Static copy from locale files is trusted; names, notes, IDs and error
+   messages returned by the API are not. */
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[char]));
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    1. SHARED HEADER & FOOTER
@@ -320,8 +329,8 @@ function renderResults(records, query) {
       const tag = record.familyDetails?.length
         ? I18n.t("search.viewTree") : I18n.t("search.verifiedRecord");
       return `<article class="result-card">
-        <div><h3>${record.name}</h3><p>${loc}</p></div>
-        <a class="result-tag" href="/vanshawali.html?id=${record.id}">${tag}</a>
+        <div><h3>${escapeHtml(record.name)}</h3><p>${escapeHtml(loc)}</p></div>
+        <a class="result-tag" href="/vanshawali.html?id=${encodeURIComponent(record.id)}">${tag}</a>
       </article>`;
     }).join("");
 }
@@ -331,7 +340,7 @@ async function search(query) {
     renderResults(await getRecords(query), query);
   } catch (err) {
     if (searchResults)
-      searchResults.innerHTML = `<div class="empty-state"><p>${err.message}</p></div>`;
+      searchResults.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
   }
 }
 
@@ -380,8 +389,8 @@ if (submissionForm) {
   function memberOptions(selected) {
     return `<option value="">${I18n.t("submit.unknown")}</option>` +
       members.map(m =>
-        `<option value="${m.clientId}" ${m.clientId === selected ? "selected" : ""}>${
-          m.name || I18n.t("submit.newMember")
+        `<option value="${escapeHtml(m.clientId)}" ${m.clientId === selected ? "selected" : ""}>${
+          escapeHtml(m.name || I18n.t("submit.newMember"))
         }</option>`
       ).join("");
   }
@@ -390,20 +399,20 @@ if (submissionForm) {
      every keystroke. Field input events update the data array in-place. */
   function renderMembers() {
     memberList.innerHTML = members.map((member, index) =>
-      `<div class="member-row" data-member="${member.clientId}">
+      `<div class="member-row" data-member="${escapeHtml(member.clientId)}">
         <div class="member-row-heading">
           <strong>${I18n.t("submit.memberLabel", { n: index + 1 })}</strong>
-          <button class="remove-member" type="button" data-remove="${member.clientId}">
+          <button class="remove-member" type="button" data-remove="${escapeHtml(member.clientId)}">
             ${I18n.t("submit.remove")}
           </button>
         </div>
         <div class="form-row">
           <label>${I18n.t("submit.fullName")}
-            <input data-field="name" value="${member.name || ""}" required maxlength="120"
+            <input data-field="name" value="${escapeHtml(member.name || "")}" required maxlength="120"
               placeholder="${I18n.t("submit.fullNamePh")}">
           </label>
           <label>${I18n.t("submit.relation")}
-            <input data-field="relation" value="${member.relation || ""}" maxlength="80"
+            <input data-field="relation" value="${escapeHtml(member.relation || "")}" maxlength="80"
               placeholder="${I18n.t("submit.relationPh")}">
           </label>
         </div>
@@ -417,15 +426,15 @@ if (submissionForm) {
         </div>
         <div class="form-row">
           <label>${I18n.t("submit.birthYear")}
-            <input data-field="birthYear" value="${member.birthYear || ""}" maxlength="20"
+            <input data-field="birthYear" value="${escapeHtml(member.birthYear || "")}" maxlength="20"
               placeholder="${I18n.t("submit.birthYearPh")}">
           </label>
           <label>${I18n.t("submit.gender")}
-            <input data-field="gender" value="${member.gender || ""}" maxlength="30">
+            <input data-field="gender" value="${escapeHtml(member.gender || "")}" maxlength="30">
           </label>
         </div>
         <label>${I18n.t("submit.notes")}
-          <input data-field="notes" value="${member.notes || ""}" maxlength="300"
+          <input data-field="notes" value="${escapeHtml(member.notes || "")}" maxlength="300"
             placeholder="${I18n.t("submit.notesPerson")}">
         </label>
       </div>`
@@ -532,15 +541,15 @@ if (submissionForm) {
       return;
     }
     treeContainer.innerHTML =
-      `<h2 class="tree-record-heading">${record.name}</h2>
+      `<h2 class="tree-record-heading">${escapeHtml(record.name)}</h2>
        <p>${[record.village, record.district, record.state].filter(Boolean).join(" · ")}</p>` +
       people.map(person =>
         `<div class="published-person">
-          <strong>${person.name}</strong>
-          <span>${person.relation || ""}</span>
-          ${person.birthYear ? `<span> · ${person.birthYear}</span>` : ""}
-          ${person.deathYear ? `<span> – ${person.deathYear}</span>` : ""}
-          <small>ID: ${person.id}</small>
+          <strong>${escapeHtml(person.name)}</strong>
+          <span>${escapeHtml(person.relation || "")}</span>
+          ${person.birthYear ? `<span> · ${escapeHtml(person.birthYear)}</span>` : ""}
+          ${person.deathYear ? `<span> – ${escapeHtml(person.deathYear)}</span>` : ""}
+          <small>ID: ${escapeHtml(person.id)}</small>
         </div>`
       ).join("");
   } catch (_) { /* silent — default placeholder stays */ }
@@ -591,31 +600,31 @@ async function loadSubmissions() {
              <div class="admin-family-list">
                ${item.familyDetails.map(person =>
                  `<div>
-                    <strong>${person.name}</strong> · ${person.relation || I18n.t("common.family")}
-                    <small>${I18n.t("admin.idLabel")}: ${person.id}
-                      ${person.fatherId ? ` · ${I18n.t("admin.fatherLabel")}: ${person.fatherId}` : ""}
-                      ${person.motherId ? ` · ${I18n.t("admin.motherLabel")}: ${person.motherId}` : ""}
+                    <strong>${escapeHtml(person.name)}</strong> · ${escapeHtml(person.relation || I18n.t("common.family"))}
+                    <small>${I18n.t("admin.idLabel")}: ${escapeHtml(person.id)}
+                      ${person.fatherId ? ` · ${I18n.t("admin.fatherLabel")}: ${escapeHtml(person.fatherId)}` : ""}
+                      ${person.motherId ? ` · ${I18n.t("admin.motherLabel")}: ${escapeHtml(person.motherId)}` : ""}
                     </small>
                   </div>`
                ).join("")}
              </div>
            </details>`
         : "";
-      const statusLabel = I18n.t(`common.${item.status}`) || item.status;
+      const statusLabel = I18n.t(`common.${item.status}`) || escapeHtml(item.status);
       const actions = item.status === "pending"
         ? `<div class="admin-actions">
-             <button class="approve" data-id="${item.id}" data-status="approved">
+             <button class="approve" data-id="${escapeHtml(item.id)}" data-status="approved">
                ${I18n.t("admin.approveBtn")}
              </button>
-             <button class="reject" data-id="${item.id}" data-status="rejected">
+             <button class="reject" data-id="${escapeHtml(item.id)}" data-status="rejected">
                ${I18n.t("admin.rejectBtn")}
              </button>
            </div>` : "";
       return `<article class="admin-submission">
-        <h3>${item.name} <span class="result-tag">${item.type}</span></h3>
-        <p>${loc}</p>
-        <p>${I18n.t("admin.contributor")}: ${item.contributorName}${item.contributorContact ? ` · ${item.contributorContact}` : ""}</p>
-        <p>${item.notes || I18n.t("admin.noNotes")}</p>
+        <h3>${escapeHtml(item.name)} <span class="result-tag">${escapeHtml(item.type)}</span></h3>
+        <p>${escapeHtml(loc)}</p>
+        <p>${I18n.t("admin.contributor")}: ${escapeHtml(item.contributorName)}${item.contributorContact ? ` · ${escapeHtml(item.contributorContact)}` : ""}</p>
+        <p>${escapeHtml(item.notes || I18n.t("admin.noNotes"))}</p>
         ${membersSummary}
         <p><strong>${I18n.t("admin.statusLabel")}:</strong> ${statusLabel}</p>
         ${actions}
@@ -751,35 +760,35 @@ function renderGotraMembers() {
   const list = document.querySelector("#gotra-member-list");
   if (!list) return;
   list.innerHTML = gotraMembers.map((member, index) =>
-    `<div class="member-row" data-gotra-member="${member.clientId}">
+    `<div class="member-row" data-gotra-member="${escapeHtml(member.clientId)}">
       <div class="member-row-heading">
         <strong>${I18n.t("admin.memberLabel", { n: index + 1 })}</strong>
-        <button class="remove-member" type="button" data-remove-gotra-member="${member.clientId}">
+        <button class="remove-member" type="button" data-remove-gotra-member="${escapeHtml(member.clientId)}">
           ${I18n.t("admin.remove")}
         </button>
       </div>
       <div class="form-row">
         <label>${I18n.t("admin.fullName")}
-          <input data-gotra-field="personName" value="${member.personName || ""}" required>
+          <input data-gotra-field="personName" value="${escapeHtml(member.personName || "")}" required>
         </label>
         <label>${I18n.t("admin.roleRelation")}
-          <input data-gotra-field="relationOrRole" value="${member.relationOrRole || ""}"
+          <input data-gotra-field="relationOrRole" value="${escapeHtml(member.relationOrRole || "")}"
             placeholder="${I18n.t("admin.roleRelationPh")}">
         </label>
       </div>
       <div class="form-row">
         <label>${I18n.t("admin.village")}
-          <input data-gotra-field="village" value="${member.village || ""}">
+          <input data-gotra-field="village" value="${escapeHtml(member.village || "")}">
         </label>
         <label>${I18n.t("admin.district")}
-          <input data-gotra-field="district" value="${member.district || ""}">
+          <input data-gotra-field="district" value="${escapeHtml(member.district || "")}">
         </label>
       </div>
       <label>${I18n.t("admin.state")}
-        <input data-gotra-field="state" value="${member.state || ""}">
+        <input data-gotra-field="state" value="${escapeHtml(member.state || "")}">
       </label>
       <label>${I18n.t("admin.notes")}
-        <input data-gotra-field="notes" value="${member.notes || ""}">
+        <input data-gotra-field="notes" value="${escapeHtml(member.notes || "")}">
       </label>
     </div>`
   ).join("");
@@ -821,12 +830,12 @@ async function loadGotras() {
     }
 
     container.innerHTML = gotras.map(gotra => `
-      <div class="gotra-mgmt-card" data-gotra-id="${gotra.id}">
+      <div class="gotra-mgmt-card" data-gotra-id="${escapeHtml(gotra.id)}">
         <div class="gotra-mgmt-header">
           <div>
-            <h4>${gotra.name}</h4>
+            <h4>${escapeHtml(gotra.name)}</h4>
             <div class="gmh-meta">
-              ${gotra.originPlace ? gotra.originPlace + " · " : ""}${gotra.status}
+              ${escapeHtml(gotra.originPlace ? gotra.originPlace + " · " : "")}${escapeHtml(gotra.status)}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
@@ -867,11 +876,11 @@ async function _loadGotraMembersPanel(card, gotraId) {
     const tableRows = members.length
       ? members.map(m => `
           <tr>
-            <td>${m.personName}${m.personId ? '<span class="linked-badge">✓</span>' : ""}</td>
-            <td>${m.relationOrRole || "—"}</td>
-            <td>${[m.village, m.district, m.state].filter(Boolean).join(", ") || "—"}</td>
+            <td>${escapeHtml(m.personName)}${m.personId ? '<span class="linked-badge">✓</span>' : ""}</td>
+            <td>${escapeHtml(m.relationOrRole || "—")}</td>
+            <td>${escapeHtml([m.village, m.district, m.state].filter(Boolean).join(", ") || "—")}</td>
             <td>${m.isLiving === false ? "स्वर्गी" : "जीवित"}</td>
-            <td>${m.publicId ? `<a class="profile-link" href="/vanshawali.html?person=${m.publicId}" target="_blank">प्रोफ़ाइल ↗</a>` : "—"}</td>
+            <td>${m.publicId ? `<a class="profile-link" href="/vanshawali.html?person=${encodeURIComponent(m.publicId)}" target="_blank">प्रोफ़ाइल ↗</a>` : "—"}</td>
           </tr>`)
         .join("")
       : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:14px">अभी कोई सदस्य नहीं</td></tr>`;
@@ -954,7 +963,7 @@ async function _loadGotraMembersPanel(card, gotraId) {
     _wireGmLinkForm(linkForm, gotraId, card);
 
   } catch (err) {
-    if (membersContainer) membersContainer.innerHTML = `<p style="color:#842d2d;font-size:13px">${err.message}</p>`;
+    if (membersContainer) membersContainer.innerHTML = `<p style="color:#842d2d;font-size:13px">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -976,9 +985,9 @@ function _wireGmAutocomplete(input) {
         const { people } = await res.json();
         if (!people.length) { suggestionsEl.classList.remove("show"); return; }
         suggestionsEl.innerHTML = people.map(p =>
-          `<div class="suggestion-item" data-id="${p.id}" data-name="${p.fullName}">
-            <div class="sug-name">${p.fullName}</div>
-            <div class="sug-meta">${p.birthYear || ""} ${p.village ? "· " + p.village : ""}</div>
+          `<div class="suggestion-item" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.fullName)}">
+            <div class="sug-name">${escapeHtml(p.fullName)}</div>
+            <div class="sug-meta">${escapeHtml(p.birthYear || "")} ${escapeHtml(p.village ? "· " + p.village : "")}</div>
           </div>`
         ).join("");
         suggestionsEl.classList.add("show");
@@ -1103,26 +1112,26 @@ function renderAdminFamilyMembers() {
   const options = selected =>
     `<option value="">${I18n.t("admin.unknown")}</option>` +
     adminFamilyMembers.map(m =>
-      `<option value="${m.clientId}" ${m.clientId === selected ? "selected" : ""}>${
-        m.name || I18n.t("admin.newPerson")
+      `<option value="${escapeHtml(m.clientId)}" ${m.clientId === selected ? "selected" : ""}>${
+        escapeHtml(m.name || I18n.t("admin.newPerson"))
       }</option>`
     ).join("");
 
   list.innerHTML = adminFamilyMembers.map((member, index) =>
-    `<div class="member-row admin-member-box" data-admin-member="${member.clientId}">
+    `<div class="member-row admin-member-box" data-admin-member="${escapeHtml(member.clientId)}">
       <div class="member-row-heading">
         <strong>${I18n.t("admin.personLabel", { n: index + 1 })}</strong>
-        <button class="remove-member" type="button" data-remove-admin-member="${member.clientId}">
+        <button class="remove-member" type="button" data-remove-admin-member="${escapeHtml(member.clientId)}">
           ${I18n.t("admin.remove")}
         </button>
       </div>
       <div class="form-row">
         <label>${I18n.t("admin.fullName")}
-          <input data-admin-field="name" value="${member.name || ""}" required maxlength="120"
+          <input data-admin-field="name" value="${escapeHtml(member.name || "")}" required maxlength="120"
             placeholder="${I18n.t("submit.fullNamePh")}">
         </label>
         <label>${I18n.t("admin.relationField")}
-          <input data-admin-field="relation" value="${member.relation || ""}" maxlength="80"
+          <input data-admin-field="relation" value="${escapeHtml(member.relation || "")}" maxlength="80"
             placeholder="${I18n.t("admin.relationPh")}">
         </label>
       </div>
@@ -1136,20 +1145,20 @@ function renderAdminFamilyMembers() {
       </div>
       <div class="form-row">
         <label>${I18n.t("admin.birthYear")}
-          <input data-admin-field="birthYear" value="${member.birthYear || ""}" maxlength="20"
+          <input data-admin-field="birthYear" value="${escapeHtml(member.birthYear || "")}" maxlength="20"
             placeholder="${I18n.t("admin.birthYearPh")}">
         </label>
         <label>${I18n.t("admin.deathYear")}
-          <input data-admin-field="deathYear" value="${member.deathYear || ""}" maxlength="20"
+          <input data-admin-field="deathYear" value="${escapeHtml(member.deathYear || "")}" maxlength="20"
             placeholder="${I18n.t("admin.deathYearPh")}">
         </label>
       </div>
       <div class="form-row">
         <label>${I18n.t("admin.gender")}
-          <input data-admin-field="gender" value="${member.gender || ""}" maxlength="30">
+          <input data-admin-field="gender" value="${escapeHtml(member.gender || "")}" maxlength="30">
         </label>
         <label>${I18n.t("admin.notes")}
-          <input data-admin-field="notes" value="${member.notes || ""}" maxlength="300"
+          <input data-admin-field="notes" value="${escapeHtml(member.notes || "")}" maxlength="300"
             placeholder="${I18n.t("admin.notesPh")}">
         </label>
       </div>

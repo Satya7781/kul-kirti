@@ -22,19 +22,65 @@ if (!process.env.DATABASE_URL || !jwtSecret) throw new Error("DATABASE_URL and J
 const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false });
 const databaseName = new URL(process.env.DATABASE_URL).pathname.slice(1).split("?")[0] || "neondb";
 const realtime = process.env.NEON_REALTIME_SECRET ? createRealtime({ secret: process.env.NEON_REALTIME_SECRET, db: databaseName }) : null;
-app.use(helmet({ contentSecurityPolicy: false }));
+
+/* Behind Render (and most reverse proxies) request.ip is the proxy address
+   unless proxy trust is configured. One trusted hop is enough here. */
+app.set("trust proxy", 1);
+
+/* Restrictive CSP. All application JavaScript is loaded from same-origin
+   files; the only inline styles are static/JS-generated style attributes, so
+   style-src keeps 'unsafe-inline' while script execution stays locked down. */
+const realtimeOrigin = (() => {
+  try { return process.env.NEON_REALTIME_URL ? new URL(process.env.NEON_REALTIME_URL).origin : null; }
+  catch { return null; }
+})();
+const cspConnectSources = ["'self'"];
+if (realtimeOrigin) {
+  cspConnectSources.push(realtimeOrigin, realtimeOrigin.replace(/^https:/, "wss:"));
+}
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      scriptSrc: ["'self'"],
+      scriptSrcAttr: ["'none'"],
+      styleSrc: ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https://images.unsplash.com"],
+      connectSrc: cspConnectSources,
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      workerSrc: ["'self'", "blob:"],
+      upgradeInsecureRequests: null,
+    },
+  },
+  /* Require-CORP would block the third-party hero fonts/images above. */
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 const requestWindows = new Map();
+let lastWindowSweep = Date.now();
+function pruneWindows(now) {
+  if (now - lastWindowSweep < 60_000) return;
+  lastWindowSweep = now;
+  for (const [bucketKey, bucket] of requestWindows) {
+    if (now - bucket.startedAt >= bucket.windowMs) requestWindows.delete(bucketKey);
+  }
+}
 function rateLimit({ windowMs, max, key = (request) => request.ip }) {
   return (request, response, next) => {
     const now = Date.now();
+    pruneWindows(now);
     const bucketKey = `${key(request)}:${request.path}`;
     const bucket = requestWindows.get(bucketKey);
     if (!bucket || now - bucket.startedAt >= windowMs) {
-      requestWindows.set(bucketKey, { startedAt: now, count: 1 });
+      requestWindows.set(bucketKey, { startedAt: now, count: 1, windowMs });
       return next();
     }
     bucket.count += 1;
@@ -43,6 +89,16 @@ function rateLimit({ windowMs, max, key = (request) => request.ip }) {
       return response.status(429).json({ error: "Too many requests. Please try again later." });
     }
     return next();
+  };
+}
+
+/* Bounded pagination for admin list endpoints. */
+function pagination(request, defaultLimit = 100, maxLimit = 200) {
+  const parsedLimit = Number.parseInt(request.query.limit, 10);
+  const parsedOffset = Number.parseInt(request.query.offset, 10);
+  return {
+    limit: Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : defaultLimit, 1), maxLimit),
+    offset: Math.max(Number.isFinite(parsedOffset) ? parsedOffset : 0, 0),
   };
 }
 
@@ -61,6 +117,16 @@ async function initializeDatabase() {
 }
 
 function clean(value, max = 500) { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
+
+/* Keep the derived generation cache in sync after genealogy mutations.
+   Refresh failures are logged but never fail the originating request. */
+async function refreshTreeProjection() {
+  try {
+    await genealogy.rebuildTreeProjection(pool);
+  } catch (error) {
+    console.error("[genealogy] tree projection refresh failed:", error);
+  }
+}
 
 /** Return "hi" if the request prefers Hindi, "en" otherwise. */
 function reqLocale(request) {
@@ -290,6 +356,7 @@ app.post("/api/admin/gotras/:id/members", auth, async (request, response, next) 
     await genealogy.logAudit(client, request.admin.id, "add_gotra_member", "gotra_member", memberResult.rows[0].id,
       { gotraId: request.params.id, personName, personId });
     await client.query("COMMIT");
+    await refreshTreeProjection();
 
     response.status(201).json({
       memberId: memberResult.rows[0].id,
@@ -402,8 +469,12 @@ app.post("/api/admin/family-records", auth, async (request, response, next) => {
 
 app.get("/api/admin/submissions", auth, async (request, response, next) => {
   try {
-    const result = await pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", contributor_name AS "contributorName", contributor_contact AS "contributorContact", status, submitted_at AS "submittedAt", review_notes AS "reviewNotes" FROM submissions ORDER BY submitted_at DESC`);
-    response.json({ submissions: result.rows });
+    const { limit, offset } = pagination(request);
+    const [result, countResult] = await Promise.all([
+      pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", contributor_name AS "contributorName", contributor_contact AS "contributorContact", status, submitted_at AS "submittedAt", review_notes AS "reviewNotes" FROM submissions ORDER BY submitted_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+      pool.query("SELECT COUNT(*)::int AS total FROM submissions"),
+    ]);
+    response.json({ submissions: result.rows, total: countResult.rows[0].total, limit, offset });
   } catch (error) { next(error); }
 });
 
@@ -476,7 +547,22 @@ app.get("/api/genealogy/gotras/:id", async (request, response, next) => {
       [request.params.id]
     );
 
-    response.json({ gotra: gotraResult.rows[0], branches: branches.rows, roots: roots.rows });
+    /* Public member list: linked rows are limited to verified public people;
+       unlinked contributor rows expose only the same fields as /api/gotras/:id. */
+    const members = await pool.query(
+      `SELECT p.public_id AS "publicId", p.full_name AS "fullName",
+              p.birth_year AS "birthYear", p.death_year AS "deathYear",
+              p.village, p.district, p.state,
+              m.person_name AS "personName", m.relation_or_role AS "relationOrRole"
+       FROM gotra_members m
+       LEFT JOIN people p ON p.id = m.linked_person_id
+       WHERE m.gotra_id = $1
+         AND (p.id IS NULL OR (p.status = 'verified' AND p.visibility = 'public'))
+       ORDER BY COALESCE(p.full_name, m.person_name)`,
+      [request.params.id]
+    );
+
+    response.json({ gotra: gotraResult.rows[0], branches: branches.rows, roots: roots.rows, members: members.rows });
   } catch (error) { next(error); }
 });
 
@@ -592,7 +678,7 @@ app.get("/api/genealogy/search", async (request, response, next) => {
 });
 
 // ── Public: submit a genealogy contribution ───────────────────────────────
-app.post("/api/genealogy/contributions", async (request, response, next) => {
+app.post("/api/genealogy/contributions", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (request, response, next) => {
   try {
     const input = request.body || {};
     const type = ["new_person", "new_relationship", "correction", "branch_addition", "gotra_info", "dispute"]
@@ -727,7 +813,7 @@ app.post("/api/admin/people", auth, async (request, response, next) => {
 
     // Create relationships if father/mother provided
     if (input.fatherId) {
-      const validation = await genealogy.validateRelationship(client._pool || pool, input.fatherId, person.rows[0].id, "biological");
+      const validation = await genealogy.validateRelationship(client, input.fatherId, person.rows[0].id, "biological");
       if (validation.valid) {
         await client.query(
           `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
@@ -747,9 +833,10 @@ app.post("/api/admin/people", auth, async (request, response, next) => {
       }
     }
 
-    await genealogy.logAudit(client._pool || pool, request.admin.id, "create_person", "person", person.rows[0].id,
+    await genealogy.logAudit(client, request.admin.id, "create_person", "person", person.rows[0].id,
       { fullName, gender: input.gender || null });
     await client.query("COMMIT");
+    await refreshTreeProjection();
 
     response.status(201).json({
       id: person.rows[0].id,
@@ -858,6 +945,7 @@ app.post("/api/admin/relationships", auth, async (request, response, next) => {
     await genealogy.logAudit(client, request.admin.id, "add_relationship", "relationship", rel.rows[0].id,
       { parentId, childId, relationType });
     await client.query("COMMIT");
+    await refreshTreeProjection();
 
     response.status(201).json({
       id: rel.rows[0].id,
@@ -890,6 +978,7 @@ app.delete("/api/admin/relationships/:id", auth, async (request, response, next)
     await genealogy.logAudit(client, request.admin.id, "remove_relationship", "relationship", request.params.id,
       result.rows[0]);
     await client.query("COMMIT");
+    await refreshTreeProjection();
     response.json({ id: request.params.id, message: msg(request, "संबंध हटा दिया गया।", "Relationship removed.") });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -948,7 +1037,9 @@ app.get("/api/admin/branches", auth, async (request, response, next) => {
 // ── Admin: list genealogy contributions ──────────────────────────────────
 app.get("/api/admin/contributions", auth, async (request, response, next) => {
   try {
-    const result = await pool.query(
+    const { limit, offset } = pagination(request);
+    const [result, countResult] = await Promise.all([
+      pool.query(
       `SELECT id, contribution_type AS "contributionType",
               proposed_name AS "proposedName", proposed_gender AS "proposedGender",
               proposed_birth_year AS "proposedBirthYear", proposed_death_year AS "proposedDeathYear",
@@ -959,9 +1050,12 @@ app.get("/api/admin/contributions", auth, async (request, response, next) => {
               contributor_contact AS "contributorContact", status,
               submitted_at AS "submittedAt", review_notes AS "reviewNotes"
        FROM genealogy_contributions
-       ORDER BY submitted_at DESC`
-    );
-    response.json({ contributions: result.rows });
+       ORDER BY submitted_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+      ),
+      pool.query("SELECT COUNT(*)::int AS total FROM genealogy_contributions"),
+    ]);
+    response.json({ contributions: result.rows, total: countResult.rows[0].total, limit, offset });
   } catch (error) { next(error); }
 });
 
@@ -1039,6 +1133,7 @@ app.patch("/api/admin/contributions/:id", auth, async (request, response, next) 
     }
 
     await client.query("COMMIT");
+    await refreshTreeProjection();
     response.json({ status, id: contribution.id });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -1316,7 +1411,7 @@ app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, 
 
       if (row.father_external_id && idMap.has(row.father_external_id)) {
         const fatherId = idMap.get(row.father_external_id);
-        const validation = await genealogy.validateRelationship(client._pool || pool, fatherId, childId, "biological");
+        const validation = await genealogy.validateRelationship(client, fatherId, childId, "biological");
         if (validation.valid) {
           await client.query(
             `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
@@ -1350,6 +1445,7 @@ app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, 
     await genealogy.logAudit(client, request.admin.id, "import_commit", "import_job", jobId,
       { imported: importedCount, total: rows.length });
     await client.query("COMMIT");
+    await refreshTreeProjection();
 
     response.json({
       jobId,
@@ -1490,7 +1586,7 @@ app.get("/admin.html", (request, response, next) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 // ── Public: submit a new family tree ─────────────────────────────────────
-app.post("/api/pariwar/create", async (request, response, next) => {
+app.post("/api/pariwar/create", rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }), async (request, response, next) => {
   try {
     const input = request.body || {};
     const creatorName  = clean(input.creatorName, 120);
@@ -1689,6 +1785,7 @@ app.post("/api/admin/pariwar/:id/link", auth, async (request, response, next) =>
     await genealogy.logAudit(client, request.admin.id, "link_public_tree", "public_family_tree", tree.id,
       { gotraId, membersLinked: idMap.size });
     await client.query("COMMIT");
+    await refreshTreeProjection();
 
     response.json({
       gotraId,
