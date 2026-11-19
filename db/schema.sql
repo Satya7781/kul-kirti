@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   reviewed_by UUID REFERENCES admins(id),
   review_notes TEXT,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  reviewed_at TIMESTAMPTZ
+  reviewed_at TIMESTAMPTZ,
+  -- Set when an approved submission is linked into people/relationships.
+  linked_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS published_records (
@@ -430,6 +432,9 @@ CREATE INDEX IF NOT EXISTS pft_token_idx ON public_family_trees (token);
 -- ── Allow people.created_by to be NULL ─────────────────────────────────────
 -- Public-submitted people are created without an admin account.
 ALTER TABLE people ALTER COLUMN created_by DROP NOT NULL;
+
+-- ── Track submission → genealogy linkage on existing databases ────────────
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS linked_at TIMESTAMPTZ;
 
 -- ── Allow family_branches.created_by to be NULL ────────────────────────────
 ALTER TABLE family_branches ALTER COLUMN created_by DROP NOT NULL;

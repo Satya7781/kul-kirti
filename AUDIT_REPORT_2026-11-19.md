@@ -164,3 +164,42 @@ node --check app.js server.js lib/genealogy.js public/js/vanshawali-explorer.js 
 git diff --check
 ```
 
+---
+
+## Follow-up cross-check — frontend ↔ login ↔ user data-entry flow
+
+This section records the second pass requested after the fixes above: can a large, unordered set of user-entered values be arranged, verified and linked into the correct place in the genealogy? It was a static trace plus local static-server browser checks; **no production/live database was contacted**.
+
+### What the trace found
+
+| Sev | Finding | Evidence |
+|---|---|---|
+| Critical | Only the Mera Pariwar → "Link" path ever created real `people` / `person_relationships` rows. Approving a public submission only wrote an opaque JSON blob to `published_records`, so approved data stayed invisible in the tree/profile APIs. | `POST /api/admin/submissions/:id` only `UPDATE`/`INSERT published_records`. |
+| Critical | Parent links were silently dropped in every creation flow: `validateRelationship()` ran on the shared `pool` instead of the transaction `client`, so the just-created uncommitted child was not visible and `person_not_found` was returned and ignored. Affected gotra-member add, contribution approval, CSV import mother, admin person mother, and both Mera Pariwar parent passes. | `server.js` validation call sites using `pool`; `lib/genealogy.js:348-354`. |
+| Critical | The genealogy-contribution form had no submit handler, and the admin contributions panel had no loader/renderer/action — a completely dead-end pipeline. | `#genealogy-contribution-form` and `#genealogy-contributions-list` appeared only in HTML. |
+| High | Mera Pariwar linking discarded `birthYear`, `deathYear`, `gender` and `relation`; forced `is_root=false`; made branch placement impossible; auto-created gotras were `draft` with no promote route, so linked people stayed hidden from public listings. | `POST /api/admin/pariwar/:id/link`. |
+| High | Unnamed/temporary members (often referenced as a parent) were silently filtered out at create and link time; dangling parent IDs were silently ignored. No cross-submission identity or dedupe. | `validateSubmission()` and `POST /api/pariwar/create` filters. |
+| High | Admin gate and source disclosure: `/%61dmin.html` bypassed the `/admin.html` JWT guard because Express matches routes on the raw path while static serves the decoded path; `express.static(root)` exposed `server.js`, `package.json`, `db/schema.sql`, scripts and reports. | `server.js` gate and `express.static(root)`. |
+| Medium | Admin submissions review had only approve/reject; people, branches, import and dashboard panels were inert; submission pages had no pager; pariwar review showed `clientId` values instead of resolved parent names. | `app.js`, `admin.html`, `public/js/admin-pariwar.js`. |
+| Medium | Logout only cleared the cookie (8 h JWT still replayable); login/logout had no Origin check; `role` claim never enforced. | `POST /api/admin/login` and `/api/admin/logout`. |
+| Low | Cycle detection ignored `parentId`, so two-node cycles passed; CSV import inserted a non-existent `people.city`; unvalidated strings reached UUID columns; `mera-pariwar.js` inserted `clientId` into an attribute without escaping. | `lib/genealogy.js:34-59`, `server.js`, `mera-pariwar.js`. |
+
+### Fixes implemented in this pass
+
+1. **Submission → genealogy link endpoint** (`POST /api/admin/submissions/:id/link`). Admin chooses gotra/branch, may correct every field, reuse an existing person by ID, and anchor parents to existing people. A two-pass `clientId → people.id` map makes entry order irrelevant. `linked_at` on `submissions` makes re-linking idempotent (409 on duplicate). Every skipped member/link is returned to the admin as a `skipped[]` reason list — never silent.
+2. **All relationship validation now uses the transaction client** at every remaining call site, so newly created people are visible to validation and parent links actually persist.
+3. **Mera Pariwar link upgraded**: admin may correct each member, preserve `birthYear`/`deathYear`/`gender`/`relation`/`notes`, choose gotra and branch, reuse existing people, anchor parents outside the submitted tree, and publish a draft gotra with a "गोत्र सत्यापित करें" button (new `PATCH /api/admin/gotras/:id`). `GET /api/admin/pariwar` is now paginated.
+4. **Inert admin panels wired** in new `public/js/admin-workflow.js`: contributions review with status/review notes, people search + pagination + inline edit + branch assignment, CSV import preview → review → commit, branch management, and dashboard. Loaded on tab activation. Submission and pariwar lists now paginate. The submission link panel caches each rendered page by ID, so verifying a submission on a later page does not re-fetch only the first page and fail to find it. Branch pickers in both link UIs now submit a real branch UUID (non-UUID free text was silently ignored by the server).
+5. **Genealogy contribution form wired** in `app.js` — submissions land in the admin review queue.
+6. **Admin gate hardened**: decoded/normalized path check closes the `/%61dmin.html` bypass; static serving restricted to an explicit public-file allowlist plus `/public` and `/locales`, so `server.js`, schema, scripts and reports are no longer downloadable.
+7. **Session hardening**: login tokens now carry a `jti`; logout adds it to a revocation set checked by `auth()` and the page gate; shared `originGuard` applied to login, logout and all authenticated routes.
+8. **Data integrity fixes**: cycle detection now walks descendants of the proposed parent and checks for the parent node; unreferenced unnamed rows are still dropped but *referenced* blank names are kept under an `अज्ञात सदस्य N` placeholder so the parent graph survives review; UUID validation added for all admin-supplied IDs; CSV `people.city` removed; `mera-pariwar.js` escapes `clientId` in markup.
+9. **`scripts/build-check.js` extended** to syntax-check every JS module, not just four files.
+
+### Verification for this pass
+
+- `npm run build`, `node --check` on all changed JS, and `git diff --check` pass (only the known `core.autocrlf` notices).
+- Local CSP-mirroring static server: `admin.html` loaded all four scripts (`i18n.js`, `app.js`, `admin-pariwar.js`, `admin-workflow.js`) with **zero CSP violations and zero JS runtime errors**; all nine tabs present; every wired panel ID exists; no horizontal overflow at 992 px. Clicking through contributions, people, dashboard, import, branch and pariwar tabs produced no exceptions.
+- `submit.html` genealogy contribution form: submit event dispatched, handler fired, POST attempted and a visible error surfaced (expected against the static server with no API).
+- **Not exercised**: end-to-end approval/linking and pagination SQL against a seeded database. The configured `DATABASE_URL` points to a live Neon endpoint, which this audit deliberately did not contact. These flows remain statically verified only.
+

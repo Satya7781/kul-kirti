@@ -521,6 +521,41 @@ if (submissionForm) {
   });
 }
 
+/* ── Genealogy contribution form (submit.html) ──────────────────────────── */
+(function initGenealogyContribution() {
+  const form = document.querySelector("#genealogy-contribution-form");
+  if (!form) return;
+  const message = document.querySelector("#genealogy-contribution-message");
+  let sending = false;
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    if (sending) return;
+    sending = true;
+    const btn = form.querySelector("[type=submit]");
+    const original = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.innerHTML = `<span>${I18n.t("common.loading")}</span>`; }
+    if (message) { message.textContent = ""; message.classList.remove("error"); }
+
+    const payload = Object.fromEntries(new FormData(form));
+    try {
+      const res = await fetch("/api/genealogy/contributions", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || I18n.t("common.error"));
+      if (message) message.textContent = result.message || "योगदान भेज दिया गया।";
+      form.reset();
+    } catch (err) {
+      if (message) { message.textContent = err.message; message.classList.add("error"); }
+    } finally {
+      sending = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    }
+  });
+}());
+
 /* ─────────────────────────────────────────────────────────────────────────────
    6. VANSHAWALI / TREE VIEWER
    ─────────────────────────────────────────────────────────────────────────── */
@@ -578,14 +613,22 @@ function _clearAdminError() {
   if (adminErrorEl) { adminErrorEl.textContent = ""; adminErrorEl.hidden = true; }
 }
 
-/* ── load submissions (task 5: try/catch with visible error) ─────────────── */
+/* ── load submissions: paged review + verify/link into the genealogy ────── */
+let submissionOffset = 0;
+const SUBMISSION_PAGE = 50;
+const submissionCache = new Map();
+
 async function loadSubmissions() {
   if (!adminSubmissions) return;
   _clearAdminError();
   try {
-    const response = await fetch("/api/admin/submissions", { credentials: "include" });
+    const response = await fetch(`/api/admin/submissions?limit=${SUBMISSION_PAGE}&offset=${submissionOffset}`, { credentials: "include" });
     if (!response.ok) throw new Error(I18n.t("common.sessionExpired"));
-    const submissions = (await response.json()).submissions;
+    const data = await response.json();
+    const submissions = data.submissions || [];
+    /* Cache the current page so the link panel can find a submission without
+       re-fetching only the first page (which misses later-page records). */
+    submissions.forEach(item => submissionCache.set(item.id, item));
 
     if (!submissions.length) {
       adminSubmissions.innerHTML = `<div class="admin-empty">${I18n.t("admin.noSubmissions")}</div>`;
@@ -594,6 +637,7 @@ async function loadSubmissions() {
 
     adminSubmissions.innerHTML = submissions.map(item => {
       const loc = [item.village, item.district, item.state].filter(Boolean).join(" · ");
+      const nameOf = new Map((item.familyDetails || []).map(p => [p.id, p.name]));
       const membersSummary = item.familyDetails?.length
         ? `<details>
              <summary>${I18n.t("admin.memberCount", { n: item.familyDetails.length })}</summary>
@@ -602,8 +646,8 @@ async function loadSubmissions() {
                  `<div>
                     <strong>${escapeHtml(person.name)}</strong> · ${escapeHtml(person.relation || I18n.t("common.family"))}
                     <small>${I18n.t("admin.idLabel")}: ${escapeHtml(person.id)}
-                      ${person.fatherId ? ` · ${I18n.t("admin.fatherLabel")}: ${escapeHtml(person.fatherId)}` : ""}
-                      ${person.motherId ? ` · ${I18n.t("admin.motherLabel")}: ${escapeHtml(person.motherId)}` : ""}
+                      ${person.fatherId ? ` · ${I18n.t("admin.fatherLabel")}: ${escapeHtml(nameOf.get(person.fatherId) || person.fatherId)}` : ""}
+                      ${person.motherId ? ` · ${I18n.t("admin.motherLabel")}: ${escapeHtml(nameOf.get(person.motherId) || person.motherId)}` : ""}
                     </small>
                   </div>`
                ).join("")}
@@ -620,14 +664,22 @@ async function loadSubmissions() {
                ${I18n.t("admin.rejectBtn")}
              </button>
            </div>` : "";
-      return `<article class="admin-submission">
+      let linkAction = "";
+      if (item.status === "approved" && !item.linkedAt) {
+        linkAction = `<div class="admin-actions">
+          <button class="link-submission" data-link="${escapeHtml(item.id)}">सत्यापित करें और वंशावली से जोड़ें</button>
+        </div><div class="submission-link-panel" hidden></div>`;
+      } else if (item.linkedAt) {
+        linkAction = `<p><strong>वंशावली:</strong> जोड़ा गया ✓</p>`;
+      }
+      return `<article class="admin-submission" data-submission="${escapeHtml(item.id)}">
         <h3>${escapeHtml(item.name)} <span class="result-tag">${escapeHtml(item.type)}</span></h3>
         <p>${escapeHtml(loc)}</p>
         <p>${I18n.t("admin.contributor")}: ${escapeHtml(item.contributorName)}${item.contributorContact ? ` · ${escapeHtml(item.contributorContact)}` : ""}</p>
         <p>${escapeHtml(item.notes || I18n.t("admin.noNotes"))}</p>
         ${membersSummary}
         <p><strong>${I18n.t("admin.statusLabel")}:</strong> ${statusLabel}</p>
-        ${actions}
+        ${actions}${linkAction}
       </article>`;
     }).join("");
 
@@ -658,8 +710,121 @@ async function loadSubmissions() {
         }
       })
     );
+
+    /* Large queues are paged; admins never silently miss older records. */
+    const total = data.total || 0;
+    const pages = Math.max(1, Math.ceil(total / SUBMISSION_PAGE));
+    const current = Math.floor(submissionOffset / SUBMISSION_PAGE) + 1;
+    const pager = document.createElement("div");
+    pager.className = "genealogy-pagination";
+    pager.innerHTML = pages > 1
+      ? `<button type="button" data-page="${current - 1}" ${current === 1 ? "disabled" : ""}>← पिछला</button>
+         <span>${current} / ${pages} · ${total} प्रस्तुतियां</span>
+         <button type="button" data-page="${current + 1}" ${current === pages ? "disabled" : ""}>अगला →</button>`
+      : `<span>${total} प्रस्तुतियां</span>`;
+    pager.querySelectorAll("button[data-page]").forEach(btn =>
+      btn.addEventListener("click", () => {
+        submissionOffset = (Number(btn.dataset.page) - 1) * SUBMISSION_PAGE;
+        loadSubmissions();
+      })
+    );
+    adminSubmissions.appendChild(pager);
+
+    adminSubmissions.querySelectorAll("[data-link]").forEach(btn =>
+      btn.addEventListener("click", () =>
+        openSubmissionLink(btn.dataset.link, btn.closest("[data-submission]")))
+    );
   } catch (err) {
     _showAdminError(err.message);
+  }
+}
+
+/* Verify and link every user-entered member of an approved submission.
+   Order does not matter: the server resolves member ids in two passes. */
+async function openSubmissionLink(id, card) {
+  const panel = card?.querySelector(".submission-link-panel");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = `<p>लोड हो रहा है...</p>`;
+  try {
+    let item = submissionCache.get(id);
+    if (!item) {
+      const subsRes = await fetch("/api/admin/submissions?limit=200&offset=0", { credentials: "include" });
+      const all = (await subsRes.json()).submissions || [];
+      item = all.find(s => s.id === id);
+    }
+    if (!item) throw new Error("प्रस्तुति का विवरण उपलब्ध नहीं है।");
+    const gotraRes = await fetch("/api/admin/gotras/all", { credentials: "include" });
+    const gotras = gotraRes.ok ? (await gotraRes.json()).gotras || [] : [];
+    const branchRes = await fetch("/api/admin/branches", { credentials: "include" });
+    const branches = branchRes.ok ? (await branchRes.json()).branches || [] : [];
+    const members = item.familyDetails || [];
+    const optionsFor = (selected, selfId) =>
+      `<option value="">— कोई नहीं —</option>` + members.filter(m => m.id !== selfId).map(m =>
+        `<option value="${escapeHtml(m.id)}" ${selected === m.id ? "selected" : ""}>${escapeHtml(m.name)}</option>`
+      ).join("");
+
+    panel.innerHTML = `
+      <div class="form-row">
+        <label>गोत्र<select data-link-gotra>
+          <option value="">— नाम से पहचानें —</option>
+          ${gotras.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)} (${escapeHtml(g.status)})</option>`).join("")}
+        </select></label>
+        <label>शाखा (वैकल्पिक)<select data-link-branch>
+          <option value="">— कोई नहीं —</option>
+          ${branches.map(b => `<option value="${escapeHtml(b.id)}">${escapeHtml(b.gotraName)} — ${escapeHtml(b.name)}</option>`).join("")}
+        </select></label>
+      </div>
+      <p class="form-note">हर सदस्य की जांच करें। यदि व्यक्ति पहले से वंशावली में है तो उसका आंतरिक ID भरें — डुप्लिकेट नहीं बनेगा। पिता/माता को भी मौजूदा व्यक्ति से जोड़ा जा सकता है।</p>
+      ${members.map(m => `
+        <div class="member-row" data-link-member="${escapeHtml(m.id)}">
+          <strong>${escapeHtml(m.name)}</strong>
+          <div class="form-row">
+            <label>नाम<input data-lf="name" value="${escapeHtml(m.name)}"></label>
+            <label>जन्म वर्ष<input data-lf="birthYear" value="${escapeHtml(m.birthYear || "")}"></label>
+          </div>
+          <div class="form-row">
+            <label>पिता<select data-lf="fatherId">${optionsFor(m.fatherId, m.id)}</select></label>
+            <label>माता<select data-lf="motherId">${optionsFor(m.motherId, m.id)}</select></label>
+          </div>
+          <label>मौजूदा व्यक्ति ID<input data-lf="existingPersonId" placeholder="यदि डुप्लिकेट है"></label>
+          <label>मौजूदा पिता ID<input data-lf="fatherPersonId" placeholder="बाहरी व्यक्ति से जोड़ें"></label>
+          <label>मौजूदा माता ID<input data-lf="motherPersonId" placeholder="बाहरी व्यक्ति से जोड़ें"></label>
+        </div>`).join("")}
+      <button type="button" class="button button-gold link-submission-save">सहेजें और जोड़ें</button>
+      <p class="form-message" role="status"></p>`;
+
+    panel.querySelector(".link-submission-save").addEventListener("click", async () => {
+      const btn = panel.querySelector(".link-submission-save");
+      btn.disabled = true;
+      const outMembers = Array.from(panel.querySelectorAll("[data-link-member]")).map(row => {
+        const out = { id: row.dataset.linkMember };
+        row.querySelectorAll("[data-lf]").forEach(el => { if (el.value) out[el.dataset.lf] = el.value; });
+        return out;
+      });
+      try {
+        const res = await fetch(`/api/admin/submissions/${id}/link`, {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            gotraId: panel.querySelector("[data-link-gotra]")?.value || null,
+            branchId: panel.querySelector("[data-link-branch]")?.value || null,
+            members: outMembers,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || I18n.t("common.error"));
+        panel.querySelector(".form-message").textContent = result.message || "जोड़ा गया।";
+        loadSubmissions();
+      } catch (err) {
+        const msgEl = panel.querySelector(".form-message");
+        msgEl.textContent = err.message;
+        msgEl.classList.add("error");
+        btn.disabled = false;
+      }
+    });
+  } catch (err) {
+    panel.innerHTML = `<p style="color:#842d2d">${escapeHtml(err.message)}</p>`;
   }
 }
 
@@ -707,6 +872,21 @@ if (adminLogin) {
     adminPanel.hidden    = true;
     adminLoginBox.hidden = false;
   });
+
+  /* /admin.html is served only to authenticated admins, so reveal the panel
+     immediately when a valid session already exists. */
+  if (adminPanel && adminLoginBox) {
+    fetch("/api/admin/me", { credentials: "include" })
+      .then(res => res.ok ? res.json() : null)
+      .then(me => {
+        if (me && me.authenticated) {
+          adminLoginBox.hidden = true;
+          adminPanel.hidden    = false;
+          loadSubmissions();
+        }
+      })
+      .catch(() => { /* stay on the login form */ });
+  }
 }
 
 /* ── admin tabs (task 7: ARIA roles) ────────────────────────────────────── */
@@ -749,6 +929,7 @@ adminTabs.forEach(tab =>
       if (view) view.hidden = name !== tab.dataset.adminView;
     });
     if (tab.dataset.adminView === "gotras") loadGotras();
+    if (tab.dataset.adminView === "submissions") loadSubmissions();
   })
 );
 

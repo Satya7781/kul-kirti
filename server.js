@@ -64,6 +64,12 @@ app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
+/* Logged-out JWTs remain valid until expiry unless we track them.  jti values
+   are added here on logout and rejected by auth().  In-memory by design: a
+   process restart clears it, but all tokens issued before the restart also
+   expire with it in practice (short-lived sessions). */
+const revokedTokens = new Set();
+
 const requestWindows = new Map();
 let lastWindowSweep = Date.now();
 function pruneWindows(now) {
@@ -142,43 +148,63 @@ function msg(request, hi, en) {
   return reqLocale(request) === "en" ? en : hi;
 }
 
-function auth(request, response, next) {
-  /* ── CSRF origin check ─────────────────────────────────────────────────
-     For non-GET mutating requests, verify the Origin header matches the
-     application host.  We honour:
-       1. The FRONTEND_ORIGIN env var (explicit allowlist — most reliable).
-       2. The incoming Host header with the correct protocol.
-          On Render (and most reverse proxies) the app sees http internally
-          while the client uses https; x-forwarded-proto fixes that.
-  ──────────────────────────────────────────────────────────────────────── */
-  if (request.method !== "GET" && request.headers.origin) {
-    const proto = request.headers["x-forwarded-proto"] || request.protocol;
-    const derivedOrigin = `${proto}://${request.get("host")}`;
-    const allowedOrigin = process.env.FRONTEND_ORIGIN || derivedOrigin;
-
-    // Normalise both sides: strip trailing slash, lowercase
-    const normalise = (s) => s.replace(/\/$/, "").toLowerCase();
-    if (normalise(request.headers.origin) !== normalise(allowedOrigin)) {
-      return response.status(403).json({ error: "Cross-site request blocked." });
-    }
+/* CSRF origin guard for mutating requests.  Honours FRONTEND_ORIGIN, then the
+   incoming Host with the proxied protocol.  Applied to login/logout as well as
+   auth(), so session endpoints cannot be abused cross-site. */
+function originGuard(request, response, next) {
+  if (request.method === "GET" || !request.headers.origin) return next();
+  const proto = request.headers["x-forwarded-proto"] || request.protocol;
+  const derivedOrigin = `${proto}://${request.get("host")}`;
+  const allowedOrigin = process.env.FRONTEND_ORIGIN || derivedOrigin;
+  const normalise = (s) => s.replace(/\/$/, "").toLowerCase();
+  if (normalise(request.headers.origin) !== normalise(allowedOrigin)) {
+    return response.status(403).json({ error: "Cross-site request blocked." });
   }
-  const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
-  try { request.admin = jwt.verify(token, jwtSecret); next(); }
-  catch { response.status(401).json({ error: "Admin authentication required." }); }
+  next();
+}
+
+function auth(request, response, next) {
+  originGuard(request, response, () => {
+    const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
+    try {
+      request.admin = jwt.verify(token, jwtSecret);
+      if (request.admin.jti && revokedTokens.has(request.admin.jti)) {
+        return response.status(401).json({ error: "Admin authentication required." });
+      }
+      next();
+    } catch { response.status(401).json({ error: "Admin authentication required." }); }
+  });
 }
 function validateEnum(value, allowed, fallback = "") {
   return allowed.includes(value) ? value : fallback;
 }
+/* UUID columns reject arbitrary strings with a 500; silently drop invalids. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function uuidOrNull(value) {
+  const text = clean(value, 80);
+  return UUID_RE.test(text) ? text : null;
+}
 function validateSubmission(input) {
   const rawPeople = Array.isArray(input.familyDetails) ? input.familyDetails.slice(0, 1000) : [];
   const clientToId = new Map(rawPeople.map((person) => [clean(person.clientId, 80), crypto.randomUUID()]));
-  const familyDetails = rawPeople.map((person) => ({
-    id: clientToId.get(clean(person.clientId, 80)) || crypto.randomUUID(),
-    name: clean(person.name, 120), gender: clean(person.gender, 30), relation: clean(person.relation, 80),
-    birthYear: clean(person.birthYear, 20), deathYear: clean(person.deathYear, 20), notes: clean(person.notes, 300),
-    fatherId: clientToId.get(clean(person.fatherId, 80)) || null,
-    motherId: clientToId.get(clean(person.motherId, 80)) || null
-  })).filter((person) => person.name);
+  /* A blank name is often a placeholder ("father's name unknown") that other
+     members point to as a parent.  Keep such members under a temp name so the
+     graph survives review; drop only unreferenced empty rows. */
+  const referenced = new Set(rawPeople.flatMap(person =>
+    [clean(person.fatherId, 80), clean(person.motherId, 80)].filter(Boolean)));
+  const familyDetails = rawPeople.map((person, index) => {
+    const clientId = clean(person.clientId, 80);
+    const name = clean(person.name, 120);
+    return {
+      id: clientToId.get(clientId) || crypto.randomUUID(),
+      name: name || (referenced.has(clientId) ? `अज्ञात सदस्य ${index + 1}` : ""),
+      gender: clean(person.gender, 30), relation: clean(person.relation, 80),
+      birthYear: clean(person.birthYear, 20), deathYear: clean(person.deathYear, 20),
+      notes: clean(person.notes, 300),
+      fatherId: clientToId.get(clean(person.fatherId, 80)) || null,
+      motherId: clientToId.get(clean(person.motherId, 80)) || null
+    };
+  }).filter((person) => person.name);
   return {
     type: ["gotra", "village", "family"].includes(input.type) ? input.type : "family",
     name: clean(input.name, 120), gotra: clean(input.gotra, 120), village: clean(input.village, 120), district: clean(input.district, 120),
@@ -237,17 +263,33 @@ app.post("/api/submissions", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), a
   } catch (error) { next(error); }
 });
 
-app.post("/api/admin/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: (request) => `${request.ip}:${clean(request.body?.email, 200).toLowerCase()}` }), async (request, response, next) => {
+app.post("/api/admin/login", originGuard, rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: (request) => `${request.ip}:${clean(request.body?.email, 200).toLowerCase()}` }), async (request, response, next) => {
   try {
     const email = clean(request.body.email, 200).toLowerCase(); const password = request.body.password;
     const result = await pool.query("SELECT id, email, password_hash, role FROM admins WHERE email = $1", [email]);
     if (!result.rows[0] || !(await bcrypt.compare(password || "", result.rows[0].password_hash))) return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
-    const admin = result.rows[0]; const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h" });
+    const admin = result.rows[0];
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h", jwtid: crypto.randomUUID() });
     response.cookie("kulkirti_admin", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 8 * 60 * 60 * 1000 });
     response.json({ admin: { email: admin.email, role: admin.role } });
   } catch (error) { next(error); }
 });
-app.post("/api/admin/logout", (request, response) => { response.clearCookie("kulkirti_admin"); response.json({ ok: true }); });
+app.post("/api/admin/logout", originGuard, (request, response) => {
+  /* Revoke this JWT so a stolen/cached copy cannot be replayed after logout. */
+  try {
+    const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
+    const decoded = jwt.verify(token, jwtSecret);
+    if (decoded.jti) revokedTokens.add(decoded.jti);
+  } catch { /* already invalid — nothing to revoke */ }
+  response.clearCookie("kulkirti_admin");
+  response.json({ ok: true });
+});
+
+/* Lets an already-authenticated admin skip the login form when /admin.html is
+   served directly.  Also gives the client a lightweight session check. */
+app.get("/api/admin/me", auth, (request, response) => {
+  response.json({ authenticated: true, email: request.admin.email, role: request.admin.role });
+});
 
 app.get("/api/admin/gotras", auth, async (request, response, next) => {
   try {
@@ -333,7 +375,7 @@ app.post("/api/admin/gotras/:id/members", auth, async (request, response, next) 
 
     // 4. If father/mother provided, link parent relationships
     if (input.fatherId) {
-      const fValidation = await genealogy.validateRelationship(pool, input.fatherId, personId, "biological");
+      const fValidation = await genealogy.validateRelationship(client, input.fatherId, personId, "biological");
       if (fValidation.valid) {
         await client.query(
           `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
@@ -343,7 +385,7 @@ app.post("/api/admin/gotras/:id/members", auth, async (request, response, next) 
       }
     }
     if (input.motherId) {
-      const mValidation = await genealogy.validateRelationship(pool, input.motherId, personId, "biological");
+      const mValidation = await genealogy.validateRelationship(client, input.motherId, personId, "biological");
       if (mValidation.valid) {
         await client.query(
           `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
@@ -439,6 +481,43 @@ app.post("/api/admin/gotras", auth, async (request, response, next) => {
   } catch (error) { await client.query("ROLLBACK"); if (error.code === "23505") return response.status(409).json({ error: msg(request, "यह गोत्र पहले से मौजूद है।", "This Gotra already exists.") }); next(error); } finally { client.release(); }
 });
 
+/* Publish or correct a gotra. Draft gotras auto-created while linking a
+   public family tree must be promotable, otherwise their members stay hidden
+   from every public listing. */
+app.patch("/api/admin/gotras/:id", auth, async (request, response, next) => {
+  try {
+    const input = request.body || {};
+    const updates = [];
+    const values = [];
+    const fields = {
+      name: "name", originPlace: "origin_place", originPeriod: "origin_period",
+      founderName: "founder_name", founderNotes: "founder_notes",
+      historicalDetails: "historical_details", sourceReferences: "source_references",
+      status: "status",
+    };
+    for (const [key, column] of Object.entries(fields)) {
+      if (input[key] === undefined) continue;
+      if (key === "status" && !["draft", "verified"].includes(input[key])) {
+        return response.status(400).json({ error: "Invalid gotra status." });
+      }
+      values.push(clean(input[key], key === "name" ? 120 : 5000));
+      updates.push(`${column} = $${values.length}`);
+    }
+    if (!updates.length) return response.status(400).json({ error: "No fields to update." });
+    values.push(request.params.id);
+    const result = await pool.query(
+      `UPDATE gotras SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${values.length} RETURNING id, name, status`,
+      values
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: "Gotra not found." });
+    await genealogy.logAudit(pool, request.admin.id, "update_gotra", "gotra", request.params.id, input);
+    response.json({ gotra: result.rows[0], message: msg(request, "गोत्र अद्यतन किया गया।", "Gotra updated.") });
+  } catch (error) {
+    if (error.code === "23505") return response.status(409).json({ error: msg(request, "यह गोत्र पहले से मौजूद है।", "This Gotra already exists.") });
+    next(error);
+  }
+});
+
 app.post("/api/admin/family-records", auth, async (request, response, next) => {
   const client = await pool.connect();
   try {
@@ -471,7 +550,7 @@ app.get("/api/admin/submissions", auth, async (request, response, next) => {
   try {
     const { limit, offset } = pagination(request);
     const [result, countResult] = await Promise.all([
-      pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", contributor_name AS "contributorName", contributor_contact AS "contributorContact", status, submitted_at AS "submittedAt", review_notes AS "reviewNotes" FROM submissions ORDER BY submitted_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
+      pool.query(`SELECT id, type, name, village, district, state, family_branch AS "familyBranch", notes, family_details AS "familyDetails", contributor_name AS "contributorName", contributor_contact AS "contributorContact", status, linked_at AS "linkedAt", submitted_at AS "submittedAt", review_notes AS "reviewNotes" FROM submissions ORDER BY submitted_at DESC LIMIT $1 OFFSET $2`, [limit, offset]),
       pool.query("SELECT COUNT(*)::int AS total FROM submissions"),
     ]);
     response.json({ submissions: result.rows, total: countResult.rows[0].total, limit, offset });
@@ -493,6 +572,123 @@ app.patch("/api/admin/submissions/:id", auth, async (request, response, next) =>
     }
     await client.query("COMMIT"); response.json({ status, id: submission.id });
   } catch (error) { await client.query("ROLLBACK"); next(error); } finally { client.release(); }
+});
+
+/* Admin: link an approved submission's user-entered members into the real
+   genealogy.  A two-pass client-id map makes entry order irrelevant; admins
+   can correct details and choose gotra/branch/existing-person anchors. */
+app.post("/api/admin/submissions/:id/link", auth, async (request, response, next) => {
+  const client = await pool.connect();
+  try {
+    const input = request.body || {};
+    await client.query("BEGIN");
+    const subResult = await client.query("SELECT * FROM submissions WHERE id = $1 FOR UPDATE", [request.params.id]);
+    const submission = subResult.rows[0];
+    if (!submission) { await client.query("ROLLBACK"); return response.status(404).json({ error: "Submission not found." }); }
+    if (submission.status !== "approved") { await client.query("ROLLBACK"); return response.status(400).json({ error: msg(request, "पहले प्रस्तुति स्वीकृत करें।", "Approve the submission first.") }); }
+    if (submission.linked_at) { await client.query("ROLLBACK"); return response.status(409).json({ error: msg(request, "यह प्रस्तुति पहले ही जोड़ी जा चुकी है।", "This submission is already linked.") }); }
+
+    const stored = typeof submission.family_details === "string" ? JSON.parse(submission.family_details) : submission.family_details;
+    const chosen = Array.isArray(input.members) ? input.members : stored;
+    const members = (Array.isArray(chosen) ? chosen : []).slice(0, 1000).map((m, i) => ({
+      id: clean(m.id || m.clientId, 80) || `member-${i}`,
+      name: clean(m.name, 120),
+      gender: ["male", "female", "other", "unknown"].includes(m.gender) ? m.gender : null,
+      birthYear: clean(m.birthYear, 20), deathYear: clean(m.deathYear, 20),
+      relation: clean(m.relation, 80), notes: clean(m.notes, 300),
+      fatherId: clean(m.fatherId, 80), motherId: clean(m.motherId, 80),
+      fatherPersonId: uuidOrNull(m.fatherPersonId), motherPersonId: uuidOrNull(m.motherPersonId),
+      existingPersonId: uuidOrNull(m.existingPersonId),
+      isLiving: m.isLiving === false || m.isLiving === "false" ? false
+        : (m.isLiving === true || m.isLiving === "true" ? true : !m.deathYear),
+    }));
+
+    /* Placement: explicit gotra wins; otherwise infer from the submission
+       title ("<gotra> | <name>") used by the public form. */
+    const inferredGotra = (submission.name || "").split("|")[0].trim();
+    let gotraId = uuidOrNull(input.gotraId);
+    if (!gotraId && inferredGotra) {
+      const g = await client.query("SELECT id FROM gotras WHERE name ILIKE $1 LIMIT 1", [inferredGotra]);
+      gotraId = g.rows[0]?.id || null;
+    }
+    if (!gotraId && inferredGotra) {
+      const g = await client.query("INSERT INTO gotras (name, status, created_by) VALUES ($1,'draft',$2) RETURNING id", [inferredGotra.slice(0, 120), request.admin.id]);
+      gotraId = g.rows[0].id;
+    }
+    const branchId = uuidOrNull(input.branchId);
+
+    const idMap = new Map();       // submitted member id → people.id
+    const skipped = [];            // surfaced to the admin, never silent
+
+    for (const m of members) {
+      let personId = null;
+      if (m.existingPersonId) {
+        const ex = await client.query("SELECT id FROM people WHERE id = $1", [m.existingPersonId]);
+        personId = ex.rows[0]?.id || null;
+        if (!personId) skipped.push({ member: m.name || m.id, reason: "existing_person_not_found" });
+      }
+      if (!personId) {
+        if (!m.name) { skipped.push({ member: m.id, reason: "missing_name" }); continue; }
+        const p = await client.query(
+          `INSERT INTO people
+             (full_name, gender, birth_year, death_year, village, district, state, biography,
+              is_living, status, visibility, created_by, updated_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'verified','public',$10,$10)
+           RETURNING id, public_id`,
+          [m.name, m.gender, m.birthYear || null, m.deathYear || null,
+           submission.village, submission.district, submission.state, m.notes || null,
+           m.isLiving, request.admin.id]
+        );
+        personId = p.rows[0].id;
+      }
+      idMap.set(m.id, personId);
+
+      if (gotraId) {
+        await client.query(
+          `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+           VALUES ($1,$2,$3,false) ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+          [personId, gotraId, branchId]
+        );
+      }
+    }
+
+    for (const m of members) {
+      const childId = idMap.get(m.id);
+      if (!childId) continue;
+      const pairs = [
+        { ref: m.fatherId, person: m.fatherPersonId, role: "father" },
+        { ref: m.motherId, person: m.motherPersonId, role: "mother" },
+      ];
+      for (const pair of pairs) {
+        const parentId = pair.person || idMap.get(pair.ref);
+        if (!parentId || parentId === childId) continue;
+        const v = await genealogy.validateRelationship(client, parentId, childId, "biological");
+        if (!v.valid) { skipped.push({ member: m.name || m.id, reason: v.error, role: pair.role }); continue; }
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+           VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
+          [parentId, childId, request.admin.id]
+        );
+      }
+    }
+
+    await client.query("UPDATE submissions SET linked_at = NOW() WHERE id = $1", [submission.id]);
+    await genealogy.logAudit(client, request.admin.id, "link_submission", "submission", submission.id,
+      { gotraId, branchId, membersLinked: idMap.size, skipped });
+    await client.query("COMMIT");
+    await refreshTreeProjection();
+    response.json({
+      linked: idMap.size, skipped, gotraId,
+      message: msg(request,
+        `${idMap.size} सदस्य वंशावली से जुड़े गए।${skipped.length ? ` ${skipped.length} लिंक छोड़े गए।` : ""}`,
+        `${idMap.size} members linked.${skipped.length ? ` ${skipped.length} links skipped.` : ""}`)
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally {
+    client.release();
+  }
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -700,9 +896,9 @@ app.post("/api/genealogy/contributions", rateLimit({ windowMs: 15 * 60 * 1000, m
       [type, clean(input.proposedName, 120), clean(input.proposedGender, 30),
        clean(input.proposedBirthYear, 20), clean(input.proposedDeathYear, 20),
        clean(input.proposedVillage, 120),
-       input.proposedGotraId || null, input.proposedBranchId || null,
-       input.proposedFatherId || null, input.proposedMotherId || null,
-       input.existingPersonId || null, input.existingRelId || null,
+       uuidOrNull(input.proposedGotraId), uuidOrNull(input.proposedBranchId),
+       uuidOrNull(input.proposedFatherId), uuidOrNull(input.proposedMotherId),
+       uuidOrNull(input.existingPersonId), uuidOrNull(input.existingRelId),
        clean(input.description, 2000), clean(input.evidence, 2000),
        contributorName, clean(input.contributorContact, 120)]
     );
@@ -823,7 +1019,7 @@ app.post("/api/admin/people", auth, async (request, response, next) => {
       }
     }
     if (input.motherId) {
-      const validation = await genealogy.validateRelationship(pool, input.motherId, person.rows[0].id, "biological");
+      const validation = await genealogy.validateRelationship(client, input.motherId, person.rows[0].id, "biological");
       if (validation.valid) {
         await client.query(
           `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
@@ -1108,7 +1304,7 @@ app.patch("/api/admin/contributions/:id", auth, async (request, response, next) 
 
       // Create parent relationships if provided
       if (contribution.proposed_father_id) {
-        const v = await genealogy.validateRelationship(pool, contribution.proposed_father_id, newPersonId, "biological");
+        const v = await genealogy.validateRelationship(client, contribution.proposed_father_id, newPersonId, "biological");
         if (v.valid) {
           await client.query(
             `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
@@ -1118,7 +1314,7 @@ app.patch("/api/admin/contributions/:id", auth, async (request, response, next) 
         }
       }
       if (contribution.proposed_mother_id) {
-        const v = await genealogy.validateRelationship(pool, contribution.proposed_mother_id, newPersonId, "biological");
+        const v = await genealogy.validateRelationship(client, contribution.proposed_mother_id, newPersonId, "biological");
         if (v.valid) {
           await client.query(
             `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
@@ -1370,11 +1566,13 @@ app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, 
 
       // Create person
       const isLiving = row.living_status === "deceased" ? false : true;
+      /* `people` has no `city` column — the normalized location row stores
+         it, and the text fields below keep the raw values. */
       const personResult = await client.query(
-        `INSERT INTO people (full_name, village, city, district, state, is_living, status, visibility, location_id, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, 'verified', 'public', $7, $8, $8)
+        `INSERT INTO people (full_name, village, district, state, is_living, status, visibility, location_id, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, 'verified', 'public', $6, $7, $7)
          RETURNING id, public_id`,
-        [row.full_name, row.village || null, row.city || null, row.district || null,
+        [row.full_name, row.village || null, row.district || null,
          row.state || null, isLiving, locationId, request.admin.id]
       );
       const personId = personResult.rows[0].id;
@@ -1424,7 +1622,7 @@ app.post("/api/admin/vanshawali/import/commit", auth, async (request, response, 
 
       if (row.mother_external_id && idMap.has(row.mother_external_id)) {
         const motherId = idMap.get(row.mother_external_id);
-        const validation = await genealogy.validateRelationship(pool, motherId, childId, "biological");
+        const validation = await genealogy.validateRelationship(client, motherId, childId, "biological");
         if (validation.valid) {
           await client.query(
             `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
@@ -1566,15 +1764,28 @@ app.post("/api/admin/vanshawali/assign-branch", auth, async (request, response, 
    The static middleware that follows would otherwise serve it to anyone.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-app.get("/admin.html", (request, response, next) => {
+function serveAdminPanel(request, response) {
   const token = request.cookies.kulkirti_admin ||
     request.headers.authorization?.replace("Bearer ", "");
   try {
-    jwt.verify(token, jwtSecret);
-    next(); // valid admin token → let static middleware serve admin.html
+    const decoded = jwt.verify(token, jwtSecret);
+    if (decoded.jti && revokedTokens.has(decoded.jti)) throw new Error("revoked");
+    response.sendFile(path.join(root, "admin.html"));
   } catch {
     response.redirect("/admin-login.html");
   }
+}
+
+/* Express matches routes on the raw path, but static middleware decodes it.
+   Check decoded/normalized variants too, otherwise /%61dmin.html bypasses the
+   gate while static still serves the file. */
+app.use((request, response, next) => {
+  let decoded = request.path;
+  try { decoded = decodeURIComponent(decoded); } catch { /* use raw path */ }
+  if (decoded.replace(/\\/g, "/").toLowerCase() === "/admin.html") {
+    return serveAdminPanel(request, response);
+  }
+  next();
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1600,19 +1811,24 @@ app.post("/api/pariwar/create", rateLimit({ windowMs: 15 * 60 * 1000, max: 10 })
       error: msg(request, "गोत्र का नाम आवश्यक है।", "Gotra name is required.")
     });
 
-    const rawMembers = Array.isArray(input.familyMembers)
-      ? input.familyMembers.slice(0, 500).map(m => ({
-          clientId: clean(m.clientId, 80),
-          name:     clean(m.name, 120),
-          gender:   clean(m.gender, 20),
-          relation: clean(m.relation, 80),
-          birthYear: clean(m.birthYear, 20),
-          deathYear: clean(m.deathYear, 20),
-          fatherId:  clean(m.fatherId, 80),
-          motherId:  clean(m.motherId, 80),
-          notes:     clean(m.notes, 300),
-        })).filter(m => m.name)
-      : [];
+    const incoming = Array.isArray(input.familyMembers) ? input.familyMembers.slice(0, 500) : [];
+    const referenced = new Set(incoming.flatMap(m =>
+      [clean(m.fatherId, 80), clean(m.motherId, 80)].filter(Boolean)));
+    const rawMembers = incoming.map((m, index) => {
+      const clientId = clean(m.clientId, 80);
+      const name = clean(m.name, 120);
+      return {
+        clientId,
+        name: name || (referenced.has(clientId) ? `अज्ञात सदस्य ${index + 1}` : ""),
+        gender:   clean(m.gender, 20),
+        relation: clean(m.relation, 80),
+        birthYear: clean(m.birthYear, 20),
+        deathYear: clean(m.deathYear, 20),
+        fatherId:  clean(m.fatherId, 80),
+        motherId:  clean(m.motherId, 80),
+        notes:     clean(m.notes, 300),
+      };
+    }).filter(m => m.name);
 
     const result = await pool.query(
       `INSERT INTO public_family_trees
@@ -1655,144 +1871,159 @@ app.get("/api/pariwar/:token", async (request, response, next) => {
 app.get("/api/admin/pariwar", auth, async (request, response, next) => {
   try {
     const status = clean(request.query.status, 20) || "pending";
-    const result = await pool.query(
-      `SELECT id, token, creator_name AS "creatorName", creator_contact AS "creatorContact",
-              gotra_name AS "gotraName", village, district, state,
-              family_members AS "familyMembers", notes, status,
-              linked_gotra_id AS "linkedGotraId",
-              submitted_at AS "submittedAt", review_notes AS "reviewNotes"
-       FROM public_family_trees
-       WHERE status = $1 ORDER BY submitted_at DESC`,
-      [status]
-    );
-    response.json({ trees: result.rows });
+    const { limit, offset } = pagination(request);
+    const [result, countResult] = await Promise.all([
+      pool.query(
+        `SELECT id, token, creator_name AS "creatorName", creator_contact AS "creatorContact",
+                gotra_name AS "gotraName", village, district, state,
+                family_members AS "familyMembers", notes, status,
+                linked_gotra_id AS "linkedGotraId",
+                submitted_at AS "submittedAt", review_notes AS "reviewNotes"
+         FROM public_family_trees
+         WHERE status = $1 ORDER BY submitted_at DESC LIMIT $2 OFFSET $3`,
+        [status, limit, offset]
+      ),
+      pool.query("SELECT COUNT(*)::int AS total FROM public_family_trees WHERE status = $1", [status]),
+    ]);
+    response.json({ trees: result.rows, total: countResult.rows[0]?.total || 0, limit, offset });
   } catch (error) { next(error); }
 });
 
-// ── Admin: approve + link a public family tree into the main genealogy ────
-// This is the "simple linking" endpoint:
-//  1. Optionally create or use an existing gotra.
-//  2. Create a person record for each family member.
-//  3. Wire parent-child relationships.
-//  4. Mark the tree as linked.
+// ── Admin: review + link a public family tree into the main genealogy ─────
+// The admin may correct every submitted field, reuse an existing person,
+// anchor parents to existing people, and pick gotra/branch placement before
+// anything is published.  Member order does not matter: the two-pass map
+// resolves client ids first, then wires relationships.
 app.post("/api/admin/pariwar/:id/link", auth, async (request, response, next) => {
   const client = await pool.connect();
   try {
-    // Fetch the tree
+    await client.query("BEGIN");
     const treeResult = await client.query(
       "SELECT * FROM public_family_trees WHERE id = $1 FOR UPDATE",
       [request.params.id]
     );
-    if (!treeResult.rows[0]) return response.status(404).json({ error: "Tree not found." });
+    if (!treeResult.rows[0]) { await client.query("ROLLBACK"); return response.status(404).json({ error: "Tree not found." }); }
     const tree = treeResult.rows[0];
 
-    const input      = request.body || {};
+    const input = request.body || {};
     const reviewNotes = clean(input.reviewNotes, 500);
 
-    await client.query("BEGIN");
+    // Use admin-corrected member data when supplied; otherwise the stored tree.
+    const raw = Array.isArray(input.members) ? input.members
+      : (Array.isArray(tree.family_members) ? tree.family_members : []);
+    const members = raw.slice(0, 1000).map((m, i) => ({
+      key: clean(m.clientId || m.id, 80) || `member-${i}`,
+      name: clean(m.name, 120),
+      relation: clean(m.relation, 80),
+      gender: ["male", "female", "other", "unknown"].includes(m.gender) ? m.gender : null,
+      birthYear: clean(m.birthYear, 20), deathYear: clean(m.deathYear, 20),
+      notes: clean(m.notes, 300),
+      fatherId: clean(m.fatherId, 80), motherId: clean(m.motherId, 80),
+      fatherPersonId: uuidOrNull(m.fatherPersonId), motherPersonId: uuidOrNull(m.motherPersonId),
+      existingPersonId: uuidOrNull(m.existingPersonId),
+      isLiving: m.isLiving === false || m.isLiving === "false" ? false
+        : (m.isLiving === true || m.isLiving === "true" ? true : !m.deathYear),
+    }));
 
-    // 1. Resolve gotra — use existing or create a draft one
-    let gotraId = clean(input.gotraId, 80) || tree.linked_gotra_id;
+    // 1. Resolve gotra — existing/selected, or a draft auto-created one.
+    let gotraId = uuidOrNull(input.gotraId) || tree.linked_gotra_id;
+    let draftGotra = false;
     if (!gotraId) {
-      // Check if a gotra with this name already exists
       const existing = await client.query(
-        "SELECT id FROM gotras WHERE name ILIKE $1 LIMIT 1",
-        [tree.gotra_name]
+        "SELECT id FROM gotras WHERE name ILIKE $1 LIMIT 1", [tree.gotra_name]
       );
       if (existing.rows[0]) {
         gotraId = existing.rows[0].id;
       } else {
-        // Create draft gotra — admin will add details later
         const newGotra = await client.query(
-          `INSERT INTO gotras (name, status, created_by) VALUES ($1, 'draft', $2) RETURNING id`,
-          [tree.gotra_name, request.admin.id]
+          `INSERT INTO gotras (name, status, created_by) VALUES ($1,'draft',$2) RETURNING id`,
+          [clean(tree.gotra_name, 120) || "Unknown", request.admin.id]
         );
         gotraId = newGotra.rows[0].id;
+        draftGotra = true;
       }
     }
+    const branchId = uuidOrNull(input.branchId);
 
-    // 2. Build a clientId → new UUID map for all family members
-    const members = Array.isArray(tree.family_members) ? tree.family_members : [];
-    const idMap   = new Map(); // clientId → people.id
+    // 2. First pass — create/resolve every person, then link membership.
+    const idMap = new Map();
+    const skipped = [];
+    const hasParent = new Set();
+    members.forEach(m => { if (m.fatherId || m.motherId || m.fatherPersonId || m.motherPersonId) hasParent.add(m.key); });
 
-    // First pass: create all people
-    for (const member of members) {
-      if (!member.name) continue;
-      const isLiving = member.deathYear ? false : true;
-      const personResult = await client.query(
-        `INSERT INTO people
-           (full_name, village, district, state, is_living, status, visibility, created_by, updated_by)
-         VALUES ($1,$2,$3,$4,$5,'verified','public',$6,$6)
-         RETURNING id, public_id`,
-        [member.name, tree.village, tree.district, tree.state, isLiving, request.admin.id]
-      );
-      const personId = personResult.rows[0].id;
-      idMap.set(member.clientId, personId);
+    for (const m of members) {
+      let personId = null;
+      if (m.existingPersonId) {
+        const ex = await client.query("SELECT id FROM people WHERE id = $1", [m.existingPersonId]);
+        personId = ex.rows[0]?.id || null;
+        if (!personId) skipped.push({ member: m.name || m.key, reason: "existing_person_not_found" });
+      }
+      if (!personId) {
+        if (!m.name) { skipped.push({ member: m.key, reason: "missing_name" }); continue; }
+        const p = await client.query(
+          `INSERT INTO people
+             (full_name, gender, birth_year, death_year, village, district, state, biography,
+              is_living, status, visibility, created_by, updated_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'verified','public',$10,$10)
+           RETURNING id, public_id`,
+          [m.name, m.gender, m.birthYear || null, m.deathYear || null,
+           tree.village, tree.district, tree.state,
+           [m.relation, m.notes].filter(Boolean).join(" · ") || null,
+           m.isLiving, request.admin.id]
+        );
+        personId = p.rows[0].id;
+      }
+      idMap.set(m.key, personId);
 
-      // Link to gotra
       await client.query(
-        `INSERT INTO person_gotra_links (person_id, gotra_id, is_root)
-         VALUES ($1,$2,false) ON CONFLICT (person_id, gotra_id) DO NOTHING`,
-        [personId, gotraId]
+        `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
+         VALUES ($1,$2,$3,$4) ON CONFLICT (person_id, gotra_id) DO NOTHING`,
+        [personId, gotraId, branchId, !hasParent.has(m.key)]
       );
-
-      // Add to gotra_members
       await client.query(
-        `INSERT INTO gotra_members (gotra_id, person_name, village, district, state, notes, linked_person_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`,
-        [gotraId, member.name, tree.village, tree.district, tree.state,
-         member.notes || null, personId]
+        `INSERT INTO gotra_members (gotra_id, person_name, relation_or_role, village, district, state, notes, linked_person_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`,
+        [gotraId, m.name, m.relation || null, tree.village, tree.district, tree.state,
+         m.notes || null, personId]
       );
     }
 
-    // Second pass: wire parent-child relationships
-    for (const member of members) {
-      const childId = idMap.get(member.clientId);
+    // 3. Second pass — wire parent-child relationships.
+    for (const m of members) {
+      const childId = idMap.get(m.key);
       if (!childId) continue;
-
-      if (member.fatherId && idMap.has(member.fatherId)) {
-        const fatherId = idMap.get(member.fatherId);
-        const v = await genealogy.validateRelationship(pool, fatherId, childId, "biological");
-        if (v.valid) {
-          await client.query(
-            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
-             VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
-            [fatherId, childId, request.admin.id]
-          );
-        }
-      }
-      if (member.motherId && idMap.has(member.motherId)) {
-        const motherId = idMap.get(member.motherId);
-        const v = await genealogy.validateRelationship(pool, motherId, childId, "biological");
-        if (v.valid) {
-          await client.query(
-            `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
-             VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
-            [motherId, childId, request.admin.id]
-          );
-        }
+      for (const pair of [
+        { ref: m.fatherId, person: m.fatherPersonId, role: "father" },
+        { ref: m.motherId, person: m.motherPersonId, role: "mother" },
+      ]) {
+        const parentId = pair.person || idMap.get(pair.ref);
+        if (!parentId || parentId === childId) continue;
+        const v = await genealogy.validateRelationship(client, parentId, childId, "biological");
+        if (!v.valid) { skipped.push({ member: m.name || m.key, reason: v.error, role: pair.role }); continue; }
+        await client.query(
+          `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, created_by, approved_by)
+           VALUES ($1,$2,'biological','verified',$3,$3) ON CONFLICT DO NOTHING`,
+          [parentId, childId, request.admin.id]
+        );
       }
     }
 
-    // 3. Mark tree as linked
     await client.query(
       `UPDATE public_family_trees
        SET status='linked', linked_gotra_id=$1, reviewed_by=$2, review_notes=$3, reviewed_at=NOW()
        WHERE id=$4`,
       [gotraId, request.admin.id, reviewNotes, tree.id]
     );
-
     await genealogy.logAudit(client, request.admin.id, "link_public_tree", "public_family_tree", tree.id,
-      { gotraId, membersLinked: idMap.size });
+      { gotraId, branchId, membersLinked: idMap.size, skipped });
     await client.query("COMMIT");
     await refreshTreeProjection();
 
     response.json({
-      gotraId,
-      membersLinked: idMap.size,
+      gotraId, draftGotra, membersLinked: idMap.size, skipped,
       message: msg(request,
-        `${idMap.size} सदस्य गोत्र "${tree.gotra_name}" में जोड़े गए।`,
-        `${idMap.size} members linked to Gotra "${tree.gotra_name}".`)
+        `${idMap.size} सदस्य गोत्र "${tree.gotra_name}" में जोड़े गए।${skipped.length ? ` ${skipped.length} लिंक छोड़े गए।` : ""}${draftGotra ? " कृपया नए गोत्र को सत्यापित करें।" : ""}`,
+        `${idMap.size} members linked to Gotra "${tree.gotra_name}".${skipped.length ? ` ${skipped.length} links skipped.` : ""}${draftGotra ? " Please verify the new gotra." : ""}`)
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -1823,7 +2054,22 @@ app.get("/api/admin/gotras/all", auth, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-app.use(express.static(root));
+/* Serve only public assets.  The previous `express.static(root)` exposed
+   server.js, schema, scripts and reports to unauthenticated visitors. */
+app.use("/public", express.static(path.join(root, "public")));
+app.use("/locales", express.static(path.join(root, "locales")));
+const publicFiles = new Set([
+  "/index.html", "/404.html", "/admin-login.html", "/submit.html",
+  "/vanshawali.html", "/mera-pariwar.html", "/history.html", "/samiti.html",
+  "/search.html", "/styles.css", "/pages.css", "/app.js", "/favicon.svg",
+  "/sitemap.xml",
+]);
+app.use((request, response, next) => {
+  const pathname = request.path.toLowerCase();
+  if (pathname === "/") return response.sendFile(path.join(root, "index.html"));
+  if (publicFiles.has(pathname)) return response.sendFile(path.join(root, pathname.slice(1)));
+  next();
+});
 /* Custom 404 — served for any URL that doesn't match a static file or API route */
 app.use((request, response) => {
   response.status(404).sendFile(path.join(root, "404.html"));
