@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>अपना वंशावली वृक्ष बनाएं | कुलकीर्ति</title>
+    <meta name="description" content="गोत्र चुनें, बॉक्स-आधारित परिवार वृक्ष बनाएं, सहेजें और सत्यापन के लिए भेजें।" />
+    <meta name="robots" content="noindex" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Noto+Serif+Devanagari:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pages.css" />
+    <script src="/public/js/i18n.js"></script>
+  </head>
+  <body>
+    <div id="shared-header"></div>
+
+    <main id="main-content">
+      <section class="page-hero compact">
+        <div class="shell">
+          <p class="eyebrow light">गोत्र-आधारित वंशावली</p>
+          <h1>अपना वंशावली वृक्ष<br /><em>चरण दर चरण बनाएं</em></h1>
+          <p>पहले गोत्र चुनें, फिर हर व्यक्ति के लिए एक बॉक्स भरें। पुत्रों की शाखा आगे बढ़ती है; पुत्रियों का नाम दर्ज करके शाखा समाप्त होती है।</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="shell">
+          <!-- MY TREES (token based — no user accounts in this project) -->
+          <details class="vsh-section vsh-mytrees" open>
+            <summary>मेरे वृक्ष (टोकन से देखें)</summary>
+            <p class="form-note">पहले से बना वृक्ष देखने या जारी रखने के लिए अपना टोकन डालें।</p>
+            <div class="vsh-token-row">
+              <input id="vsh-lookup-token" placeholder="वृक्ष टोकन" maxlength="40" />
+              <button id="vsh-lookup-btn" class="button button-outline-dark" type="button">देखें</button>
+            </div>
+            <div id="vsh-lookup-result" class="vsh-lookup-result" aria-live="polite"></div>
+          </details>
+
+          <!-- STEP 1 — GOTRA SELECTION -->
+          <div id="vsh-step-gotra" class="vsh-card">
+            <h2>चरण 1 — गोत्र चुनें</h2>
+            <p class="form-note">केवल सक्रिय गोत्र दिखाए जाते हैं। यदि आपका गोत्र न दिखे तो कृपया प्रशासक से संपर्क करें — उपयोगकर्ता गोत्र नहीं बना सकते।</p>
+            <div class="vsh-token-row">
+              <input id="vsh-gotra-search" class="vsh-search" placeholder="गोत्र खोजें" maxlength="120" />
+            </div>
+            <div id="vsh-gotra-list" class="vsh-gotra-picker" role="list"></div>
+            <div id="vsh-selected-gotra" class="vsh-selected" aria-live="polite"></div>
+            <div class="vsh-token-row">
+              <label>आपका नाम *<input id="vsh-submitter" maxlength="120" /></label>
+              <label>गांव<input id="vsh-village" maxlength="120" /></label>
+              <label>जिला<input id="vsh-district" maxlength="120" /></label>
+              <label>राज्य<input id="vsh-state" maxlength="120" /></label>
+            </div>
+            <button id="vsh-create-btn" class="button button-maroon" type="button" disabled>वंशावली वृक्ष बनाएं</button>
+          </div>
+
+          <!-- STEP 2 — BOX EDITOR -->
+          <div id="vsh-step-editor" class="vsh-card" hidden>
+            <div class="vsh-editor-head">
+              <div>
+                <h2>चरण 2 — परिवार भरें</h2>
+                <p id="vsh-editor-meta" class="vsh-meta"></p>
+              </div>
+              <div class="vsh-token-badge">टोकन: <code id="vsh-token"></code></div>
+            </div>
+            <p class="form-note">पहले बॉक्स में नाम, पत्नी का नाम और गांव भरें। उसके बाद <b>+ पुत्र</b> या <b>+ पुत्री</b> से शाखाएँ जोड़ें।</p>
+            <div id="vsh-tree" class="vsh-tree"></div>
+            <div class="vsh-actions">
+              <button id="vsh-save-btn" class="button button-outline-dark" type="button">ड्राफ्ट सहेजें</button>
+              <button id="vsh-preview-btn" class="button button-outline-dark" type="button">वृक्ष देखें</button>
+              <button id="vsh-submit-btn" class="button button-gold" type="button">सत्यापन के लिए भेजें</button>
+            </div>
+            <p id="vsh-editor-msg" class="form-message" role="status"></p>
+          </div>
+
+          <!-- STEP 3 — VISUAL PREVIEW -->
+          <div id="vsh-step-preview" class="vsh-card" hidden>
+            <div class="vsh-editor-head">
+              <h2>वृक्ष पूर्वावलोकन</h2>
+              <div class="vsh-zoom">
+                <button id="vsh-zoom-out" class="button button-outline-dark" type="button" aria-label="ज़ूम घटाएँ">−</button>
+                <button id="vsh-zoom-fit" class="button button-outline-dark" type="button">फ़िट</button>
+                <button id="vsh-zoom-in" class="button button-outline-dark" type="button" aria-label="ज़ूम बढ़ाएँ">+</button>
+                <button id="vsh-collapse" class="button button-outline-dark" type="button">सभी संक्षिप्त</button>
+                <button id="vsh-expand" class="button button-outline-dark" type="button">सभी फैलाएँ</button>
+                <button id="vsh-preview-close" class="button button-outline-dark" type="button">संपादन पर लौटें</button>
+              </div>
+            </div>
+            <div id="vsh-preview-canvas" class="vsh-preview-canvas" tabindex="0">
+              <div id="vsh-preview-inner" class="vsh-preview-inner"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="shared-footer"></div>
+    <script src="app.js"></script>
+    <script src="/public/js/vanshawali-editor.js"></script>
+  </body>
+</html>

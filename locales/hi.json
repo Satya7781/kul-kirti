@@ -470,5 +470,15 @@
     "saveBranch":      "शाखा सहेजें",
     "branchPersonCount":"व्यक्ति",
     "noBranchesMgmt":   "अभी कोई शाखा नहीं है।"
+  },
+
+  "vsh": {
+    "searchPerson":   "व्यक्ति खोजें",
+    "searchTree":     "वृक्ष खोजें",
+    "searchPhPerson": "नाम, पत्नी या गांव...",
+    "searchPhTree":   "संदर्भ, पूर्वज या गांव...",
+    "fit":            "फ़िट",
+    "tabVerification":"सत्यापन कतार",
+    "tabMaster":      "मास्टर वृक्ष"
   }
 }

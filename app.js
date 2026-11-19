@@ -251,8 +251,17 @@ const searchResults = document.querySelector("#search-results");
 const searchForm    = document.querySelector("#record-search");
 const tabs          = document.querySelectorAll(".search-tab");
 
-let searchType = new URLSearchParams(location.search).get("type") === "village"
-  ? "village" : "gotra";
+const SEARCH_TAB_KEYS = {
+  gotra: "search.tabGotra", village: "search.tabVillage",
+  person: "vsh.searchPerson", tree: "vsh.searchTree",
+};
+const SEARCH_PLACEHOLDER_KEYS = {
+  gotra: "search.phGotra", village: "search.phVillage",
+  person: "vsh.searchPhPerson", tree: "vsh.searchPhTree",
+};
+const initialSearchType = new URLSearchParams(location.search).get("type");
+let searchType = ["village", "person", "tree"].includes(initialSearchType)
+  ? initialSearchType : "gotra";
 
 /** Sync tab ARIA attributes (search tabs + admin tabs share the same helper). */
 function _syncTabAria(tab) {
@@ -276,12 +285,9 @@ tabs.forEach(tab => {
 /** Re-translate dynamically rendered search UI strings after lang change. */
 function applySearchLang() {
   if (!searchInput) return;
-  const isVillage = searchType === "village";
-  searchInput.placeholder = I18n.t(isVillage ? "search.phVillage" : "search.phGotra");
+  searchInput.placeholder = I18n.t(SEARCH_PLACEHOLDER_KEYS[searchType] || "search.phGotra");
   tabs.forEach(tab => {
-    tab.textContent = I18n.t(
-      tab.dataset.searchType === "village" ? "search.tabVillage" : "search.tabGotra"
-    );
+    tab.textContent = I18n.t(SEARCH_TAB_KEYS[tab.dataset.searchType] || "search.tabGotra");
   });
   if (searchResults && !searchResults.querySelector(".result-card")) {
     renderResults([], searchInput.value);
@@ -302,6 +308,13 @@ if (searchResults) {
 }
 
 async function getRecords(query) {
+  if (searchType === "person" || searchType === "tree") {
+    const response = await fetch(
+      `/api/vanshawali/search?type=${encodeURIComponent(searchType)}&q=${encodeURIComponent(query)}`
+    );
+    if (!response.ok) throw new Error(I18n.t("search.errorLoad"));
+    return (await response.json()).results;
+  }
   const response = await fetch(
     `/api/records?type=${encodeURIComponent(searchType)}&q=${encodeURIComponent(query)}`
   );
@@ -325,14 +338,41 @@ function renderResults(records, query) {
   searchResults.innerHTML =
     `<p class="result-summary">${summary}</p>` +
     records.map(record => {
+      if (record.kind) return renderVanshawaliResult(record);
       const loc = [record.village, record.district, record.state].filter(Boolean).join(" · ");
       const tag = record.familyDetails?.length
         ? I18n.t("search.viewTree") : I18n.t("search.verifiedRecord");
+      /* ?id= used to point at a route that did not exist.  The explorer now
+         renders published records at ?record=, so deep links stay functional. */
       return `<article class="result-card">
         <div><h3>${escapeHtml(record.name)}</h3><p>${escapeHtml(loc)}</p></div>
-        <a class="result-tag" href="/vanshawali.html?id=${encodeURIComponent(record.id)}">${tag}</a>
+        <a class="result-tag" href="/vanshawali.html?record=${encodeURIComponent(record.id)}">${tag}</a>
       </article>`;
     }).join("");
+}
+
+/** Rich result card for Gotra-first Vanshawali search hits. */
+function renderVanshawaliResult(r) {
+  const esc = escapeHtml;
+  const labels = { person: "व्यक्ति", tree: "वृक्ष", gotra: "गोत्र", village: "गांव" };
+  let meta = "";
+  if (r.kind === "person") {
+    meta = [r.wifeName && `पत्नी: ${r.wifeName}`, r.village, r.gotraName, r.treeReference,
+      `वंशज: ${r.descendantCount}`].filter(Boolean).join(" · ");
+  } else if (r.kind === "tree") {
+    meta = [r.gotraName, r.village, `${r.memberCount} सदस्य`, r.treeReference]
+      .filter(Boolean).join(" · ");
+  } else if (r.kind === "gotra") {
+    meta = [r.description, `${r.treeCount} वृक्ष`].filter(Boolean).join(" · ");
+  } else {
+    meta = `${r.treeCount || 0} वृक्ष`;
+  }
+  const path = r.path?.length
+    ? `<small class="vsh-search-path">${esc(r.path.map(a => a.full_name).join(" → "))}</small>` : "";
+  return `<article class="result-card">
+    <div><h3>${esc(r.name)}</h3><p>${esc(meta)}</p>${path}</div>
+    <a class="result-tag" href="${esc(r.deepLink)}">${esc(labels[r.kind] || "")} →</a>
+  </article>`;
 }
 
 async function search(query) {
@@ -351,14 +391,14 @@ if (searchInput && searchResults && searchForm) {
       tab.classList.add("active");
       _syncTabAria(tab);
       searchType = tab.dataset.searchType;
-      searchInput.placeholder = I18n.t(
-        searchType === "village" ? "search.phVillage" : "search.phGotra"
-      );
+      searchInput.placeholder = I18n.t(SEARCH_PLACEHOLDER_KEYS[searchType] || "search.phGotra");
       searchInput.value = "";
       search("");
     })
   );
-  if (searchType === "village") document.querySelector('[data-search-type="village"]')?.click();
+  if (["village", "person", "tree"].includes(searchType)) {
+    document.querySelector(`[data-search-type="${searchType}"]`)?.click();
+  }
 
   searchForm.addEventListener("submit", e => { e.preventDefault(); search(searchInput.value); });
 
@@ -901,6 +941,7 @@ const adminViews = {
   import:           document.querySelector("#admin-import"),
   "branch-mgmt":    document.querySelector("#admin-branch-mgmt"),
   "pariwar-trees":  document.querySelector("#admin-pariwar-trees"),
+  vanshawali:       document.querySelector("#admin-vanshawali"),
 };
 
 adminTabs.forEach(tab => {
@@ -1417,7 +1458,7 @@ adminFamilyForm?.addEventListener("submit", async e => {
   }
   /* Wire ARIA for new tabs */
   document.querySelectorAll(
-    ".admin-tab[data-admin-view='dashboard'], .admin-tab[data-admin-view='import'], .admin-tab[data-admin-view='branch-mgmt']"
+    ".admin-tab[data-admin-view='dashboard'], .admin-tab[data-admin-view='import'], .admin-tab[data-admin-view='branch-mgmt'], .admin-tab[data-admin-view='vanshawali']"
   ).forEach(tab => {
     tab.setAttribute("role", "tab");
     _syncTabAria(tab);

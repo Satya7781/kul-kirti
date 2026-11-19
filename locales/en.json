@@ -470,5 +470,15 @@
     "saveBranch":      "Save branch",
     "branchPersonCount":"people",
     "noBranchesMgmt":   "No branches yet."
+  },
+
+  "vsh": {
+    "searchPerson":   "Find a person",
+    "searchTree":     "Find a tree",
+    "searchPhPerson": "Name, spouse or village...",
+    "searchPhTree":   "Reference, ancestor or village...",
+    "fit":            "Fit",
+    "tabVerification":"Verification queue",
+    "tabMaster":      "Master trees"
   }
 }

@@ -444,3 +444,93 @@ ALTER TABLE gotras ALTER COLUMN created_by DROP NOT NULL;
 
 -- ── Allow person_relationships.created_by to be NULL ──────────────────────
 ALTER TABLE person_relationships ALTER COLUMN created_by DROP NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 15. GOTRA-FIRST VANSHAWALI (additive)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `status` keeps its original meaning (draft = unverified, verified = public).
+-- `is_active` is the new activation switch: deactivating hides a Gotra from new
+-- tree creation without hiding already-created trees from administrators.
+
+ALTER TABLE gotras ADD COLUMN IF NOT EXISTS normalized_name TEXT;
+ALTER TABLE gotras ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE gotras ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+UPDATE gotras
+   SET normalized_name = regexp_replace(lower(coalesce(name, '')), '\s+', ' ', 'g')
+ WHERE normalized_name IS NULL;
+CREATE INDEX IF NOT EXISTS gotras_normalized_name_idx ON gotras (normalized_name);
+CREATE INDEX IF NOT EXISTS gotras_active_status_idx ON gotras (is_active, status);
+
+-- One submitted family tree = one branch under exactly one Gotra.
+-- The JSON revision keeps the user's unordered, independently entered boxes
+-- until an admin approves them into canonical people/relationships rows.
+CREATE TABLE IF NOT EXISTS family_trees (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  gotra_id          UUID NOT NULL REFERENCES gotras(id),
+  tree_reference    TEXT UNIQUE NOT NULL DEFAULT 'KK-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 10)),
+  edit_token        TEXT UNIQUE NOT NULL DEFAULT upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 20)),
+  root_person_id    UUID REFERENCES people(id) ON DELETE SET NULL,
+  submitter_name    TEXT,
+  submitter_contact TEXT,
+  village           TEXT,
+  district          TEXT,
+  state             TEXT,
+  status            TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'pending', 'under_review',
+                                      'correction_required', 'verified', 'rejected')),
+  revision_number   INTEGER NOT NULL DEFAULT 1,
+  current_revision  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  review_notes      TEXT,
+  reviewed_by       UUID REFERENCES admins(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  submitted_at      TIMESTAMPTZ,
+  verified_at       TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS family_trees_gotra_idx ON family_trees (gotra_id);
+CREATE INDEX IF NOT EXISTS family_trees_status_idx ON family_trees (status);
+CREATE INDEX IF NOT EXISTS family_trees_gotra_status_idx ON family_trees (gotra_id, status);
+CREATE INDEX IF NOT EXISTS family_trees_token_idx ON family_trees (edit_token);
+CREATE INDEX IF NOT EXISTS family_trees_submitted_idx ON family_trees (submitted_at DESC);
+
+-- A verified tree may later be linked to another verified tree.  The link is
+-- a separate record: neither tree is deleted or rewritten.
+CREATE TABLE IF NOT EXISTS tree_links (
+  id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_tree_id           UUID NOT NULL REFERENCES family_trees(id) ON DELETE CASCADE,
+  target_tree_id           UUID NOT NULL REFERENCES family_trees(id) ON DELETE CASCADE,
+  common_ancestor_person_id UUID REFERENCES people(id) ON DELETE SET NULL,
+  source_anchor_person_id   UUID REFERENCES people(id) ON DELETE SET NULL,
+  created_relationship_id   UUID REFERENCES person_relationships(id) ON DELETE SET NULL,
+  linking_admin_id         UUID NOT NULL REFERENCES admins(id),
+  status                   TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'reversed')),
+  notes                    TEXT,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reversed_at              TIMESTAMPTZ,
+  reversed_by              UUID REFERENCES admins(id),
+  reversal_notes           TEXT
+);
+CREATE INDEX IF NOT EXISTS tree_links_source_idx ON tree_links (source_tree_id, status);
+CREATE INDEX IF NOT EXISTS tree_links_target_idx ON tree_links (target_tree_id, status);
+
+-- Immutable decision history for every verification/revision.
+CREATE TABLE IF NOT EXISTS verification_records (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_tree_id  UUID NOT NULL REFERENCES family_trees(id) ON DELETE CASCADE,
+  revision_number INTEGER NOT NULL,
+  admin_id        UUID NOT NULL REFERENCES admins(id),
+  decision        TEXT NOT NULL CHECK (decision IN ('approve', 'reject', 'correction_required', 'under_review')),
+  remarks         TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS verification_records_tree_idx ON verification_records (family_tree_id, created_at DESC);
+
+-- Canonical people carry their tree, role and spouse name.  Parent-child
+-- edges stay in person_relationships (already cycle/duplicate protected).
+ALTER TABLE people ADD COLUMN IF NOT EXISTS family_tree_id UUID REFERENCES family_trees(id) ON DELETE SET NULL;
+ALTER TABLE people ADD COLUMN IF NOT EXISTS wife_name TEXT;
+ALTER TABLE people ADD COLUMN IF NOT EXISTS member_type TEXT
+  CHECK (member_type IN ('root', 'son', 'daughter') OR member_type IS NULL);
+ALTER TABLE people ADD COLUMN IF NOT EXISTS birth_order INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS people_family_tree_idx ON people (family_tree_id);
+CREATE INDEX IF NOT EXISTS people_tree_member_idx ON people (family_tree_id, member_type);

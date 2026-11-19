@@ -165,6 +165,27 @@
         </div>
       </section>
 
+      <!-- ═══════════════════════════════════════════════════════════════
+           VERIFIED TREE VIEW — ?tree=ID (master branch / linked tree)
+           Published-record deep link ?id= / ?record= is also handled here.
+           ═══════════════════════════════════════════════════════════════ -->
+      <section id="tree-detail-section" class="section" hidden>
+        <div class="shell">
+          <button class="vw-back-link" type="button" id="vw-tree-back-btn">← वापस जाएं</button>
+          <div id="tree-detail-content"></div>
+          <div id="tree-detail-canvas" class="vsh-preview-canvas" hidden tabindex="0">
+            <div id="tree-detail-inner" class="vsh-preview-inner"></div>
+          </div>
+          <div id="tree-detail-controls" class="vsh-zoom" hidden>
+            <button id="tree-zoom-out" class="button button-outline-dark" type="button" aria-label="ज़ूम घटाएँ">−</button>
+            <button id="tree-zoom-fit" class="button button-outline-dark" type="button" data-i18n="vsh.fit">फ़िट</button>
+            <button id="tree-zoom-in" class="button button-outline-dark" type="button" aria-label="ज़ूम बढ़ाएँ">+</button>
+            <button id="tree-expand" class="button button-outline-dark" type="button" data-i18n="genealogy.expandAll">सभी खोलें</button>
+            <button id="tree-collapse" class="button button-outline-dark" type="button" data-i18n="genealogy.collapseAll">सभी बंद करें</button>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <div id="shared-footer"></div>

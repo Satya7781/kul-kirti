@@ -32,17 +32,30 @@ function escapeHtml(value) {
   const searchForm         = document.querySelector("#genealogy-search-form");
   const searchInput        = document.querySelector("#genealogy-search-input");
   const searchResults      = document.querySelector("#genealogy-search-results");
+  const treeDetailSection = document.querySelector("#tree-detail-section");
   document.querySelector("#vw-back-btn")?.addEventListener("click", () => history.back());
+  document.querySelector("#vw-tree-back-btn")?.addEventListener("click", () => history.back());
 
   /* Not on vanshawali.html */
-  if (!homeView && !gotraDetailSection && !personSection) return;
+  if (!homeView && !gotraDetailSection && !personSection && !treeDetailSection) return;
 
   const params  = new URLSearchParams(location.search);
   const gotraId = params.get("gotra");
   const personId = params.get("person");
+  const treeId = params.get("tree");
+  const recordId = params.get("id") || params.get("record");
+  const quickQuery = params.get("q");
 
   /* ── Route ─────────────────────────────────────────────────────────────── */
-  if (personId) {
+  if (treeId) {
+    if (homeView) homeView.hidden = true;
+    _loadTreeDetail(treeId, personId);
+  } else if (recordId) {
+    /* Previously the search page linked here with ?id= but nothing handled
+       it.  Render the published record instead of showing a blank page. */
+    if (homeView) homeView.hidden = true;
+    _loadPublishedRecord(recordId);
+  } else if (personId) {
     if (homeView) homeView.hidden = true;
     _loadPersonProfile(personId);
   } else if (gotraId) {
@@ -51,6 +64,10 @@ function escapeHtml(value) {
   } else {
     _loadGotraDirectory();
     _loadVillageDirectory();
+    if (quickQuery) {
+      searchInput.value = quickQuery;
+      _searchPeople(quickQuery);
+    }
   }
 
   /* ── Search ─────────────────────────────────────────────────────────────── */
@@ -64,20 +81,25 @@ function escapeHtml(value) {
     if (!query || query.length < 2) { searchResults.innerHTML = ""; return; }
     searchResults.innerHTML = `<div class="empty-state"><p>${I18n.t("common.loading")}</p></div>`;
     try {
-      const res = await fetch(`/api/genealogy/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/vanshawali/search?type=person&q=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error(I18n.t("common.error"));
-      const { people } = await res.json();
-      if (!people.length) {
+      const { results } = await res.json();
+      if (!results.length) {
         searchResults.innerHTML = `<div class="empty-state"><p>${I18n.t("genealogy.searchNoResults")}</p></div>`;
         return;
       }
       searchResults.innerHTML =
-        `<p class="result-summary">${I18n.t("genealogy.searchResults", { n: people.length })}</p>` +
-        people.map(p => {
-          const meta = [p.birthYear, p.village].filter(Boolean).join(" · ");
+        `<p class="result-summary">${I18n.t("genealogy.searchResults", { n: results.length })}</p>` +
+        results.map(p => {
+          const meta = [p.wifeName ? `पत्नी: ${p.wifeName}` : "", p.village, p.gotraName, p.treeReference]
+            .filter(Boolean).join(" · ");
+          const ancestry = p.path?.length ? ` <small class="vsh-search-path">${escapeHtml(p.path.map(a => a.full_name).join(" → "))}</small>` : "";
           return `<div class="person-search-card">
-            <div><h4>${escapeHtml(p.fullName)}</h4><div class="person-meta">${escapeHtml(meta)}</div></div>
-            <a class="result-tag" href="/vanshawali.html?person=${encodeURIComponent(p.publicId)}">${I18n.t("genealogy.viewProfile")}</a>
+            <div><h4>${escapeHtml(p.name)}</h4><div class="person-meta">${escapeHtml(meta)}</div>
+              ${ancestry}
+              <small class="person-meta">${I18n.t("genealogy.descendants")}: ${p.descendantCount}</small>
+            </div>
+            <a class="result-tag" href="${escapeHtml(p.deepLink)}">${I18n.t("search.viewTree")}</a>
           </div>`;
         }).join("");
     } catch (err) {
@@ -196,6 +218,183 @@ function escapeHtml(value) {
         </div>`;
     } catch (err) {
       gotraDetailContent.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
+    }
+  }
+
+  /* ── Verified tree detail (?tree=ID) ─────────────────────────────────── */
+  let detailVisual = null;
+  let detailExpanded = new Set();
+  let detailZoom = 1;
+
+  async function _loadTreeDetail(id, focusPersonId) {
+    const content = document.querySelector("#tree-detail-content");
+    const canvas = document.querySelector("#tree-detail-canvas");
+    const inner = document.querySelector("#tree-detail-inner");
+    const controls = document.querySelector("#tree-detail-controls");
+    if (!content || !canvas || !inner) return;
+    treeDetailSection.hidden = false;
+    content.innerHTML = `<div class="empty-state"><p>${I18n.t("common.loading")}</p></div>`;
+    try {
+      const res = await fetch(`/api/vanshawali/trees/${encodeURIComponent(id)}/visual`);
+      if (!res.ok) throw new Error(I18n.t("genealogy.restrictedProfile"));
+      const visual = await res.json();
+      detailVisual = visual;
+      const people = visual.people || [];
+      detailExpanded = new Set(people.map(p => p.id));
+      detailZoom = 1;
+      content.innerHTML = `
+        <div class="gotra-detail-card">
+          <h2>${escapeHtml(visual.gotraName || "")} · ${escapeHtml(visual.treeReference || "")}</h2>
+          <p class="vsh-meta">${people.length} सदस्य · ${(visual.links || []).length} जुड़ी शाखाएँ</p>
+          ${(visual.links || []).map(l => `<p class="vsh-meta">↳ ${escapeHtml(l.source_reference)} ↔ ${escapeHtml(l.target_reference)}${l.notes ? ` — ${escapeHtml(l.notes)}` : ""}</p>`).join("")}
+          <div class="gotra-member-grid">${people.slice(0, 200).map(p => `
+            <div class="gotra-member-card">
+              <strong>${escapeHtml(p.full_name)}</strong>
+              <div class="gmc-meta">${escapeHtml([p.wife_name && `पत्नी: ${p.wife_name}`, p.village, p.member_type].filter(Boolean).join(" · "))}</div>
+            </div>`).join("")}</div>
+        </div>`;
+      canvas.hidden = false;
+      controls.hidden = false;
+      _renderDetailTree(inner, canvas, visual, focusPersonId);
+    } catch (err) {
+      content.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
+    }
+  }
+
+  function _renderDetailTree(inner, canvas, visual, focusPersonId) {
+    if (!detailVisual) return;
+    const NODE_W = 180, NODE_H = 86, H_GAP = 24, V_GAP = 110;
+    const people = visual.people || [];
+    const peopleById = new Map(people.map(p => [p.id, p]));
+    const parentOf = new Map((visual.relationships || []).map(r => [r.child_id, r.parent_id]));
+    const kidsOf = id => people.filter(p => parentOf.get(p.id) === id);
+    const roots = people.filter(p => !parentOf.get(p.id) || !peopleById.has(parentOf.get(p.id)));
+
+    const positions = new Map();
+    let cursor = 0, maxDepth = 0;
+    function place(person, depth, seen) {
+      maxDepth = Math.max(maxDepth, depth);
+      const kids = detailExpanded.has(person.id)
+        ? kidsOf(person.id).filter(k => !seen.has(k.id)) : [];
+      let x;
+      if (!kids.length) {
+        x = cursor;
+        cursor += NODE_W + H_GAP;
+      } else {
+        const nextSeen = new Set(seen); nextSeen.add(person.id);
+        const xs = kids.map(k => place(k, depth + 1, nextSeen));
+        x = (xs[0] + xs[xs.length - 1]) / 2;
+      }
+      positions.set(person.id, { x, y: depth * (NODE_H + V_GAP), hasKids: kidsOf(person.id).length > 0 });
+      return x;
+    }
+    roots.forEach(r => place(r, 0, new Set()));
+
+    const width = Math.max(cursor, 400);
+    const height = (maxDepth + 1) * (NODE_H + V_GAP);
+    const paths = [];
+    positions.forEach((pos, id) => {
+      const parentPos = positions.get(parentOf.get(id));
+      if (!parentPos) return;
+      const x1 = parentPos.x + NODE_W / 2, y1 = parentPos.y + NODE_H;
+      const x2 = pos.x + NODE_W / 2, y2 = pos.y;
+      const mid = (y1 + y2) / 2;
+      paths.push(`<path d="M ${x1},${y1} C ${x1},${mid} ${x2},${mid} ${x2},${y2}" />`);
+    });
+
+    inner.style.width = `${width}px`;
+    inner.style.height = `${height}px`;
+    inner.style.transform = `scale(${detailZoom})`;
+    inner.innerHTML = `
+      <svg class="vsh-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="2">${paths.join("")}</g>
+      </svg>` + people.map(p => {
+      const pos = positions.get(p.id);
+      if (!pos) return "";
+      const daughter = p.member_type === "daughter";
+      return `<div class="vsh-vnode vsh-vnode--${daughter ? "daughter" : (p.member_type || "son")}"
+                   style="left:${pos.x}px;top:${pos.y}px" data-detail-person="${escapeHtml(p.id)}">
+               <strong>${escapeHtml(p.full_name)}</strong>
+               ${daughter ? "" : `<span>पत्नी: ${escapeHtml(p.wife_name || "—")}</span><span>गांव: ${escapeHtml(p.village || "—")}</span>`}
+               <small>${pos.hasKids ? (detailExpanded.has(p.id) ? "− संक्षिप्त" : "+ फैलाएँ") : ""}</small>
+             </div>`;
+    }).join("");
+
+    inner.querySelectorAll("[data-detail-person]").forEach(node =>
+      node.addEventListener("click", () => {
+        const id = node.dataset.detailPerson;
+        if (detailExpanded.has(id)) detailExpanded.delete(id); else detailExpanded.add(id);
+        _renderDetailTree(inner, canvas, visual, focusPersonId);
+      }));
+    if (focusPersonId) {
+      const focusNode = inner.querySelector(`[data-detail-person="${CSS.escape(focusPersonId)}"]`);
+      focusNode?.scrollIntoView({ block: "center", inline: "center" });
+    }
+    canvas.dataset.treeWidth = String(width);
+  }
+
+  /* Zoom / expand controls are bound once, never per render. */
+  document.querySelector("#tree-zoom-in")?.addEventListener("click", () => {
+    const inner = document.querySelector("#tree-detail-inner");
+    detailZoom = Math.min(2, detailZoom + 0.15);
+    if (inner) inner.style.transform = `scale(${detailZoom})`;
+  });
+  document.querySelector("#tree-zoom-out")?.addEventListener("click", () => {
+    const inner = document.querySelector("#tree-detail-inner");
+    detailZoom = Math.max(0.4, detailZoom - 0.15);
+    if (inner) inner.style.transform = `scale(${detailZoom})`;
+  });
+  document.querySelector("#tree-zoom-fit")?.addEventListener("click", () => {
+    const inner = document.querySelector("#tree-detail-inner");
+    const canvas = document.querySelector("#tree-detail-canvas");
+    if (!inner || !canvas) return;
+    detailZoom = Math.min(1, (canvas.clientWidth - 20) / Number(canvas.dataset.treeWidth || 1000));
+    inner.style.transform = `scale(${detailZoom})`;
+  });
+  document.querySelector("#tree-expand")?.addEventListener("click", () => {
+    if (!detailVisual) return;
+    detailExpanded = new Set((detailVisual.people || []).map(p => p.id));
+    _renderDetailTree(document.querySelector("#tree-detail-inner"),
+      document.querySelector("#tree-detail-canvas"), detailVisual);
+  });
+  document.querySelector("#tree-collapse")?.addEventListener("click", () => {
+    if (!detailVisual) return;
+    const people = detailVisual.people || [];
+    const parentOf = new Map((detailVisual.relationships || []).map(r => [r.child_id, r.parent_id]));
+    detailExpanded = new Set(people.filter(p => !parentOf.get(p.id)).map(p => p.id));
+    _renderDetailTree(document.querySelector("#tree-detail-inner"),
+      document.querySelector("#tree-detail-canvas"), detailVisual);
+  });
+
+  /* ── Published-record deep link (?id= / ?record=) ─────────────────────── */
+  async function _loadPublishedRecord(id) {
+    const content = document.querySelector("#tree-detail-content");
+    if (!content) return;
+    treeDetailSection.hidden = false;
+    const canvas = document.querySelector("#tree-detail-canvas");
+    const controls = document.querySelector("#tree-detail-controls");
+    if (canvas) canvas.hidden = true;
+    if (controls) controls.hidden = true;
+    content.innerHTML = `<div class="empty-state"><p>${I18n.t("common.loading")}</p></div>`;
+    try {
+      const res = await fetch(`/api/records/${encodeURIComponent(id)}/tree`);
+      if (!res.ok) throw new Error(I18n.t("search.emptyQuery"));
+      const { record } = await res.json();
+      const family = Array.isArray(record.familyDetails) ? record.familyDetails : [];
+      content.innerHTML = `
+        <div class="gotra-detail-card">
+          <h2>${escapeHtml(record.name || "परिवार रिकॉर्ड")}</h2>
+          <p class="vsh-meta">${escapeHtml([record.village, record.district, record.state, record.familyBranch].filter(Boolean).join(" · "))}</p>
+          <h3>${I18n.t("genealogy.members") || "सदस्य"}</h3>
+          <div class="gotra-member-grid">${family.map(m => `
+            <div class="gotra-member-card">
+              <strong>${escapeHtml(m.name || m.fullName || "—")}</strong>
+              <div class="gmc-meta">${escapeHtml(m.relation || m.relationOrRole || "")}</div>
+            </div>`).join("")}</div>
+          <p class="vsh-meta"><a href="/search.html">← ${I18n.t("search.tabGotra")} / ${I18n.t("search.tabVillage")}</a></p>
+        </div>`;
+    } catch (err) {
+      content.innerHTML = `<div class="empty-state"><p>${escapeHtml(err.message)}</p></div>`;
     }
   }
 

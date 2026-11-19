@@ -85,6 +85,9 @@
               <button class="admin-tab" data-admin-view="pariwar-trees" type="button">
                 परिवार वृक्ष
               </button>
+              <button class="admin-tab" data-admin-view="vanshawali" type="button">
+                वंशावली प्रबंधन
+              </button>
             </div>
 
             <!-- ── SUBMISSIONS VIEW ─────────────────────────────────── -->
@@ -423,6 +426,91 @@
               <div id="pariwar-trees-list" class="pariwar-trees-list"></div>
             </div>
 
+            <!-- ── GOTRA-FIRST VANSHAWALI VIEW ────────────────────────── -->
+            <div id="admin-vanshawali" class="vsh-admin-view" hidden>
+              <h2>वंशावली प्रबंधन (गोत्र-आधारित)</h2>
+              <div id="vsh-stats" class="vsh-stats"></div>
+              <p id="vsh-message" class="form-message" role="status"></p>
+
+              <details class="vsh-section" open>
+                <summary>गोत्र प्रबंधन</summary>
+                <form id="vsh-gotra-form" class="admin-form vsh-gotra-form">
+                  <div class="form-row">
+                    <label>गोत्र नाम *<input name="name" required maxlength="120" /></label>
+                    <label>विवरण<input name="description" maxlength="500" /></label>
+                  </div>
+                  <label class="vsh-inline-check"><input type="checkbox" name="isActive" checked /> सक्रिय (नए वृक्ष के लिए उपलब्ध)</label>
+                  <button class="button button-maroon" type="submit">गोत्र जोड़ें</button>
+                  <p id="vsh-gotra-msg" class="form-message" role="status"></p>
+                </form>
+                <input id="vsh-gotra-search" class="vsh-search" placeholder="गोत्र खोजें" maxlength="120" />
+                <div id="vsh-gotra-list" class="vsh-gotra-list"></div>
+              </details>
+
+              <details class="vsh-section" open>
+                <summary>सत्यापन कतार</summary>
+                <div class="vsh-filters">
+                  <select id="vsh-status-filter">
+                    <option value="">सभी स्थितियां</option>
+                    <option value="pending">लंबित</option>
+                    <option value="under_review">समीक्षाधीन</option>
+                    <option value="correction_required">सुधार आवश्यक</option>
+                    <option value="verified">सत्यापित</option>
+                    <option value="rejected">अस्वीकृत</option>
+                    <option value="draft">ड्राफ्ट</option>
+                  </select>
+                  <select id="vsh-gotra-filter"><option value="">सभी गोत्र</option></select>
+                  <input id="vsh-tree-search" class="vsh-search" placeholder="मूल नाम / गांव / संदर्भ" maxlength="120" />
+                  <button id="vsh-tree-search-btn" class="button button-outline-dark" type="button">खोजें</button>
+                </div>
+                <div id="vsh-tree-list" class="vsh-tree-list"></div>
+                <div id="vsh-pager" class="genealogy-pagination"></div>
+              </details>
+
+              <section id="vsh-review" class="vsh-review" hidden>
+                <h3 id="vsh-review-title">वृक्ष समीक्षा</h3>
+                <p id="vsh-review-meta" class="vsh-meta"></p>
+                <div id="vsh-review-members" class="vsh-review-members"></div>
+                <label>आंतरिक सत्यापन नोट<textarea id="vsh-review-notes" rows="3" maxlength="500"></textarea></label>
+                <div class="vsh-decisions">
+                  <button class="button button-gold" data-vsh-decision="approve" type="button">स्वीकारें</button>
+                  <button class="button button-outline-dark" data-vsh-decision="under_review" type="button">समीक्षाधीन करें</button>
+                  <button class="button button-outline-dark" data-vsh-decision="correction_required" type="button">सुधार मांगें</button>
+                  <button class="button button-outline-dark" data-vsh-decision="reject" type="button">अस्वीकृत करें</button>
+                </div>
+                <div id="vsh-review-visual" class="vsh-review-visual"></div>
+
+                <div class="vsh-link-box">
+                  <h4>मास्टर वंशावली से जोड़ें</h4>
+                  <p class="form-note">केवल तब जोड़ें जब साझा पूर्वज प्रमाणित हो। एक ही गोत्र या गांव पर्याप्त प्रमाण नहीं है।</p>
+                  <div class="form-row">
+                    <label>लक्ष्य वृक्ष<select id="vsh-target-tree"></select></label>
+                    <label>साझा पूर्वज खोजें<input id="vsh-person-search" maxlength="120" placeholder="नाम (कम से कम 2 अक्षर)" /></label>
+                  </div>
+                  <div id="vsh-person-results" class="vsh-person-results"></div>
+                  <div class="form-row">
+                    <label>साझा पूर्वज (लक्ष्य वृक्ष)<select id="vsh-ancestor"></select></label>
+                    <label>स्रोत वृक्ष का व्यक्ति<select id="vsh-anchor"></select></label>
+                  </div>
+                  <label>लिंक नोट<textarea id="vsh-link-notes" rows="2" maxlength="500"></textarea></label>
+                  <button id="vsh-link-btn" class="button button-gold" type="button">वृक्ष जोड़ें</button>
+                </div>
+              </section>
+
+              <details class="vsh-section">
+                <summary>लिंक इतिहास</summary>
+                <div id="vsh-links" class="vsh-history"></div>
+              </details>
+              <details class="vsh-section">
+                <summary>सत्यापन इतिहास</summary>
+                <div id="vsh-verifications" class="vsh-history"></div>
+              </details>
+              <details class="vsh-section">
+                <summary>ऑडिट इतिहास (Super Admin)</summary>
+                <div id="vsh-audit" class="vsh-history"></div>
+              </details>
+            </div>
+
           </div><!-- /#admin-panel -->
         </div><!-- /.shell -->
       </section>
@@ -432,5 +520,6 @@
     <script src="app.js"></script>
     <script src="/public/js/admin-pariwar.js"></script>
     <script src="/public/js/admin-workflow.js"></script>
+    <script src="/public/js/admin-vanshawali.js"></script>
   </body>
 </html>

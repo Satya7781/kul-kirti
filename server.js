@@ -12,6 +12,7 @@ const crypto = require("crypto");
 const { createRealtime, rawSql } = require("@neon/realtime/server");
 const genealogy = require("./lib/genealogy");
 const csvParser = require("./lib/csv-parser");
+const vanshawaliRoutes = require("./lib/vanshawali-routes");
 
 const app = express();
 const port = Number(process.env.PORT || 5500);
@@ -174,6 +175,19 @@ function auth(request, response, next) {
       next();
     } catch { response.status(401).json({ error: "Admin authentication required." }); }
   });
+}
+/* Role gate.  All `admins` rows default to `super_admin` and freshly issued
+   JWTs carry the claim; the fallback preserves pre-role tokens still inside
+   their 8 h lifetime.  Sensitive Gotra/link/audit operations require the
+   role explicitly. */
+function requireRole(...roles) {
+  return (request, response, next) => {
+    const role = request.admin?.role || "super_admin";
+    if (!roles.includes(role)) {
+      return response.status(403).json({ error: msg(request, "इस कार्य की अनुमति नहीं है।", "You are not permitted to perform this action.") });
+    }
+    next();
+  };
 }
 function validateEnum(value, allowed, fallback = "") {
   return allowed.includes(value) ? value : fallback;
@@ -2054,13 +2068,22 @@ app.get("/api/admin/gotras/all", auth, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+/* Gotra-first Vanshawali API (public + admin). Registered before the static
+   allowlist so none of these routes are swallowed by the 404 fallback. */
+vanshawaliRoutes(app, {
+  pool, auth, requireRole, clean, uuidOrNull, msg,
+  logAudit: (...args) => genealogy.logAudit(...args),
+  refreshTreeProjection, genealogy, rateLimit,
+});
+
 /* Serve only public assets.  The previous `express.static(root)` exposed
    server.js, schema, scripts and reports to unauthenticated visitors. */
 app.use("/public", express.static(path.join(root, "public")));
 app.use("/locales", express.static(path.join(root, "locales")));
 const publicFiles = new Set([
   "/index.html", "/404.html", "/admin-login.html", "/submit.html",
-  "/vanshawali.html", "/mera-pariwar.html", "/history.html", "/samiti.html",
+  "/vanshawali.html", "/vanshawali-create.html", "/mera-pariwar.html",
+  "/history.html", "/samiti.html",
   "/search.html", "/styles.css", "/pages.css", "/app.js", "/favicon.svg",
   "/sitemap.xml",
 ]);

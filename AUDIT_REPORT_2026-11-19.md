@@ -203,3 +203,33 @@ This section records the second pass requested after the fixes above: can a larg
 - `submit.html` genealogy contribution form: submit event dispatched, handler fired, POST attempted and a visible error surfaced (expected against the static server with no API).
 - **Not exercised**: end-to-end approval/linking and pagination SQL against a seeded database. The configured `DATABASE_URL` points to a live Neon endpoint, which this audit deliberately did not contact. These flows remain statically verified only.
 
+---
+
+## Gotra-first Vanshawali system — implementation status
+
+This section records the third pass: a complete Gotra → Family Tree → Root Ancestor → sons/daughters → generations workflow added to the **existing** Express/Postgres app. No new app, no stack change, no production DB contact.
+
+### Built
+
+| Area | Change |
+|---|---|
+| Schema (`db/schema.sql`) | Additive only: `gotras.normalized_name/description/is_active`; `family_trees` (reference, edit token, revision JSON, status, notes); `tree_links`; `verification_records`; `people.family_tree_id/wife_name/member_type/birth_order`; supporting indexes. |
+| Rules (`lib/vanshawali.js`) | Pure, unit-tested helpers: normalized Gotra names, unordered-member graph validation, exactly one root, daughter is a name-only terminal box, no depth limit, cycle/unreachable checks. |
+| API (`lib/vanshawali-routes.js`, registered from `server.js`) | Draft create/save/submit/status by token; public verified-tree list + visual; unified public search (Gotra/person/root/village/reference, path + descendants + deep links); admin Gotra CRUD with deactivation; verification queue/stats/decision; non-destructive link + reverse; verification history, audit and person search. All decisions and link changes are audited; approval materializes real `people`/`person_relationships` in one transaction. |
+| RBAC | New `requireRole()` in `server.js`. Existing admins default to `super_admin` so nothing breaks; Gotra management, linking/reversal and audit-read require `super_admin` explicitly. Enforced server-side, not by hiding buttons. |
+| Public UI | `vanshawali-create.html` + `public/js/vanshawali-editor.js`: Gotra picker (active Gotras only), token dashboard, recursive box editor, edit/delete-with-confirmation, draft save, preview with SVG connectors/zoom/fit/expand/collapse, submit. Linked from the home portal. |
+| Admin UI | New "वंशावली प्रबंधन" tab in `admin.html` + `public/js/admin-vanshawali.js`: stats, Gotra management, searchable/filterable/paginated verification queue, full tree review, approve/reject/correction/under-review with notes, master-tree link comparison, link/verification/audit history. |
+| Explorer & search | `vanshawali.html` + `vanshawali-explorer.js` gained a `?tree=` verified-tree view and a real handler for the previously orphaned `?id=`/`?record=` deep link; `search.html` + `app.js` gained person/tree tabs with wife, village, Gotra, tree reference, ancestry path, descendant count and tree deep links. Matching i18n keys added to both locale files. |
+| Tests | `test/vanshawali.test.js` (9 `node:test` cases) and `npm test`; `scripts/build-check.js` now also parses both locale JSON files. |
+
+### Verification for this pass
+
+- `node --check` on `server.js`, both new lib modules and both new browser modules; `npm run build` and `git diff --check` pass.
+- `npm test`: 9/9 pass — valid/invalid tree shape, unordered entry, daughter terminal rule, required spouse/village, cycles, duplicate IDs and 40 generations (no artificial cap).
+- Local mock-server browser run of `vanshawali-create.html`: Gotra loaded and selected, draft created with a stable token, root/son/daughter/grandson boxes filled and saved, daughter exposed no child controls, 4 preview nodes with 3 connectors, zoom changed the transform, preview→editor round-trip worked, submission persisted and disabled further editing. Zero CSP violations and zero console errors; no horizontal overflow.
+- Admin verification panel and search-tab wiring were checked statically and via DOM IDs; no production/live database was contacted.
+
+### Still requires a seeded, safe database
+
+Actual SQL execution of the additive schema, transactional approval/link/reverse flows, RBAC 403 responses, rate-limit 429s, and persisted XSS payloads cannot be verified without a local seeded `DATABASE_URL`. `.env.local` points to the live Neon endpoint, so these were deliberately left to an explicit, permissioned test run.
+
