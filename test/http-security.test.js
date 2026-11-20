@@ -66,10 +66,18 @@ test("makeAuth rejects deleted admins and revoked JWTs", async () => {
   assert.equal(responseB.statusCode, 401);
 });
 
-test("originGuard requires an explicit production origin", () => {
+test("originGuard fails closed on mutations, but never breaks reads", () => {
+  const read = fakeResponse();
+  let readPassed = false;
+  makeOriginGuard({ isProduction: true })(
+    { method: "GET", headers: {} }, read, () => { readPassed = true; }
+  );
+  assert.equal(readPassed, true);
+  assert.equal(read.statusCode, 200);
+
   const missing = fakeResponse();
   makeOriginGuard({ isProduction: true })(
-    { method: "GET", headers: {} }, missing, () => assert.fail("should fail")
+    { method: "POST", headers: {} }, missing, () => assert.fail("should fail")
   );
   assert.equal(missing.statusCode, 503);
 
@@ -85,6 +93,13 @@ test("originGuard requires an explicit production origin", () => {
     { method: "POST", headers: { origin: "https://kulkirti.in/" } }, good, () => { passed = true; }
   );
   assert.equal(passed, true);
+
+  const render = fakeResponse();
+  let renderPassed = false;
+  makeOriginGuard({ renderExternalUrl: "https://app.onrender.com", isProduction: true })(
+    { method: "POST", headers: { origin: "https://app.onrender.com/" } }, render, () => { renderPassed = true; }
+  );
+  assert.equal(renderPassed, true);
 });
 
 test("rateLimit blocks requests over the configured maximum", () => {

@@ -296,3 +296,14 @@ All findings above are preserved for the record. This section records what was c
 | Local mock browser pass (10 pages) | 0 console errors, 0 duplicate IDs, 0 inline handlers, 0 broken internal links, no overflow |
 | Lighthouse (privacy, create, admin) | 1.0 accessibility / 1.0 best practices / 1.0 SEO, 0 axe failures after fixing the language-switch accessible name |
 | Live DB / production | Still not contacted |
+
+### Post-report deployment hotfix
+
+After the user reported a 503 on the Render deployment:
+
+- `makeOriginGuard()` no longer returns 503 for `GET`/`HEAD`/`OPTIONS`; it fails closed only for mutations.
+- Render's trusted `RENDER_EXTERNAL_URL` is now accepted as a fallback when `FRONTEND_ORIGIN` is not set, and is also used for the CORS origin.
+- Added a regression test for read requests, explicit origins, and the Render fallback.
+- `npm run build` and `npm test` (21/21) still pass.
+
+A remaining 503 is therefore most likely a failed `/healthz` database check or a missing runtime secret. Check the Render service log and confirm `DATABASE_URL`, `JWT_SECRET`, `DATABASE_CA` (only if required by Neon), and `FRONTEND_ORIGIN` / `RENDER_EXTERNAL_URL`.

@@ -64,7 +64,8 @@ app.use(helmet({
   /* Require-CORP would block the third-party hero fonts/images above. */
   crossOriginEmbedderPolicy: false,
 }));
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`, credentials: true }));
+const allowedCorsOrigin = process.env.FRONTEND_ORIGIN || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+app.use(cors({ origin: allowedCorsOrigin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 

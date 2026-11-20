@@ -62,7 +62,7 @@ FRONTEND_ORIGIN=https://<your-render-service>.onrender.com
 NODE_ENV=production
 ```
 
-Production requires `FRONTEND_ORIGIN` and verifies the database TLS certificate. Never commit `.env.local` or production credentials.
+`FRONTEND_ORIGIN` is optional on Render because the trusted `RENDER_EXTERNAL_URL` variable is used automatically. It is still required on other production hosts. Production always verifies the database TLS certificate. Never commit `.env.local` or production credentials.
 
 To intentionally rotate an admin password:
 
