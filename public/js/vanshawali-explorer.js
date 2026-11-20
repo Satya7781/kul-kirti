@@ -305,19 +305,26 @@ function escapeHtml(value) {
     inner.style.width = `${width}px`;
     inner.style.height = `${height}px`;
     inner.style.transform = `scale(${detailZoom})`;
-    inner.innerHTML = `
+    inner.innerHTML =
+      /* The connector SVG is decorative — this text is its accessible equivalent. */
+      `<span class="visually-hidden">${I18n.t("genealogy.treeConnections")}</span>
       <svg class="vsh-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-width="2">${paths.join("")}</g>
       </svg>` + people.map(p => {
       const pos = positions.get(p.id);
       if (!pos) return "";
       const daughter = p.member_type === "daughter";
-      return `<div class="vsh-vnode vsh-vnode--${daughter ? "daughter" : (p.member_type || "son")}"
-                   style="left:${pos.x}px;top:${pos.y}px" data-detail-person="${escapeHtml(p.id)}">
+      const action = pos.hasKids
+        ? (detailExpanded.has(p.id) ? "शाखाएँ संक्ष립्त करें" : "शाखाएँ फैलाएँ")
+        : "व्यक्ति";
+      const nodeLabel = `${p.full_name || "व्यक्ति"} — ${action}`;
+      return `<button type="button" class="vsh-vnode vsh-vnode--${daughter ? "daughter" : (p.member_type || "son")}"
+                   style="left:${pos.x}px;top:${pos.y}px" data-detail-person="${escapeHtml(p.id)}"
+                   aria-label="${escapeHtml(nodeLabel)}">
                <strong>${escapeHtml(p.full_name)}</strong>
                ${daughter ? "" : `<span>पत्नी: ${escapeHtml(p.wife_name || "—")}</span><span>गांव: ${escapeHtml(p.village || "—")}</span>`}
                <small>${pos.hasKids ? (detailExpanded.has(p.id) ? "− संक्षिप्त" : "+ फैलाएँ") : ""}</small>
-             </div>`;
+             </button>`;
     }).join("");
 
     inner.querySelectorAll("[data-detail-person]").forEach(node =>
@@ -586,7 +593,12 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
     canvas.style.minHeight = totalH + "px";
     svgEl.setAttribute("width",  totalW);
     svgEl.setAttribute("height", totalH);
+    svgEl.setAttribute("role", "img");
+    svgEl.setAttribute("aria-label", I18n.t("genealogy.treeConnections"));
     svgEl.innerHTML     = "";
+    const svgTitle = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    svgTitle.textContent = I18n.t("genealogy.treeConnections");
+    svgEl.appendChild(svgTitle);
     nodesLayer.innerHTML = "";
     nodesLayer.style.width  = totalW + "px";
     nodesLayer.style.height = totalH + "px";
@@ -613,28 +625,44 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
 
     /* Node cards */
     laid.forEach(node => {
+      /* This card contains a real expand <button>, so it cannot itself be a
+         <button> (nested interactive content). Keyboard support is added
+         explicitly with role/tabindex instead. */
       const card = document.createElement("div");
       card.className = "tree-node-card" + (node._depth === 0 ? " selected" : "");
       card.style.cssText = `left:${node._x}px;top:${node._y}px;width:${NODE_W}px`;
+      card.setAttribute("role", "button");
+      card.tabIndex = 0;
 
       const hasKids = (node.children || []).length > 0;
       const isOpen  = expanded.has(node._pid);
       const gen     = node._depth === 0
         ? I18n.t("genealogy.treeRoot")
         : `${I18n.t("genealogy.generation")} ${node._depth + 1}`;
+      card.setAttribute("aria-label", `${node._name || "व्यक्ति"}${node._village ? " · " + node._village : ""} — ${gen}`);
 
       card.innerHTML = `
         <div class="node-name">${escapeHtml(node._name || "?")}</div>
         <div class="node-meta">${escapeHtml(node._village || "")}</div>
         <span class="node-gen">${gen}</span>
-        ${hasKids ? `<button class="node-expand-btn">${isOpen ? "−" : "+"}</button>` : ""}
+        ${hasKids ? `<button type="button" class="node-expand-btn" aria-label="${isOpen ? "शाखाएँ संक्षिप्त करें" : "शाखाएँ फैलाएँ"}">${isOpen ? "−" : "+"}</button>` : ""}
       `;
 
-      /* Click card → navigate (except root) */
-      card.addEventListener("click", e => {
-        if (e.target.classList.contains("node-expand-btn")) return;
+      /* Click / Enter / Space → navigate (except root) */
+      const navigate = () => {
         if (node._pid && node._pid !== rootPubId) {
           window.location.href = `/vanshawali.html?person=${encodeURIComponent(node._pid)}`;
+        }
+      };
+      card.addEventListener("click", e => {
+        if (e.target.classList.contains("node-expand-btn")) return;
+        navigate();
+      });
+      card.addEventListener("keydown", e => {
+        if (e.target !== card) return; /* expand button handles its own keys */
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          navigate();
         }
       });
 

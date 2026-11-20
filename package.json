@@ -8,11 +8,12 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db:init": "node scripts/init-db.js",
+    "admin:rotate-password": "node scripts/rotate-admin-password.js",
     "build": "node scripts/build-check.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   },
   "dependencies": {
     "@neon/config": "^1.14.0",

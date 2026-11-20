@@ -49,6 +49,8 @@
           <form id="genealogy-search-form" class="genealogy-search-form">
             <input id="genealogy-search-input" type="search"
               data-i18n-placeholder="genealogy.searchPh"
+              data-i18n-aria-label="genealogy.searchAria"
+              aria-label="व्यक्ति खोजें"
               placeholder="व्यक्ति का नाम लिखें..." autocomplete="off" />
             <button class="button button-maroon" type="submit">
               <span data-i18n="genealogy.searchBtn">खोजें</span> <span>→</span>
@@ -76,7 +78,7 @@
                 <div><b>03</b><span data-i18n="vanshawali.flow3">संबंध की source और verification स्थिति</span></div>
                 <div><b>04</b><span data-i18n="vanshawali.flow4">गोपनीयता के अनुसार सार्वजनिक प्रदर्शन</span></div>
               </div>
-              <a class="button button-maroon" href="/submit.html" style="display:inline-flex;margin-top:20px">
+              <a class="button button-maroon" href="/vanshawali-create.html" style="display:inline-flex;margin-top:20px">
                 <span data-i18n="vanshawali.btnSubmit">अपनी वंशावली भेजें</span> <span>→</span>
               </a>
             </article>
@@ -150,7 +152,11 @@
           <div id="person-tree-section" hidden>
             <h3 class="tree-section-title" data-i18n="genealogy.treeTitle">परिवार वृक्ष</h3>
             <div id="family-tree-canvas" class="family-tree-canvas">
-              <svg id="tree-svg" class="tree-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+              <svg id="tree-svg" class="tree-svg" xmlns="http://www.w3.org/2000/svg"
+                   role="img" data-i18n-aria-label="genealogy.treeConnections"
+                   aria-label="वंश वृक्ष में सदस्यों के बीच संबंध रेखाएँ">
+                <title data-i18n="genealogy.treeConnections">वंश वृक्ष में सदस्यों के बीच संबंध रेखाएँ</title>
+              </svg>
               <div id="tree-nodes-layer" class="tree-nodes-layer"></div>
             </div>
             <div class="tree-controls">
@@ -177,9 +183,11 @@
             <div id="tree-detail-inner" class="vsh-preview-inner"></div>
           </div>
           <div id="tree-detail-controls" class="vsh-zoom" hidden>
-            <button id="tree-zoom-out" class="button button-outline-dark" type="button" aria-label="ज़ूम घटाएँ">−</button>
+            <button id="tree-zoom-out" class="button button-outline-dark" type="button"
+              data-i18n-aria-label="vsh.zoomOut" aria-label="ज़ूम घटाएँ">−</button>
             <button id="tree-zoom-fit" class="button button-outline-dark" type="button" data-i18n="vsh.fit">फ़िट</button>
-            <button id="tree-zoom-in" class="button button-outline-dark" type="button" aria-label="ज़ूम बढ़ाएँ">+</button>
+            <button id="tree-zoom-in" class="button button-outline-dark" type="button"
+              data-i18n-aria-label="vsh.zoomIn" aria-label="ज़ूम बढ़ाएँ">+</button>
             <button id="tree-expand" class="button button-outline-dark" type="button" data-i18n="genealogy.expandAll">सभी खोलें</button>
             <button id="tree-collapse" class="button button-outline-dark" type="button" data-i18n="genealogy.collapseAll">सभी बंद करें</button>
           </div>

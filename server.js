@@ -13,6 +13,8 @@ const { createRealtime, rawSql } = require("@neon/realtime/server");
 const genealogy = require("./lib/genealogy");
 const csvParser = require("./lib/csv-parser");
 const vanshawaliRoutes = require("./lib/vanshawali-routes");
+const { poolOptions } = require("./lib/db-config");
+const { createRateLimiter, makeOriginGuard, makeAuth, roleGuard, noStore, errorStatus } = require("./lib/http-security");
 
 const app = express();
 const port = Number(process.env.PORT || 5500);
@@ -20,7 +22,8 @@ const root = __dirname;
 const jwtSecret = process.env.JWT_SECRET;
 if (!process.env.DATABASE_URL || !jwtSecret) throw new Error("DATABASE_URL and JWT_SECRET are required.");
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false });
+/* Production connections verify the database certificate (see lib/db-config). */
+const pool = new Pool(poolOptions());
 const databaseName = new URL(process.env.DATABASE_URL).pathname.slice(1).split("?")[0] || "neondb";
 const realtime = process.env.NEON_REALTIME_SECRET ? createRealtime({ secret: process.env.NEON_REALTIME_SECRET, db: databaseName }) : null;
 
@@ -65,38 +68,54 @@ app.use(cors({ origin: process.env.FRONTEND_ORIGIN || `http://localhost:${port}`
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
-/* Logged-out JWTs remain valid until expiry unless we track them.  jti values
-   are added here on logout and rejected by auth().  In-memory by design: a
-   process restart clears it, but all tokens issued before the restart also
-   expire with it in practice (short-lived sessions). */
-const revokedTokens = new Set();
+/* The legacy submission / parivar UI was retired.  Keep the routes from being
+   reachable by old bookmarks or scripts, while returning an explicit Gone. */
+const retiredApiPaths = [
+  /^\/api\/submissions(?:\/|$)/,
+  /^\/api\/admin\/submissions(?:\/|$)/,
+  /^\/api\/admin\/family-records(?:\/|$)/,
+  /^\/api\/pariwar(?:\/|$)/,
+  /^\/api\/admin\/pariwar(?:\/|$)/,
+];
+app.use((request, response, next) => {
+  if (retiredApiPaths.some(pattern => pattern.test(request.path))) {
+    return response.status(410).json({
+      error: "This legacy endpoint has been retired. Use /api/vanshawali/trees instead.",
+    });
+  }
+  next();
+});
 
-const requestWindows = new Map();
-let lastWindowSweep = Date.now();
-function pruneWindows(now) {
-  if (now - lastWindowSweep < 60_000) return;
-  lastWindowSweep = now;
-  for (const [bucketKey, bucket] of requestWindows) {
-    if (now - bucket.startedAt >= bucket.windowMs) requestWindows.delete(bucketKey);
+/* ── HTTP security primitives ────────────────────────────────────────────── */
+const { rateLimit } = createRateLimiter();
+
+/* Logout revocation is durable: the in-memory set is a fast path, Postgres is
+   the source of truth so a restart or another instance still rejects the JWT. */
+const revokedTokens = new Set();
+async function isJtiRevoked(jti) {
+  if (!jti) return false;
+  if (revokedTokens.has(jti)) return true;
+  try {
+    const result = await pool.query(
+      "SELECT 1 FROM revoked_tokens WHERE jti = $1 AND expires_at > NOW()", [jti]
+    );
+    return result.rowCount > 0;
+  } catch {
+    return true; /* fail closed when revocation cannot be checked */
   }
 }
-function rateLimit({ windowMs, max, key = (request) => request.ip }) {
-  return (request, response, next) => {
-    const now = Date.now();
-    pruneWindows(now);
-    const bucketKey = `${key(request)}:${request.path}`;
-    const bucket = requestWindows.get(bucketKey);
-    if (!bucket || now - bucket.startedAt >= windowMs) {
-      requestWindows.set(bucketKey, { startedAt: now, count: 1, windowMs });
-      return next();
-    }
-    bucket.count += 1;
-    if (bucket.count > max) {
-      response.set("Retry-After", String(Math.ceil((windowMs - (now - bucket.startedAt)) / 1000)));
-      return response.status(429).json({ error: "Too many requests. Please try again later." });
-    }
-    return next();
-  };
+async function revokeJti(jti, adminId, expiresAt) {
+  if (!jti) return;
+  revokedTokens.add(jti);
+  try {
+    await pool.query(
+      `INSERT INTO revoked_tokens (jti, admin_id, expires_at)
+       VALUES ($1,$2,$3) ON CONFLICT (jti) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
+      [jti, uuidOrNull(adminId), expiresAt || new Date(Date.now() + 8 * 60 * 60 * 1000)]
+    );
+  } catch (error) {
+    console.error("[auth] could not persist token revocation:", error.message);
+  }
 }
 
 /* Bounded pagination for admin list endpoints. */
@@ -149,46 +168,28 @@ function msg(request, hi, en) {
   return reqLocale(request) === "en" ? en : hi;
 }
 
-/* CSRF origin guard for mutating requests.  Honours FRONTEND_ORIGIN, then the
-   incoming Host with the proxied protocol.  Applied to login/logout as well as
-   auth(), so session endpoints cannot be abused cross-site. */
-function originGuard(request, response, next) {
-  if (request.method === "GET" || !request.headers.origin) return next();
-  const proto = request.headers["x-forwarded-proto"] || request.protocol;
-  const derivedOrigin = `${proto}://${request.get("host")}`;
-  const allowedOrigin = process.env.FRONTEND_ORIGIN || derivedOrigin;
-  const normalise = (s) => s.replace(/\/$/, "").toLowerCase();
-  if (normalise(request.headers.origin) !== normalise(allowedOrigin)) {
-    return response.status(403).json({ error: "Cross-site request blocked." });
-  }
-  next();
-}
+/* CSRF origin guards.  FRONTEND_ORIGIN is mandatory in production and is the
+   only trusted source — no deriving it from Host/forwarded headers.  Public
+   write endpoints tolerate a missing Origin (non-browser clients); every
+   authenticated mutation requires one. */
+const originGuard = makeOriginGuard({ requireOrigin: false });
+const strictOriginGuard = makeOriginGuard({ requireOrigin: true });
 
-function auth(request, response, next) {
-  originGuard(request, response, () => {
-    const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
-    try {
-      request.admin = jwt.verify(token, jwtSecret);
-      if (request.admin.jti && revokedTokens.has(request.admin.jti)) {
-        return response.status(401).json({ error: "Admin authentication required." });
-      }
-      next();
-    } catch { response.status(401).json({ error: "Admin authentication required." }); }
-  });
-}
-/* Role gate.  All `admins` rows default to `super_admin` and freshly issued
-   JWTs carry the claim; the fallback preserves pre-role tokens still inside
-   their 8 h lifetime.  Sensitive Gotra/link/audit operations require the
-   role explicitly. */
-function requireRole(...roles) {
-  return (request, response, next) => {
-    const role = request.admin?.role || "super_admin";
-    if (!roles.includes(role)) {
-      return response.status(403).json({ error: msg(request, "इस कार्य की अनुमति नहीं है।", "You are not permitted to perform this action.") });
-    }
-    next();
-  };
-}
+const auth = makeAuth({
+  jwtSecret,
+  isRevoked: isJtiRevoked,
+  loadAdmin: async (id) => {
+    const result = await pool.query("SELECT id, email, role FROM admins WHERE id = $1", [uuidOrNull(id)]);
+    return result.rows[0] || null;
+  },
+});
+/* Wrap strict origin checking inside authentication so unauthenticated calls
+   return 401 rather than leaking the CSRF policy. */
+const authStrict = (request, response, next) =>
+  strictOriginGuard(request, response, () => auth(request, response, next));
+const requireRole = roleGuard;
+const adminRole = ["super_admin", "admin"];
+const superOnly = ["super_admin"];
 function validateEnum(value, allowed, fallback = "") {
   return allowed.includes(value) ? value : fallback;
 }
@@ -277,26 +278,51 @@ app.post("/api/submissions", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), a
   } catch (error) { next(error); }
 });
 
-app.post("/api/admin/login", originGuard, rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: (request) => `${request.ip}:${clean(request.body?.email, 200).toLowerCase()}` }), async (request, response, next) => {
+/* Equalise login timing for unknown accounts and rate-limit by IP *and*
+   globally, so spraying many accounts from one host cannot get fresh buckets. */
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-admin-password", 12);
+const loginIpLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
+const loginGlobalLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 200, key: () => "login-global" });
+
+app.post("/api/admin/login", noStore, originGuard, loginGlobalLimit, loginIpLimit, async (request, response, next) => {
   try {
-    const email = clean(request.body.email, 200).toLowerCase(); const password = request.body.password;
+    const email = clean(request.body?.email, 200).toLowerCase();
+    const password = typeof request.body?.password === "string" ? request.body.password.slice(0, 200) : "";
     const result = await pool.query("SELECT id, email, password_hash, role FROM admins WHERE email = $1", [email]);
-    if (!result.rows[0] || !(await bcrypt.compare(password || "", result.rows[0].password_hash))) return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
     const admin = result.rows[0];
+    const valid = await bcrypt.compare(password, admin ? admin.password_hash : DUMMY_PASSWORD_HASH);
+    if (!admin || !valid) return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
     const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h", jwtid: crypto.randomUUID() });
     response.cookie("kulkirti_admin", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 8 * 60 * 60 * 1000 });
     response.json({ admin: { email: admin.email, role: admin.role } });
   } catch (error) { next(error); }
 });
-app.post("/api/admin/logout", originGuard, (request, response) => {
-  /* Revoke this JWT so a stolen/cached copy cannot be replayed after logout. */
+
+app.post("/api/admin/logout", noStore, originGuard, async (request, response) => {
   try {
     const token = request.cookies.kulkirti_admin || request.headers.authorization?.replace("Bearer ", "");
     const decoded = jwt.verify(token, jwtSecret);
-    if (decoded.jti) revokedTokens.add(decoded.jti);
+    if (decoded.jti) {
+      await revokeJti(decoded.jti, decoded.id, decoded.exp ? new Date(decoded.exp * 1000) : undefined);
+    }
   } catch { /* already invalid — nothing to revoke */ }
   response.clearCookie("kulkirti_admin");
   response.json({ ok: true });
+});
+
+/* Central RBAC gate.  Every /api/admin/* route except the two session
+   endpoints requires an authenticated admin whose CURRENT database role is
+   super_admin or admin.  Per-route requireRole() calls still narrow sensitive
+   operations further.  No token-claim fallback to super_admin exists. */
+app.use("/api/admin", noStore, (request, response, next) => {
+  if (request.path === "/login" || request.path === "/logout") return next();
+  return authStrict(request, response, () => {
+    const role = request.admin?.role;
+    if (!role || !adminRole.includes(role)) {
+      return response.status(403).json({ error: "You are not permitted to perform this action." });
+    }
+    next();
+  });
 });
 
 /* Lets an already-authenticated admin skip the login form when /admin.html is
@@ -741,7 +767,7 @@ app.get("/api/genealogy/gotras/:id", async (request, response, next) => {
 
     const branches = await pool.query(
       `SELECT id, name, slug, description, parent_branch_id AS "parentBranchId", status
-       FROM family_branches WHERE gotra_id = $1 AND status <> 'archived' ORDER BY name`,
+       FROM family_branches WHERE gotra_id = $1 AND status = 'verified' ORDER BY name`,
       [request.params.id]
     );
 
@@ -792,23 +818,29 @@ app.get("/api/genealogy/people/:publicId", async (request, response, next) => {
 
     const person = personResult.rows[0];
 
-    // Privacy: if visibility is private, only show name + public_id
-    if (person.visibility === "private") {
+    /* Explicit field whitelist: internal ids, status and visibility must never
+       be reflected on a public profile. */
+    const PUBLIC_PERSON_FIELDS = [
+      "publicId", "fullName", "altNames", "gender", "birthYear", "deathYear",
+      "birthplace", "village", "district", "state", "biography", "isLiving",
+    ];
+    const publicFields = (row, extra = {}) => {
+      const out = {};
+      for (const key of PUBLIC_PERSON_FIELDS) if (row[key] !== undefined) out[key] = row[key];
+      return { ...out, ...extra };
+    };
+
+    /* "members" has no member authentication, so treat anything non-public as
+       restricted until a real member-login policy exists. */
+    if (person.visibility !== "public") {
       return response.json({
-        person: { publicId: person.publicId, fullName: person.fullName, isLiving: person.isLiving },
+        person: publicFields(person, { birthYear: null, birthplace: null, biography: null }),
         parents: [], children: [], siblings: [], ancestors: [], descendants: [], gotras: [],
         restricted: true,
       });
     }
 
-    // Field-level privacy for living people
-    const isPublic = person.visibility === "public";
-    const safePerson = {
-      ...person,
-      birthYear: isPublic || !person.isLiving ? person.birthYear : null,
-      birthplace: isPublic || !person.isLiving ? person.birthplace : null,
-      biography: isPublic || !person.isLiving ? person.biography : null,
-    };
+    const safePerson = publicFields(person);
 
     // Parents
     const parents = await genealogy.findParents(pool, person.id);
@@ -829,19 +861,31 @@ app.get("/api/genealogy/people/:publicId", async (request, response, next) => {
     // Generation
     const generation = await genealogy.calculateGeneration(pool, person.id);
 
-    // Remove internal IDs from public response
-    const stripId = (arr) => arr.map(r => {
-      const { id, ...rest } = r; return rest;
+    /* Related rows use snake_case aliases from genealogy.js; whitelist by
+       normalising the few fields the public UI needs. */
+    const related = (arr) => arr.map(r => {
+      const row = {
+        publicId: r.public_id ?? r.publicId,
+        fullName: r.full_name ?? r.fullName,
+        gender: r.gender,
+        birthYear: r.birth_year ?? r.birthYear,
+        deathYear: r.death_year ?? r.deathYear,
+        isLiving: r.is_living ?? r.isLiving,
+        village: r.village,
+        relation: r.relation || r.relation_type,
+        depth: r.depth,
+      };
+      return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined));
     });
 
     response.json({
       person: { ...safePerson, generation },
-      parents: stripId(parents),
-      children: stripId(children),
-      siblings: stripId(siblings),
-      ancestors: stripId(ancestors),
-      descendants: stripId(descendants),
-      gotras: gotras.rows.map(g => ({ id: g.id, name: g.name, isRoot: g.isRoot })),
+      parents: related(parents),
+      children: related(children),
+      siblings: related(siblings),
+      ancestors: related(ancestors),
+      descendants: related(descendants),
+      gotras: gotras.rows.map(g => ({ name: g.name, isRoot: g.isRoot })),
       restricted: false,
     });
   } catch (error) { next(error); }
@@ -1006,18 +1050,19 @@ app.post("/api/admin/people", auth, async (request, response, next) => {
        clean(input.birthYear, 20), clean(input.deathYear, 20), clean(input.birthplace, 200),
        clean(input.village, 120), clean(input.district, 120), clean(input.state, 120),
        clean(input.biography, 5000),
-       input.isLiving !== undefined ? input.isLiving : (input.deathYear ? false : true),
-       clean(input.status, 20) || "verified", clean(input.visibility, 20) || "public",
+       input.isLiving !== undefined ? Boolean(input.isLiving) : (input.deathYear ? false : true),
+       validateEnum(input.status, ["draft", "pending", "verified", "archived"], "verified"),
+        validateEnum(input.visibility, ["public", "private"], "public"),
        request.admin.id]
     );
 
-    // Link to gotra if provided
-    if (input.gotraId) {
+    // Link to gotra if provided (invalid IDs are dropped, never sent to SQL).
+    if (uuidOrNull(input.gotraId)) {
       await client.query(
         `INSERT INTO person_gotra_links (person_id, gotra_id, branch_id, is_root)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (person_id, gotra_id) DO NOTHING`,
-        [person.rows[0].id, input.gotraId, input.branchId || null, input.isRoot || false]
+        [person.rows[0].id, uuidOrNull(input.gotraId), uuidOrNull(input.branchId), Boolean(input.isRoot)]
       );
     }
 
@@ -1124,8 +1169,8 @@ app.post("/api/admin/relationships", auth, async (request, response, next) => {
   const client = await pool.connect();
   try {
     const input = request.body || {};
-    const parentId = clean(input.parentId, 80);
-    const childId = clean(input.childId, 80);
+    const parentId = uuidOrNull(input.parentId);
+    const childId = uuidOrNull(input.childId);
     const relationType = ["biological", "adoptive", "step", "guardian", "other"]
       .includes(input.relationType) ? input.relationType : "biological";
 
@@ -1133,9 +1178,12 @@ app.post("/api/admin/relationships", auth, async (request, response, next) => {
       error: msg(request, "अभिभावक और संतान आवश्यक हैं।", "Parent and child are required.")
     });
 
-    // Full validation pipeline
-    const validation = await genealogy.validateRelationship(pool, parentId, childId, relationType);
+    /* Begin the transaction BEFORE validation and validate with the same
+       client, so a concurrent insert cannot slip past cycle/parent checks. */
+    await client.query("BEGIN");
+    const validation = await genealogy.validateRelationship(client, parentId, childId, relationType);
     if (!validation.valid) {
+      await client.query("ROLLBACK");
       const errorMessages = {
         self_parenting: msg(request, "स्व-अभिभावक संबंध नहीं हो सकता।", "Self-parenting is not allowed."),
         person_not_found: msg(request, "व्यक्ति नहीं मिला।", "Person not found."),
@@ -1146,7 +1194,6 @@ app.post("/api/admin/relationships", auth, async (request, response, next) => {
       return response.status(400).json({ error: errorMessages[validation.error] || validation.error });
     }
 
-    await client.query("BEGIN");
     const rel = await client.query(
       `INSERT INTO person_relationships (parent_id, child_id, relation_type, status, evidence_source, created_by, approved_by)
        VALUES ($1, $2, $3, 'verified', $4, $5, $5) RETURNING id`,
@@ -1414,7 +1461,7 @@ app.get("/api/vanshawali/villages", async (request, response, next) => {
       `SELECT village, COUNT(*)::int AS "personCount",
               MAX(district) AS district, MAX(state) AS state
        FROM people
-       WHERE village IS NOT NULL AND village <> '' AND status <> 'archived' AND visibility = 'public'
+       WHERE village IS NOT NULL AND village <> '' AND status = 'verified' AND visibility = 'public'
        GROUP BY village ORDER BY "personCount" DESC LIMIT 200`
     );
     response.json({ villages: result.rows });
@@ -1457,10 +1504,14 @@ app.post("/api/admin/vanshawali/import/preview", auth, async (request, response,
       error: msg(request, "CSV डेटा खाली है।", "CSV data is empty.")
     });
 
-    // Parse CSV
-    const parsed = csvParser.parseCSV(csvText);
+    // Parse CSV with an explicit row cap (the 1 MB body limit alone is not enough).
+    const MAX_IMPORT_ROWS = 5000;
+    const parsed = csvParser.parseCSV(csvText.slice(0, 1_000_000));
     if (parsed.rows.length === 0) return response.status(400).json({
       error: msg(request, "CSV में कोई डेटा पंक्ति नहीं है।", "CSV contains no data rows.")
+    });
+    if (parsed.rows.length > MAX_IMPORT_ROWS) return response.status(413).json({
+      error: `CSV exceeds the ${MAX_IMPORT_ROWS}-row limit.`
     });
 
     // Validate
@@ -1727,18 +1778,27 @@ app.put("/api/admin/branches/:id", auth, async (request, response, next) => {
     const values = [];
     if (input.name) { values.push(clean(input.name, 120)); updates.push(`name = $${values.length}`); }
     if (input.description !== undefined) { values.push(clean(input.description, 500)); updates.push(`description = $${values.length}`); }
-    if (input.status) { values.push(clean(input.status, 20)); updates.push(`status = $${values.length}`); }
-    if (input.parentBranchId !== undefined) { values.push(input.parentBranchId || null); updates.push(`parent_branch_id = $${values.length}`); }
+    if (input.status) {
+      values.push(validateEnum(input.status, ["draft", "verified", "archived"], "draft"));
+      updates.push(`status = $${values.length}`);
+    }
+    if (input.parentBranchId !== undefined) {
+      values.push(uuidOrNull(input.parentBranchId));
+      updates.push(`parent_branch_id = $${values.length}`);
+    }
     if (input.slug) { values.push(clean(input.slug, 120)); updates.push(`slug = $${values.length}`); }
 
     if (!updates.length) return response.status(400).json({ error: "No updates provided." });
-    values.push(request.params.id);
-    await pool.query(
+    const branchId = uuidOrNull(request.params.id);
+    if (!branchId) return response.status(400).json({ error: "Invalid branch id." });
+    values.push(branchId);
+    const result = await pool.query(
       `UPDATE family_branches SET ${updates.join(", ")}, updated_at = NOW() WHERE id = $${values.length}`,
       values
     );
-    await genealogy.logAudit(pool, request.admin.id, "update_branch", "branch", request.params.id, input);
-    response.json({ id: request.params.id, message: msg(request, "शाखा अद्यतन की गई।", "Branch updated.") });
+    if (!result.rowCount) return response.status(404).json({ error: "Branch not found." });
+    await genealogy.logAudit(pool, request.admin.id, "update_branch", "branch", branchId, input);
+    response.json({ id: branchId, message: msg(request, "शाखा अद्यतन की गई।", "Branch updated.") });
   } catch (error) { next(error); }
 });
 
@@ -1746,8 +1806,8 @@ app.put("/api/admin/branches/:id", auth, async (request, response, next) => {
 app.post("/api/admin/vanshawali/assign-branch", auth, async (request, response, next) => {
   try {
     const input = request.body || {};
-    const personId = clean(input.personId, 80);
-    const branchId = clean(input.branchId, 80);
+    const personId = uuidOrNull(input.personId);
+    const branchId = uuidOrNull(input.branchId);
     if (!personId || !branchId) return response.status(400).json({
       error: msg(request, "व्यक्ति और शाखा आवश्यक हैं।", "Person and branch are required.")
     });
@@ -2049,13 +2109,34 @@ app.post("/api/admin/pariwar/:id/link", auth, async (request, response, next) =>
 
 // ── Admin: reject a public family tree ───────────────────────────────────
 app.post("/api/admin/pariwar/:id/reject", auth, async (request, response, next) => {
+  const client = await pool.connect();
   try {
-    await pool.query(
-      `UPDATE public_family_trees SET status='rejected', reviewed_by=$1, review_notes=$2, reviewed_at=NOW() WHERE id=$3`,
-      [request.admin.id, clean(request.body.reviewNotes, 500), request.params.id]
+    const id = uuidOrNull(request.params.id);
+    if (!id) return response.status(400).json({ error: "Invalid tree id." });
+    await client.query("BEGIN");
+    const found = await client.query(
+      "SELECT status FROM public_family_trees WHERE id = $1 FOR UPDATE", [id]
     );
+    if (!found.rows.length) {
+      await client.query("ROLLBACK");
+      return response.status(404).json({ error: "Tree not found." });
+    }
+    if (["verified", "rejected"].includes(found.rows[0].status)) {
+      await client.query("ROLLBACK");
+      return response.status(409).json({ error: "A decision has already been made on this tree." });
+    }
+    await client.query(
+      `UPDATE public_family_trees SET status='rejected', reviewed_by=$1, review_notes=$2, reviewed_at=NOW() WHERE id=$3`,
+      [request.admin.id, clean(request.body?.reviewNotes, 500), id]
+    );
+    await genealogy.logAudit(client, request.admin.id, "reject_family_tree", "family_tree", id,
+      { reviewNotes: clean(request.body?.reviewNotes, 500) });
+    await client.query("COMMIT");
     response.json({ message: msg(request, "अस्वीकृत कर दिया गया।", "Rejected.") });
-  } catch (error) { next(error); }
+  } catch (error) {
+    await client.query("ROLLBACK");
+    next(error);
+  } finally { client.release(); }
 });
 
 // ── Admin: get all gotras including draft ones (for linking UI) ───────────
@@ -2076,14 +2157,24 @@ vanshawaliRoutes(app, {
   refreshTreeProjection, genealogy, rateLimit,
 });
 
+/* Lightweight deployment health check: verifies the DB, not a static page. */
+app.get("/healthz", async (_request, response) => {
+  try {
+    await pool.query("SELECT 1");
+    response.status(200).json({ ok: true });
+  } catch {
+    response.status(503).json({ ok: false });
+  }
+});
+
 /* Serve only public assets.  The previous `express.static(root)` exposed
    server.js, schema, scripts and reports to unauthenticated visitors. */
 app.use("/public", express.static(path.join(root, "public")));
 app.use("/locales", express.static(path.join(root, "locales")));
 const publicFiles = new Set([
-  "/index.html", "/404.html", "/admin-login.html", "/submit.html",
-  "/vanshawali.html", "/vanshawali-create.html", "/mera-pariwar.html",
-  "/history.html", "/samiti.html",
+  "/index.html", "/404.html", "/admin-login.html",
+  "/vanshawali.html", "/vanshawali-create.html",
+  "/history.html", "/samiti.html", "/privacy.html",
   "/search.html", "/styles.css", "/pages.css", "/app.js", "/favicon.svg",
   "/sitemap.xml",
 ]);
@@ -2097,10 +2188,29 @@ app.use((request, response, next) => {
 app.use((request, response) => {
   response.status(404).sendFile(path.join(root, "404.html"));
 });
-app.use((error, request, response, next) => { console.error(error); response.status(500).json({ error: "Server error." }); });
+app.use((error, request, response, next) => {
+  console.error(error);
+  const status = errorStatus(error);
+  const message = status === 413 ? "Request body is too large." : status === 400 ? "Invalid request." : "Server error.";
+  if (!response.headersSent) response.status(status).json({ error: message });
+});
+
+let server;
 initializeDatabase()
-  .then(() => app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`)))
+  .then(() => {
+    server = app.listen(port, "0.0.0.0", () => console.log(`Kul-Kirti running on port ${port}`));
+  })
   .catch((error) => {
     console.error("Startup initialization failed:", error.message);
     process.exit(1);
   });
+
+/* Let the platform drain in-flight requests and close the pool on SIGTERM. */
+async function shutdown(signal) {
+  console.log(`${signal} received; shutting down.`);
+  if (server) await new Promise(resolve => server.close(resolve));
+  await pool.end().catch(() => {});
+  process.exit(0);
+}
+process.on("SIGTERM", () => { shutdown("SIGTERM"); });
+process.on("SIGINT", () => { shutdown("SIGINT"); });

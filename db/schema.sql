@@ -534,3 +534,112 @@ ALTER TABLE people ADD COLUMN IF NOT EXISTS member_type TEXT
 ALTER TABLE people ADD COLUMN IF NOT EXISTS birth_order INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS people_family_tree_idx ON people (family_tree_id);
 CREATE INDEX IF NOT EXISTS people_tree_member_idx ON people (family_tree_id, member_type);
+
+-- ── Security / privacy hardening (2026-11-20) ───────────────────────────────
+-- Edit tokens are bearer credentials.  They expire, can be revoked by their
+-- holder, and are rotated when a tree is submitted for verification.
+ALTER TABLE family_trees ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ;
+ALTER TABLE family_trees ADD COLUMN IF NOT EXISTS token_revoked_at TIMESTAMPTZ;
+ALTER TABLE family_trees ADD COLUMN IF NOT EXISTS consent_at TIMESTAMPTZ;
+ALTER TABLE family_trees ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE family_trees ADD COLUMN IF NOT EXISTS delete_requested_at TIMESTAMPTZ;
+UPDATE family_trees
+   SET token_expires_at = COALESCE(token_expires_at, created_at + INTERVAL '30 days')
+ WHERE token_expires_at IS NULL;
+CREATE INDEX IF NOT EXISTS family_trees_token_valid_idx
+  ON family_trees (edit_token) WHERE token_revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS family_trees_privacy_idx
+  ON family_trees (delete_requested_at) WHERE delete_requested_at IS NOT NULL;
+
+-- Durable logout/session revocation (process-local sets are not enough).
+CREATE TABLE IF NOT EXISTS revoked_tokens (
+  jti         TEXT PRIMARY KEY,
+  admin_id    UUID REFERENCES admins(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS revoked_tokens_expires_idx ON revoked_tokens (expires_at);
+
+-- Contributor data requests.  Verified genealogical records are archived, so
+-- a deletion request is queued for admin review instead of silently erasing
+-- public history; draft/pending trees are anonymised immediately in the API.
+CREATE TABLE IF NOT EXISTS privacy_requests (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_tree_id  UUID NOT NULL REFERENCES family_trees(id) ON DELETE CASCADE,
+  request_type    TEXT NOT NULL CHECK (request_type IN ('delete', 'rectify')),
+  details         TEXT,
+  status          TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'fulfilled', 'rejected')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  fulfilled_at    TIMESTAMPTZ,
+  fulfilled_by    UUID REFERENCES admins(id)
+);
+CREATE INDEX IF NOT EXISTS privacy_requests_status_idx ON privacy_requests (status, created_at DESC);
+
+-- Verification history must be append-only.
+CREATE OR REPLACE FUNCTION prevent_verification_record_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'verification records are immutable';
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS verification_records_immutable ON verification_records;
+CREATE TRIGGER verification_records_immutable
+  BEFORE UPDATE OR DELETE ON verification_records
+  FOR EACH ROW EXECUTE FUNCTION prevent_verification_record_mutation();
+
+-- Graph invariants at the database level.  Application validation still runs
+-- first, but concurrent writes can no longer create a cycle or a third
+-- verified biological parent.
+CREATE OR REPLACE FUNCTION enforce_genealogy_integrity()
+RETURNS trigger AS $$
+DECLARE
+  parent_count INTEGER;
+  cyclic BOOLEAN;
+BEGIN
+  IF NEW.status = 'verified' AND NEW.relation_type = 'biological' THEN
+    SELECT COUNT(*) INTO parent_count
+      FROM person_relationships
+     WHERE child_id = NEW.child_id
+       AND relation_type = 'biological'
+       AND status = 'verified'
+       AND (NEW.id IS NULL OR id <> NEW.id);
+    IF parent_count >= 2 THEN
+      RAISE EXCEPTION 'a person cannot have more than two verified biological parents';
+    END IF;
+    WITH RECURSIVE ancestors AS (
+      SELECT parent_id AS id, 1 AS depth
+        FROM person_relationships
+       WHERE child_id = NEW.parent_id AND status = 'verified'
+      UNION ALL
+      SELECT r.parent_id, a.depth + 1
+        FROM ancestors a
+        JOIN person_relationships r ON r.child_id = a.id AND r.status = 'verified'
+       WHERE a.depth < 100
+    )
+    SELECT EXISTS(SELECT 1 FROM ancestors WHERE id = NEW.child_id) INTO cyclic;
+    IF cyclic THEN
+      RAISE EXCEPTION 'relationship would create a circular genealogy';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS person_relationships_integrity ON person_relationships;
+CREATE TRIGGER person_relationships_integrity
+  BEFORE INSERT OR UPDATE ON person_relationships
+  FOR EACH ROW EXECUTE FUNCTION enforce_genealogy_integrity();
+
+-- Query indexes that match the actual ILIKE / sort patterns used by the API.
+CREATE INDEX IF NOT EXISTS submissions_created_idx ON submissions (submitted_at DESC);
+CREATE INDEX IF NOT EXISTS contributions_submitted_idx ON genealogy_contributions (submitted_at DESC);
+CREATE INDEX IF NOT EXISTS people_created_idx ON people (created_at DESC);
+
+-- Schema version ledger.  Future changes should append a new version row.
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version     TEXT PRIMARY KEY,
+  applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO schema_migrations (version)
+VALUES ('2026-11-20-security-privacy')
+ON CONFLICT (version) DO NOTHING;

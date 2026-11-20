@@ -233,3 +233,31 @@ This section records the third pass: a complete Gotra → Family Tree → Root A
 
 Actual SQL execution of the additive schema, transactional approval/link/reverse flows, RBAC 403 responses, rate-limit 429s, and persisted XSS payloads cannot be verified without a local seeded `DATABASE_URL`. `.env.local` points to the live Neon endpoint, so these were deliberately left to an explicit, permissioned test run.
 
+---
+
+## Simplification pass (2026-11-20) — page removal
+
+The earlier findings above are preserved as the historical audit record. This pass removes duplicate/confusing entry points and leaves one clear flow:
+
+`Home → Search / View Vanshawali → Create Tree (choose active Gotra, save/submit) → Admin verification`
+
+### Removed
+
+- `mera-pariwar.html` and `public/js/mera-pariwar.js` — old flat "My Family" builder, replaced by the Gotra-first box editor.
+- `submit.html` — old generic record-submission form, replaced by `vanshawali-create.html`.
+- Nine legacy admin tabs/panels (submissions, Gotra v1, family builder, people, contributions, dashboard, import, branch management, pariwar trees) and their `admin-pariwar.js` / `admin-workflow.js` scripts. Admin now exposes a single "वंशावली सत्यापन" view containing Gotra management, the verification queue, decisions, linking and audit history.
+
+### Updated
+
+- Shared nav: Home, Search, Vanshawali, Create Tree, History, Samiti.
+- Home portal: three cards (Search, Vanshawali, Create Tree); the "My Family" card is gone.
+- All remaining links to the removed pages now point to `vanshawali-create.html`.
+- `server.js` static allowlist, `scripts/build-check.js`, `sitemap.xml`, `README.md` and both locale files updated; added `nav.search` / `nav.createTree` keys.
+- Admin login/session restore now dispatches `kulkirti:admin-ready`, so the verification data refreshes after authentication.
+
+### Verification
+
+- `npm run build` passed; `npm test` 9/9 passed; `git diff --check` clean apart from the known `core.autocrlf` notices.
+- Local CSP-mirroring mock server (no live DB): home/create/admin pages loaded with zero console errors; the mock Gotra picker populated, "Create Tree" produced a token and opened the editor with save/submit controls; admin login revealed exactly one tab and one visible panel with 8 stats cards; `submit.html` and `mera-pariwar.html` now return the 404 page.
+- Mock server was stopped after the checks. No production or live database was contacted.
+

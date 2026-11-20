@@ -34,7 +34,8 @@
             <summary>मेरे वृक्ष (टोकन से देखें)</summary>
             <p class="form-note">पहले से बना वृक्ष देखने या जारी रखने के लिए अपना टोकन डालें।</p>
             <div class="vsh-token-row">
-              <input id="vsh-lookup-token" placeholder="वृक्ष टोकन" maxlength="40" />
+              <input id="vsh-lookup-token" placeholder="वृक्ष टोकन" maxlength="40"
+                data-i18n-aria-label="vsh.ariaLookupToken" aria-label="वृक्ष टोकन" />
               <button id="vsh-lookup-btn" class="button button-outline-dark" type="button">देखें</button>
             </div>
             <div id="vsh-lookup-result" class="vsh-lookup-result" aria-live="polite"></div>
@@ -45,7 +46,8 @@
             <h2>चरण 1 — गोत्र चुनें</h2>
             <p class="form-note">केवल सक्रिय गोत्र दिखाए जाते हैं। यदि आपका गोत्र न दिखे तो कृपया प्रशासक से संपर्क करें — उपयोगकर्ता गोत्र नहीं बना सकते।</p>
             <div class="vsh-token-row">
-              <input id="vsh-gotra-search" class="vsh-search" placeholder="गोत्र खोजें" maxlength="120" />
+              <input id="vsh-gotra-search" class="vsh-search" placeholder="गोत्र खोजें" maxlength="120"
+                data-i18n-aria-label="vsh.ariaGotraSearch" aria-label="गोत्र खोजें" />
             </div>
             <div id="vsh-gotra-list" class="vsh-gotra-picker" role="list"></div>
             <div id="vsh-selected-gotra" class="vsh-selected" aria-live="polite"></div>
@@ -54,6 +56,15 @@
               <label>गांव<input id="vsh-village" maxlength="120" /></label>
               <label>जिला<input id="vsh-district" maxlength="120" /></label>
               <label>राज्य<input id="vsh-state" maxlength="120" /></label>
+            </div>
+            <div class="vsh-consent">
+              <input id="vsh-consent" class="vsh-consent-check" type="checkbox" required />
+              <label for="vsh-consent">
+                <span data-i18n="vsh.consentText">मैंने</span>
+                <a href="/privacy.html" data-i18n="vsh.consentPrivacyLink">गोपनीयता नीति</a>
+                <span data-i18n="vsh.consentTextTail">पढ़ी है और डेटा के संग्रह व प्रतिधारण से सहमत हूँ *</span>
+              </label>
+              <p class="form-note" data-i18n="vsh.retentionNotice">आपका ड्राफ्ट केवल आपके संपादन टोकन से पहुँचा जा सकता है। सत्यापन के बाद प्रकाशित जानकारी सार्वजनिक दिखाई देती है; आप लिंक नष्ट कर सकते हैं या अपना डेटा हटा सकते हैं।</p>
             </div>
             <button id="vsh-create-btn" class="button button-maroon" type="button" disabled>वंशावली वृक्ष बनाएं</button>
           </div>
@@ -67,6 +78,14 @@
               </div>
               <div class="vsh-token-badge">टोकन: <code id="vsh-token"></code></div>
             </div>
+            <div id="vsh-token-controls" class="vsh-token-controls" hidden>
+              <button id="vsh-revoke-btn" class="button button-outline-dark" type="button"
+                data-i18n="vsh.revokeLink">इस लिंक को नष्ट करें</button>
+              <button id="vsh-delete-btn" class="button button-outline-dark" type="button"
+                data-i18n="vsh.deleteData">मेरा डेटा हटाएँ</button>
+            </div>
+            <p id="vsh-token-note" class="form-note" role="status" hidden
+              data-i18n="vsh.tokenRotated">नया टोकन ऊपर दिखाया गया है। पुराना टोकन अब मान्य नहीं है।</p>
             <p class="form-note">पहले बॉक्स में नाम, पत्नी का नाम और गांव भरें। उसके बाद <b>+ पुत्र</b> या <b>+ पुत्री</b> से शाखाएँ जोड़ें।</p>
             <div id="vsh-tree" class="vsh-tree"></div>
             <div class="vsh-actions">
@@ -82,9 +101,11 @@
             <div class="vsh-editor-head">
               <h2>वृक्ष पूर्वावलोकन</h2>
               <div class="vsh-zoom">
-                <button id="vsh-zoom-out" class="button button-outline-dark" type="button" aria-label="ज़ूम घटाएँ">−</button>
-                <button id="vsh-zoom-fit" class="button button-outline-dark" type="button">फ़िट</button>
-                <button id="vsh-zoom-in" class="button button-outline-dark" type="button" aria-label="ज़ूम बढ़ाएँ">+</button>
+                <button id="vsh-zoom-out" class="button button-outline-dark" type="button"
+                  data-i18n-aria-label="vsh.zoomOut" aria-label="ज़ूम घटाएँ">−</button>
+                <button id="vsh-zoom-fit" class="button button-outline-dark" type="button" data-i18n="vsh.fit">फ़िट</button>
+                <button id="vsh-zoom-in" class="button button-outline-dark" type="button"
+                  data-i18n-aria-label="vsh.zoomIn" aria-label="ज़ूम बढ़ाएँ">+</button>
                 <button id="vsh-collapse" class="button button-outline-dark" type="button">सभी संक्षिप्त</button>
                 <button id="vsh-expand" class="button button-outline-dark" type="button">सभी फैलाएँ</button>
                 <button id="vsh-preview-close" class="button button-outline-dark" type="button">संपादन पर लौटें</button>

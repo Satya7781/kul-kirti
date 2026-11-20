@@ -48,14 +48,12 @@ const headerMarkup = `
     </a>
     <button class="menu-toggle" data-i18n-aria-label="nav.menuOpen" aria-expanded="false">☰</button>
     <nav class="main-nav" data-i18n-aria-label="nav.mainNav">
-      <a href="/"              data-i18n="nav.home"></a>
-      <a href="/history.html"  data-i18n="nav.history"></a>
-      <a href="/search.html"   data-i18n="nav.gotraSearch"></a>
-      <a href="/search.html?type=village" data-i18n="nav.villageSearch"></a>
-      <a href="/vanshawali.html" data-i18n="nav.vanshawali"></a>
-      <a href="/samiti.html"   data-i18n="nav.samiti"></a>
-      <a href="/submit.html"   data-i18n="nav.submit"></a>
-      <a href="/mera-pariwar.html" data-i18n="nav.meraPariwar">मेरा परिवार</a>
+      <a href="/"                 data-i18n="nav.home"></a>
+      <a href="/search.html"      data-i18n="nav.search"></a>
+      <a href="/vanshawali.html"  data-i18n="nav.vanshawali"></a>
+      <a href="/vanshawali-create.html" data-i18n="nav.createTree"></a>
+      <a href="/history.html"     data-i18n="nav.history"></a>
+      <a href="/samiti.html"      data-i18n="nav.samiti"></a>
     </nav>
     <a class="admin-link" href="/admin.html" data-i18n="nav.admin"></a>
     <button class="language-switch" type="button">
@@ -124,15 +122,11 @@ document.addEventListener("click", e => {
 function _applyLangSwitcherLocal() {
   const isHi = I18n.lang === "hi";
   document.querySelectorAll(".language-switch").forEach(btn => {
-    const charEl  = btn.querySelector(".lang-char");
-    const labelEl = btn.querySelector(".lang-label");
-    if (charEl)  charEl.textContent = isHi ? "अ" : "A";
-    if (labelEl) {
-      labelEl.textContent = I18n.t("langSwitch.label");
-      /* Only the label text is in the other language */
-      labelEl.setAttribute("lang", isHi ? "en" : "hi");
-    }
-    btn.setAttribute("aria-label", I18n.t("langSwitch.ariaSwitch"));
+    const glyph = isHi ? "अ" : "A";
+    const label = I18n.t("langSwitch.label");
+    btn.innerHTML = `<span>${glyph}</span> ${label} <i aria-hidden="true">⌄</i>`;
+    btn.setAttribute("aria-label", `${glyph} ${label} — ${I18n.t("langSwitch.ariaSwitch")}`);
+    btn.setAttribute("lang", isHi ? "en" : "hi");
   });
 }
 
@@ -150,18 +144,8 @@ document.addEventListener("languagechange", () => {
   _applyCopyright();
   /* re-translate search tabs */
   applySearchLang();
-  /* re-translate admin tabs */
-  const tabMap = {
-    submissions:      "admin.tabSubmissions",
-    gotras:           "admin.tabGotras",
-    "family-builder": "admin.tabFamily",
-  };
-  document.querySelectorAll(".admin-tab").forEach(tab => {
-    const key = tabMap[tab.dataset.adminView];
-    if (key) tab.textContent = I18n.t(key);
-    /* keep aria-selected in sync */
-    _syncTabAria(tab);
-  });
+  /* Admin tab labels are translated through data-i18n in admin.html. */
+  document.querySelectorAll(".admin-tab").forEach(_syncTabAria);
   if (gotraMembers.length)       renderGotraMembers();
   if (adminFamilyMembers.length) renderAdminFamilyMembers();
 });
@@ -600,35 +584,8 @@ if (submissionForm) {
    6. VANSHAWALI / TREE VIEWER
    ─────────────────────────────────────────────────────────────────────────── */
 
-(async function initTree() {
-  const treeContainer = document.querySelector("#published-tree");
-  if (!treeContainer) return;
-  const id = new URLSearchParams(location.search).get("id");
-  if (!id) return;
-
-  try {
-    const res = await fetch(`/api/records/${id}/tree`);
-    if (!res.ok) return;
-    const { record } = await res.json();
-    const people = Array.isArray(record.familyDetails) ? record.familyDetails : [];
-    if (!people.length) {
-      treeContainer.innerHTML = `<p class="form-note">${I18n.t("vanshawali.noMembers")}</p>`;
-      return;
-    }
-    treeContainer.innerHTML =
-      `<h2 class="tree-record-heading">${escapeHtml(record.name)}</h2>
-       <p>${[record.village, record.district, record.state].filter(Boolean).join(" · ")}</p>` +
-      people.map(person =>
-        `<div class="published-person">
-          <strong>${escapeHtml(person.name)}</strong>
-          <span>${escapeHtml(person.relation || "")}</span>
-          ${person.birthYear ? `<span> · ${escapeHtml(person.birthYear)}</span>` : ""}
-          ${person.deathYear ? `<span> – ${escapeHtml(person.deathYear)}</span>` : ""}
-          <small>ID: ${escapeHtml(person.id)}</small>
-        </div>`
-      ).join("");
-  } catch (_) { /* silent — default placeholder stays */ }
-}());
+/* The legacy #published-tree renderer was removed with submit.html.
+   Vanshawali visuals are rendered by /public/js/vanshawali-explorer.js. */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    7. ADMIN PANEL
@@ -898,7 +855,7 @@ if (adminLogin) {
       }
       adminLoginBox.hidden = true;
       adminPanel.hidden    = false;
-      loadSubmissions();
+      document.dispatchEvent(new CustomEvent("kulkirti:admin-ready"));
     } catch (err) {
       if (msgEl) { msgEl.textContent = I18n.t("common.error"); msgEl.classList.add("error"); }
     } finally {
@@ -922,7 +879,7 @@ if (adminLogin) {
         if (me && me.authenticated) {
           adminLoginBox.hidden = true;
           adminPanel.hidden    = false;
-          loadSubmissions();
+          document.dispatchEvent(new CustomEvent("kulkirti:admin-ready"));
         }
       })
       .catch(() => { /* stay on the login form */ });
@@ -932,22 +889,12 @@ if (adminLogin) {
 /* ── admin tabs (task 7: ARIA roles) ────────────────────────────────────── */
 const adminTabs  = document.querySelectorAll(".admin-tab");
 const adminViews = {
-  submissions:      document.querySelector("#admin-submissions"),
-  gotras:           document.querySelector("#admin-gotras"),
-  "family-builder": document.querySelector("#admin-family-builder"),
-  people:           document.querySelector("#admin-people"),
-  "genealogy-contributions": document.querySelector("#admin-genealogy-contributions"),
-  dashboard:        document.querySelector("#admin-dashboard"),
-  import:           document.querySelector("#admin-import"),
-  "branch-mgmt":    document.querySelector("#admin-branch-mgmt"),
-  "pariwar-trees":  document.querySelector("#admin-pariwar-trees"),
-  vanshawali:       document.querySelector("#admin-vanshawali"),
+  vanshawali: document.querySelector("#admin-vanshawali"),
 };
 
 adminTabs.forEach(tab => {
   tab.setAttribute("role", "tab");
   _syncTabAria(tab);
-  /* point aria-controls to the right panel */
   const panelId = `admin-${tab.dataset.adminView}`;
   tab.setAttribute("aria-controls", panelId);
   const panel = adminViews[tab.dataset.adminView];
@@ -969,8 +916,6 @@ adminTabs.forEach(tab =>
     Object.entries(adminViews).forEach(([name, view]) => {
       if (view) view.hidden = name !== tab.dataset.adminView;
     });
-    if (tab.dataset.adminView === "gotras") loadGotras();
-    if (tab.dataset.adminView === "submissions") loadSubmissions();
   })
 );
 
@@ -1449,29 +1394,8 @@ adminFamilyForm?.addEventListener("submit", async e => {
    ═══════════════════════════════════════════════════════════════════════ */
 
 
-/* ── Extend the tab map for new admin tabs ───────────────────────────────── */
-(function extendTabMap2() {
-  if (window._adminTabMap) {
-    window._adminTabMap.dashboard = "genealogy.tabDashboard";
-    window._adminTabMap.import = "genealogy.tabImport";
-    window._adminTabMap["branch-mgmt"] = "genealogy.tabBranchMgmt";
-  }
-  /* Wire ARIA for new tabs */
-  document.querySelectorAll(
-    ".admin-tab[data-admin-view='dashboard'], .admin-tab[data-admin-view='import'], .admin-tab[data-admin-view='branch-mgmt'], .admin-tab[data-admin-view='vanshawali']"
-  ).forEach(tab => {
-    tab.setAttribute("role", "tab");
-    _syncTabAria(tab);
-    const panelId = `admin-${tab.dataset.adminView}`;
-    tab.setAttribute("aria-controls", panelId);
-    const panel = document.querySelector(`#admin-${tab.dataset.adminView}`);
-    if (panel) {
-      panel.setAttribute("role", "tabpanel");
-      panel.setAttribute("aria-labelledby", `tab-${tab.dataset.adminView}`);
-      tab.id = `tab-${tab.dataset.adminView}`;
-    }
-  });
-}());
+/* Legacy admin-tab extension removed: admin.html now exposes one verification
+   view, wired once near the top of this file. */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UI/UX ENHANCEMENTS — 2025
@@ -1541,17 +1465,8 @@ adminFamilyForm?.addEventListener("submit", async e => {
   });
 }());
 
-/* ── 5. Copy-to-clipboard helper for public profile links ───────────────── */
-document.addEventListener("click", e => {
-  const btn = e.target.closest(".profile-share-btn");
-  if (!btn) return;
-  const url = btn.dataset.url || window.location.href;
-  navigator.clipboard?.writeText(url).then(() => {
-    const orig = btn.innerHTML;
-    btn.innerHTML = "✓ कॉपी हो गया";
-    setTimeout(() => { btn.innerHTML = orig; }, 2200);
-  }).catch(() => {});
-});
+/* Copy-to-clipboard for profile links lives with the explorer renderer in
+   public/js/vanshawali-explorer.js; the old global duplicate was removed. */
 
 /* ── 6. Auto-resize textareas ───────────────────────────────────────────── */
 document.querySelectorAll("textarea").forEach(ta => {

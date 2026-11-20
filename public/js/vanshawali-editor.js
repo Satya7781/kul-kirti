@@ -13,6 +13,8 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[ch]));
 
+  const tr = (key, fallback) =>
+    (window.I18n && typeof I18n.t === "function") ? I18n.t(key) : fallback;
   const $ = id => document.getElementById(id);
   const els = {
     gotraSearch: $("vsh-gotra-search"), gotraList: $("vsh-gotra-list"),
@@ -24,6 +26,8 @@
     msg: $("vsh-editor-msg"), lookupToken: $("vsh-lookup-token"),
     lookupBtn: $("vsh-lookup-btn"), lookupResult: $("vsh-lookup-result"),
     canvas: $("vsh-preview-canvas"), inner: $("vsh-preview-inner"),
+    consent: $("vsh-consent"), tokenControls: $("vsh-token-controls"),
+    tokenNote: $("vsh-token-note"), revokeBtn: $("vsh-revoke-btn"), deleteBtn: $("vsh-delete-btn"),
   };
   if (!els.gotraList) return;
 
@@ -48,6 +52,12 @@
     if (!els.msg) return;
     els.msg.textContent = text;
     els.msg.classList.toggle("error", isError);
+  }
+  /* Privacy actions are only available on an editable, token-owned draft. */
+  function setTokenControls(visible) {
+    if (els.tokenControls) els.tokenControls.hidden = !visible;
+    if (els.revokeBtn) els.revokeBtn.disabled = !visible;
+    if (els.deleteBtn) els.deleteBtn.disabled = !visible;
   }
   const childrenOf = parentId => state.members
     .filter(m => m.parentId === parentId)
@@ -86,6 +96,8 @@
     state.token = tree.edit_token || tree.token || els.lookupToken.value.trim();
     state.members = members.slice();
     state.readOnly = ["verified", "rejected", "pending", "under_review"].includes(tree.status);
+    setTokenControls(!state.readOnly && !!state.token);
+    if (els.tokenNote) els.tokenNote.hidden = true;
     state.expanded = new Set(state.members.map(m => m.clientId));
     state.editing = new Set();
     if (!state.members.length) {
@@ -246,15 +258,21 @@
   $("vsh-create-btn").addEventListener("click", async () => {
     if (!state.selectedGotra) return;
     if (!els.submitter.value.trim()) { message("आपका नाम आवश्यक है।", true); return; }
+    if (!els.consent || !els.consent.checked) {
+      message("वृक्ष बनाने से पहले कृपया गोपनीयता नीति और डेटा प्रतिधारण जानकारी स्वीकार करें।", true);
+      return;
+    }
     const btn = $("vsh-create-btn");
     btn.disabled = true;
     try {
-      const data = await postJSON("/api/vanshawali/trees", {
+      const body = {
         gotraId: state.selectedGotra.id,
         submitterName: els.submitter.value.trim(),
         submitterContact: "",
         village: els.village.value.trim(), district: els.district.value.trim(), state: els.state.value.trim(),
-      });
+      };
+      if (els.consent.checked) body.consent = true;
+      const data = await postJSON("/api/vanshawali/trees", body);
       openEditor({ ...data.tree, gotraName: state.selectedGotra.name }, []);
       message(data.message);
     } catch (error) {
@@ -275,9 +293,43 @@
     if (!confirm("पूरा वृक्ष सत्यापन के लिए भेजें? भेजने के बाद तब तक संपादन बंद रहेगा जब तक प्रशासक सुधार न मांगें।")) return;
     try {
       const data = await postJSON(`/api/vanshawali/trees/${encodeURIComponent(state.token)}/submit`, payload());
+      /* Submission rotates the edit token — keep the visible lookup token in sync. */
+      let rotated = false;
+      if (data.token && data.token !== state.token) {
+        state.token = data.token;
+        rotated = true;
+        if (els.token) els.token.textContent = data.token;
+        els.lookupToken.value = data.token;
+        if (els.tokenNote) els.tokenNote.hidden = false;
+      }
       state.readOnly = true;
+      setTokenControls(false);
       renderEditor();
-      message(`${data.message} संदर्भ: ${data.treeReference}`);
+      message(`${data.message} संदर्भ: ${data.treeReference}${rotated ? " · पुराना टोकन अब मान्य नहीं है।" : ""}`);
+    } catch (error) { message(error.message, true); }
+  });
+
+  /* ── Privacy controls on the token-owned draft ─────────────────────── */
+  els.revokeBtn?.addEventListener("click", async () => {
+    if (!state.token) return;
+    try {
+      const data = await postJSON(`/api/vanshawali/trees/${encodeURIComponent(state.token)}/revoke`, {});
+      state.readOnly = true;
+      setTokenControls(false);
+      renderEditor();
+      message(data.message || "संपादन लिंक नष्ट कर दिया गया। अब यह वृक्ष संपादित नहीं किया जा सकता।");
+    } catch (error) { message(error.message, true); }
+  });
+
+  els.deleteBtn?.addEventListener("click", async () => {
+    if (!state.token) return;
+    if (!confirm("क्या आप यह वृक्ष और उसका पूरा डेटा स्थायी रूप से हटाना चाहते हैं? यह कार्य वापस नहीं लिया जा सकता।")) return;
+    try {
+      const data = await api(`/api/vanshawali/trees/${encodeURIComponent(state.token)}`, { method: "DELETE" });
+      state.readOnly = true;
+      setTokenControls(false);
+      renderEditor();
+      message(data.message || "आपका डेटा हटा दिया गया।");
     } catch (error) { message(error.message, true); }
   });
 
@@ -324,6 +376,7 @@
     state.expanded = new Set(visualMembers.map(m => m.clientId));
     state.zoom = 1;
     state.readOnly = true;
+    setTokenControls(false);
     els.stepGotra.hidden = true;
     els.stepEditor.hidden = true;
     els.stepPreview.hidden = false;
@@ -369,19 +422,26 @@
     els.inner.style.width = `${width}px`;
     els.inner.style.height = `${height}px`;
     els.inner.style.transform = `scale(${state.zoom})`;
-    els.inner.innerHTML = `
+    els.inner.innerHTML =
+      /* The connector SVG is decorative — this text is its accessible equivalent. */
+      `<span class="visually-hidden">${tr("genealogy.treeConnections", "वंश वृक्ष की संबंध रेखाएँ")}</span>
       <svg class="vsh-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
            aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2">${paths.join("")}</g></svg>
       ${visualMembers.map(m => {
         const pos = positions.get(m.clientId);
         if (!pos) return "";
         const daughter = m.memberType === "daughter";
-        return `<div class="vsh-vnode vsh-vnode--${daughter ? "daughter" : m.memberType}"
-                     style="left:${pos.x}px;top:${pos.y}px" data-vid="${esc(m.clientId)}">
+        const action = pos.hasKids
+          ? (state.expanded.has(m.clientId) ? "शाखाएँ संक्षिप्त करें" : "शाखाएँ फैलाएँ")
+          : "व्यक्ति";
+        const nodeLabel = `${m.name || "व्यक्ति"} — ${action}`;
+        return `<button type="button" class="vsh-vnode vsh-vnode--${daughter ? "daughter" : m.memberType}"
+                     style="left:${pos.x}px;top:${pos.y}px" data-vid="${esc(m.clientId)}"
+                     aria-label="${esc(nodeLabel)}">
                  <strong>${esc(m.name)}</strong>
                  ${daughter ? "" : `<span>पत्नी: ${esc(m.wifeName || "—")}</span><span>गांव: ${esc(m.village || "—")}</span>`}
                  ${pos.hasKids ? `<small>${state.expanded.has(m.clientId) ? "− संक्षिप्त" : "+ फैलाएँ"}</small>` : ""}
-               </div>`;
+               </button>`;
       }).join("")}`;
     els.inner.querySelectorAll("[data-vid]").forEach(node =>
       node.addEventListener("click", () => {
@@ -400,6 +460,7 @@
     visualParent = new Map(previewMembers.filter(m => m.parentId).map(m => [m.clientId, m.parentId]));
     state.expanded = new Set(previewMembers.map(m => m.clientId));
     state.zoom = 1;
+    setTokenControls(false);
     els.stepGotra.hidden = true;
     els.stepEditor.hidden = true;
     els.stepPreview.hidden = false;
@@ -408,6 +469,7 @@
   $("vsh-preview-close").addEventListener("click", () => {
     els.stepPreview.hidden = true;
     els.stepEditor.hidden = false;
+    setTokenControls(!state.readOnly && !!state.token);
   });
   $("vsh-zoom-in").addEventListener("click", () => { state.zoom = Math.min(2, state.zoom + 0.15); renderVisual(); });
   $("vsh-zoom-out").addEventListener("click", () => { state.zoom = Math.max(0.4, state.zoom - 0.15); renderVisual(); });

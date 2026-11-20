@@ -2,14 +2,19 @@ services:
   - type: web
     name: kulkirti
     runtime: node
-    buildCommand: npm ci && npm run db:init
+    runtimeVersion: "22"
+    buildCommand: npm ci && npm run build && npm run db:init
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
         sync: false
+      - key: DATABASE_CA
+        sync: false
+      - key: DATABASE_POOL_MAX
+        value: "10"
       - key: JWT_SECRET
         generateValue: true
       - key: ADMIN_EMAIL
@@ -17,4 +22,8 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: FRONTEND_ORIGIN
+        sync: false
+      - key: NEON_REALTIME_URL
+        sync: false
+      - key: NEON_REALTIME_SECRET
         sync: false

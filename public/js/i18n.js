@@ -25,6 +25,16 @@
   const SUPPORTED   = ["hi", "en"];
   const DEFAULT     = "hi";
 
+  /* Storage may be blocked (private mode, strict cookie settings, embedded
+     webviews).  Never let that stop translations from loading or the
+     languagechange event from firing. */
+  function _readStored(key) {
+    try { return window.localStorage.getItem(key); } catch (_) { return null; }
+  }
+  function _writeStored(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (_) { /* ignore */ }
+  }
+
   /* ── internal state ─────────────────────────────────────────────── */
   const _store = { hi: null, en: null };
   let _lang    = DEFAULT;
@@ -110,14 +120,15 @@
 
   function _pageKey() {
     const path = window.location.pathname.replace(/\/$/, "");
-    if (!path || path === "")          return "index";
-    if (path.endsWith("history.html")) return "history";
-    if (path.endsWith("search.html"))  return "search";
-    if (path.endsWith("submit.html"))  return "submit";
-    if (path.endsWith("vanshawali.html")) return "vanshawali";
-    if (path.endsWith("samiti.html"))  return "samiti";
-    if (path.endsWith("admin.html"))   return "admin";
-    if (path.endsWith("404.html"))     return "index"; /* fallback to index meta */
+    if (!path || path === "")                   return "index";
+    if (path.endsWith("history.html"))          return "history";
+    if (path.endsWith("search.html"))           return "search";
+    if (path.endsWith("vanshawali.html"))       return "vanshawali";
+    if (path.endsWith("vanshawali-create.html"))return "createTree";
+    if (path.endsWith("privacy.html"))          return "privacy";
+    if (path.endsWith("samiti.html"))           return "samiti";
+    if (path.endsWith("admin.html"))            return "admin";
+    if (path.endsWith("404.html"))              return "notFound";
     return "index";
   }
 
@@ -194,9 +205,13 @@
   function _applyLangSwitcher() {
     const isHi = _lang === "hi";
     document.querySelectorAll(".language-switch").forEach(btn => {
+      const glyph = isHi ? "अ" : "A";
+      const label = t("langSwitch.label");
       btn.innerHTML =
-        `<span>${isHi ? "अ" : "A"}</span> ${t("langSwitch.label")} <i>⌄</i>`;
-      btn.setAttribute("aria-label", t("langSwitch.ariaSwitch"));
+        `<span>${glyph}</span> ${label} <i aria-hidden="true">⌄</i>`;
+      /* The accessible name must contain the visible glyph and label so voice
+         control users can say what they see (axe label-content-name-mismatch). */
+      btn.setAttribute("aria-label", `${glyph} ${label} — ${t("langSwitch.ariaSwitch")}`);
       btn.setAttribute("lang", isHi ? "en" : "hi"); // label is in the OTHER language
     });
   }
@@ -225,7 +240,7 @@
   async function setLanguage(lang) {
     if (!SUPPORTED.includes(lang)) lang = DEFAULT;
     _lang = lang;
-    localStorage.setItem(STORAGE_KEY, lang);
+    _writeStored(STORAGE_KEY, lang);
     await _loadDict(lang);
     applyAll();
     /* dispatch custom event so other scripts can react */
@@ -245,7 +260,7 @@
 
     /* 2. localStorage */
     if (!preferred) {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = _readStored(STORAGE_KEY);
       preferred   = SUPPORTED.includes(saved) ? saved : null;
     }
 
@@ -256,7 +271,7 @@
     await Promise.all([_loadDict("hi"), _loadDict("en")]);
 
     _lang = preferred;
-    localStorage.setItem(STORAGE_KEY, preferred);
+    _writeStored(STORAGE_KEY, preferred);
     applyAll();
     document.dispatchEvent(new CustomEvent("languagechange", { detail: { lang: preferred } }));
   }

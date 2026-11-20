@@ -260,6 +260,44 @@
     } catch (e) { $("vsh-audit").innerHTML = `<p class="admin-empty">ऑडिट देखने की अनुमति नहीं है।</p>`; }
   }
 
+  /* ── Privacy requests (same admin view, no extra tab) ───────────────── */
+  async function loadPrivacyRequests() {
+    const box = $("vsh-privacy-requests");
+    if (!box) return;
+    try {
+      const data = await api("/api/admin/vanshawali/privacy-requests");
+      const requests = Array.isArray(data)
+        ? data
+        : (Array.isArray(data && data.requests) ? data.requests : []);
+      box.innerHTML = requests.length
+        ? requests.map(r => {
+            const details = typeof r.details === "string"
+              ? r.details
+              : (r.details ? JSON.stringify(r.details) : (r.request_details || r.details_json || "—"));
+            return `<div class="vsh-history-row" data-privacy-id="${esc(r.id)}">
+              <strong>${esc(r.id)} · ${esc(r.type || r.request_type || "—")}</strong>
+              <span>${esc(details)}</span>
+              <span>${esc(r.created_at || r.createdAt || "—")}</span>
+              <button class="button button-outline-dark" data-fulfil-privacy type="button">पूरी करें</button>
+            </div>`;
+          }).join("")
+        : `<p class="admin-empty">कोई लंबित गोपनीयता अनुरोध नहीं।</p>`;
+      box.querySelectorAll("[data-fulfil-privacy]").forEach(btn =>
+        btn.addEventListener("click", async () => {
+          const id = btn.closest("[data-privacy-id]")?.dataset.privacyId;
+          if (!id) return;
+          try {
+            const res = await send(`/api/admin/vanshawali/privacy-requests/${encodeURIComponent(id)}/fulfil`, {});
+            say(res.message || "गोपनीयता अनुरोध पूरी हो गया।");
+            loadPrivacyRequests();
+          } catch (e) { say(e.message, true); }
+        }));
+    } catch (_) {
+      /* 404 / not permitted / empty API — keep the panel usable. */
+      box.innerHTML = `<p class="admin-empty">कोई लंबित गोपनीयता अनुरोध नहीं।</p>`;
+    }
+  }
+
   $("vsh-gotra-form").addEventListener("submit", async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -282,8 +320,9 @@
   $("vsh-gotra-filter").addEventListener("change", () => { treeOffset = 0; loadTrees(); });
   $("vsh-status-filter").addEventListener("change", () => { treeOffset = 0; loadTrees(); });
 
-  function loadAll() { loadStats(); loadGotras(); loadTreeGotras(); loadTrees(); loadHistories(); }
+  function loadAll() { loadStats(); loadGotras(); loadTreeGotras(); loadTrees(); loadHistories(); loadPrivacyRequests(); }
   const tab = document.querySelector('.admin-tab[data-admin-view="vanshawali"]');
   if (tab) tab.addEventListener("click", () => setTimeout(loadAll, 0));
+  document.addEventListener("kulkirti:admin-ready", loadAll);
   loadAll();
 })();
