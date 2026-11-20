@@ -42,7 +42,7 @@ const headerMarkup = `
 </div>
 <header class="site-header">
   <div class="shell header-inner">
-    <a class="brand" href="/" data-i18n-aria-label="nav.ariaLabel">
+    <a class="brand" href="/">
       <span class="brand-mark">कु</span>
       <span><strong>कुलकीर्ति</strong><small>GEHLOT RAJPUT ARCHIVE</small></span>
     </a>

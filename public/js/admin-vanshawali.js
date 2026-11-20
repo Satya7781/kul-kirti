@@ -115,7 +115,7 @@
       const data = await api(`/api/admin/vanshawali/trees?${params}`);
       $("vsh-tree-list").innerHTML = data.trees.length ? data.trees.map(t => `
         <article class="vsh-tree-card" data-tree-id="${esc(t.id)}">
-          <h4>${esc(t.root_name || "मूल व्यक्ति")} ${badge(t.status)}</h4>
+          <h3>${esc(t.root_name || "मूल व्यक्ति")} ${badge(t.status)}</h3>
           <p>${esc(t.gotra_name)} · ${esc(t.village || "—")} · ${esc(t.tree_reference)} · ${t.memberCount} सदस्य</p>
           ${t.review_notes ? `<p class="vsh-meta">नोट: ${esc(t.review_notes)}</p>` : ""}
           <button class="button button-gold" data-open-tree type="button">खोलें और समीक्षा करें</button>

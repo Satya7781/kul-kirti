@@ -13,7 +13,10 @@ const { createRealtime, rawSql } = require("@neon/realtime/server");
 const genealogy = require("./lib/genealogy");
 const csvParser = require("./lib/csv-parser");
 const vanshawaliRoutes = require("./lib/vanshawali-routes");
+const registerAdminConsoleRoutes = require("./lib/admin-console-routes");
+const { sendExport } = require("./lib/admin-exports");
 const { poolOptions } = require("./lib/db-config");
+const { runMigrations } = require("./lib/migration-runner");
 const { createRateLimiter, makeOriginGuard, makeAuth, roleGuard, noStore, errorStatus } = require("./lib/http-security");
 
 const app = express();
@@ -132,6 +135,8 @@ function pagination(request, defaultLimit = 100, maxLimit = 200) {
 async function initializeDatabase() {
   const schema = fs.readFileSync(path.join(root, "db", "schema.sql"), "utf8");
   await pool.query(schema);
+  const applied = await runMigrations(pool);
+  if (applied.length) console.log(`Applied migrations: ${applied.join(", ")}`);
   if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
     throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are required to initialize the admin account.");
   }
@@ -180,7 +185,10 @@ const auth = makeAuth({
   jwtSecret,
   isRevoked: isJtiRevoked,
   loadAdmin: async (id) => {
-    const result = await pool.query("SELECT id, email, role FROM admins WHERE id = $1", [uuidOrNull(id)]);
+    const result = await pool.query(
+      "SELECT id, email, role FROM admins WHERE id = $1 AND is_active = TRUE",
+      [uuidOrNull(id)]
+    );
     return result.rows[0] || null;
   },
 });
@@ -269,16 +277,6 @@ app.post("/api/realtime/published-records", async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-app.post("/api/submissions", rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }), async (request, response, next) => {
-  try {
-    const data = validateSubmission(request.body);
-    if (!data.name || !data.state || !data.contributorName) return response.status(400).json({ error: msg(request, "नाम, राज्य और योगदानकर्ता का नाम आवश्यक है।", "Name, state, and contributor name are required.") });
-    if (data.type === "family" && !data.gotra) return response.status(400).json({ error: msg(request, "परिवार रिकॉर्ड के लिए गोत्र आवश्यक है।", "Gotra is required for a family record.") });
-    const result = await pool.query(`INSERT INTO submissions (type, name, village, district, state, family_branch, notes, family_details, contributor_name, contributor_contact) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`, [data.type, data.gotra ? `${data.gotra} | ${data.name}` : data.name, data.village, data.district, data.state, data.familyBranch, data.notes, JSON.stringify(data.familyDetails), data.contributorName, data.contributorContact]);
-    response.status(201).json({ message: msg(request, "आपका रिकॉर्ड सत्यापन के लिए भेज दिया गया है।", "Your record has been submitted for verification."), id: result.rows[0].id });
-  } catch (error) { next(error); }
-});
-
 /* Equalise login timing for unknown accounts and rate-limit by IP *and*
    globally, so spraying many accounts from one host cannot get fresh buckets. */
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-admin-password", 12);
@@ -289,11 +287,42 @@ app.post("/api/admin/login", noStore, originGuard, loginGlobalLimit, loginIpLimi
   try {
     const email = clean(request.body?.email, 200).toLowerCase();
     const password = typeof request.body?.password === "string" ? request.body.password.slice(0, 200) : "";
-    const result = await pool.query("SELECT id, email, password_hash, role FROM admins WHERE email = $1", [email]);
+    const result = await pool.query(
+      `SELECT id, email, password_hash, role, is_active, failed_login_count, locked_until
+         FROM admins WHERE email = $1`, [email]
+    );
     const admin = result.rows[0];
-    const valid = await bcrypt.compare(password, admin ? admin.password_hash : DUMMY_PASSWORD_HASH);
-    if (!admin || !valid) return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
-    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h", jwtid: crypto.randomUUID() });
+    const usable = admin && admin.is_active !== false;
+    const valid = await bcrypt.compare(password, usable ? admin.password_hash : DUMMY_PASSWORD_HASH);
+    const now = new Date();
+    const locked = Boolean(usable && admin.locked_until && new Date(admin.locked_until) > now);
+    const expiredLock = Boolean(usable && admin.locked_until && !locked);
+    if (locked) {
+      return response.status(423).json({ error: msg(request, "खाता अस्थायी रूप से लॉक है।", "Account is temporarily locked.") });
+    }
+    if (!usable || !valid) {
+      if (usable) {
+        const failures = (expiredLock ? 0 : Number(admin.failed_login_count || 0)) + 1;
+        const lock = failures >= 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null;
+        await pool.query(
+          "UPDATE admins SET failed_login_count=$1, locked_until=$2 WHERE id=$3",
+          [lock ? 0 : failures, lock, admin.id]
+        );
+      }
+      return response.status(401).json({ error: msg(request, "ईमेल या पासवर्ड गलत है।", "Incorrect email or password.") });
+    }
+    const jti = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000);
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: admin.role }, jwtSecret, { expiresIn: "8h", jwtid: jti });
+    await pool.query(
+      `INSERT INTO admin_sessions (jti, admin_id, expires_at) VALUES ($1, $2, $3)
+       ON CONFLICT (jti) DO NOTHING`,
+      [jti, admin.id, expiresAt]
+    );
+    await pool.query(
+      "UPDATE admins SET last_login_at = NOW(), failed_login_count = 0, locked_until = NULL WHERE id = $1",
+      [admin.id]
+    );
     response.cookie("kulkirti_admin", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 8 * 60 * 60 * 1000 });
     response.json({ admin: { email: admin.email, role: admin.role } });
   } catch (error) { next(error); }
@@ -305,6 +334,7 @@ app.post("/api/admin/logout", noStore, originGuard, async (request, response) =>
     const decoded = jwt.verify(token, jwtSecret);
     if (decoded.jti) {
       await revokeJti(decoded.jti, decoded.id, decoded.exp ? new Date(decoded.exp * 1000) : undefined);
+      await pool.query("DELETE FROM admin_sessions WHERE jti = $1", [decoded.jti]);
     }
   } catch { /* already invalid — nothing to revoke */ }
   response.clearCookie("kulkirti_admin");
@@ -1839,12 +1869,17 @@ app.post("/api/admin/vanshawali/assign-branch", auth, async (request, response, 
    The static middleware that follows would otherwise serve it to anyone.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function serveAdminPanel(request, response) {
+async function serveAdminPanel(request, response) {
   const token = request.cookies.kulkirti_admin ||
     request.headers.authorization?.replace("Bearer ", "");
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    if (decoded.jti && revokedTokens.has(decoded.jti)) throw new Error("revoked");
+    if (decoded.jti && (revokedTokens.has(decoded.jti) || await isJtiRevoked(decoded.jti))) throw new Error("revoked");
+    const admin = await pool.query(
+      "SELECT 1 FROM admins WHERE id = $1 AND is_active = TRUE AND role IN ('admin','super_admin')",
+      [uuidOrNull(decoded.id || decoded.sub)]
+    );
+    if (!admin.rowCount) throw new Error("inactive");
     response.sendFile(path.join(root, "admin.html"));
   } catch {
     response.redirect("/admin-login.html");
@@ -2152,10 +2187,22 @@ app.get("/api/admin/gotras/all", auth, async (request, response, next) => {
 
 /* Gotra-first Vanshawali API (public + admin). Registered before the static
    allowlist so none of these routes are swallowed by the 404 fallback. */
-vanshawaliRoutes(app, {
+const vanshawaliContext = {
   pool, auth, requireRole, clean, uuidOrNull, msg,
   logAudit: (...args) => genealogy.logAudit(...args),
   refreshTreeProjection, genealogy, rateLimit,
+};
+vanshawaliRoutes(app, vanshawaliContext);
+
+/* Unified 16-module admin console.  Registered after the central /api/admin
+   gate and after the Vanshawali module, so it reuses its decision/link logic. */
+registerAdminConsoleRoutes(app, {
+  pool, requireRole, clean, uuidOrNull, msg, sendExport,
+  logAudit: vanshawaliContext.logAudit,
+  decisionHandler: vanshawaliContext.decisionHandler,
+  linkHandler: vanshawaliContext.linkHandler,
+  reverseLinkHandler: vanshawaliContext.reverseLinkHandler,
+  refreshTreeProjection,
 });
 
 /* Lightweight deployment health check: verifies the DB, not a static page. */

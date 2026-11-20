@@ -4,13 +4,19 @@ const path = require("path");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const { poolOptions } = require("../lib/db-config");
+const { runMigrations } = require("../lib/migration-runner");
 
 async function main() {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.");
   const pool = new Pool(poolOptions());
-  const client = await pool.connect();
+  let client = await pool.connect();
   try {
     await client.query(fs.readFileSync(path.join(__dirname, "..", "db", "schema.sql"), "utf8"));
+    client.release();
+    client = null;
+    const applied = await runMigrations(pool);
+    client = await pool.connect();
+    if (applied.length) console.log(`Applied migrations: ${applied.join(", ")}`);
     if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
       /* Bootstrap only.  Never overwrite an existing password on deploy — use
          `npm run admin:rotate-password` for an explicit password change. */
@@ -25,6 +31,6 @@ async function main() {
     } else {
       console.log("Database schema initialized. No admin account was created because ADMIN_EMAIL/ADMIN_PASSWORD are not configured.");
     }
-  } finally { client.release(); await pool.end(); }
+  } finally { client?.release(); await pool.end(); }
 }
 main().catch((error) => { console.error(error.message); process.exit(1); });

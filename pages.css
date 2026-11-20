@@ -3249,7 +3249,7 @@ html[lang="hi"] .result-card h3 {
 .vsh-filters { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .vsh-tree-list { display: grid; gap: 10px; }
 .vsh-tree-card { padding: 14px; border: 1px solid rgba(120,40,40,.15); border-radius: 10px; background: #fff; }
-.vsh-tree-card h4 { margin: 0 0 6px; }
+.vsh-tree-card h3 { margin: 0 0 6px; font-size: 17px; }
 .vsh-tree-card p { margin: 3px 0; font-size: 13px; }
 .vsh-review { margin: 20px 0; padding: 18px; border: 2px solid var(--gold, #c49a45); border-radius: 12px; background: rgba(255,255,255,.85); }
 .vsh-review-members { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 12px 0; }
