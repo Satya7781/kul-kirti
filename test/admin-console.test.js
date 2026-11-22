@@ -430,6 +430,40 @@ test("verification decision errors are recoverable instead of bare 500s", async 
   }
 });
 
+test("schema drift and transient decision failures are actionable", async () => {
+  const pool = makePool();
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    await withServer(pool, admin, async base => {
+      const schema = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(schema.status, 503);
+      assert.match(schema.body.error, /schema| restart /i);
+      assert.equal(schema.body.code, "42703");
+
+      const busy = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(busy.status, 503);
+      assert.match(busy.body.error, /try again/i);
+      assert.equal(busy.body.code, "53300");
+    }, {
+      decisionHandler: (() => {
+        let calls = 0;
+        return async () => {
+          calls += 1;
+          if (calls === 1) throw Object.assign(new Error('column "wife_name" does not exist'), { code: "42703" });
+          throw Object.assign(new Error("remaining connection slots reserved"), { code: "53300" });
+        };
+      })(),
+    });
+  } finally {
+    console.error = previousError;
+  }
+});
+
 test("verification detail actions are delegated and follow the decision status", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "public", "js", "admin-console.js"), "utf8");
   assert.match(source, /#admin-detail-body"\)\.addEventListener\("click", dispatchAction\)/);
