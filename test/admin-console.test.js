@@ -223,9 +223,9 @@ async function withServer(pool, admin, callback, handlers = {}) {
     uuidOrNull,
     msg: (_request, _hi, en) => en,
     sendExport,
-    logAudit: async (client, adminId, action, entityType, entityId, changes) =>
+    logAudit: handlers.logAudit || (async (client, adminId, action, entityType, entityId, changes) =>
       client.query("INSERT INTO genealogy_audit (admin_id, action, entity_type, entity_id, changes) VALUES ($1,$2,$3,$4,$5)",
-        [adminId, action, entityType, entityId, changes]),
+        [adminId, action, entityType, entityId, changes])),
     decisionHandler: handlers.decisionHandler ||
       (async (request, response) => response.json({ decision: request.body.decision, reused: true })),
     linkHandler: async (_request, response) => response.json({ linked: true }),
@@ -374,6 +374,60 @@ test("verification decisions reuse the shared handler and expose the new status"
     decisionHandler: async (_request, response) =>
       response.json({ status: "verified", skipped: [], message: "Decision saved." }),
   });
+});
+
+test("a failed decision audit does not block approval", async () => {
+  const pool = makePool();
+  let handlerCalls = 0;
+  await withServer(pool, admin, async base => {
+    const response = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+      method: "POST", body: { decision: "approve", notes: "Approved" },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.status, "verified");
+    assert.equal(handlerCalls, 1);
+  }, {
+    logAudit: async () => { throw new Error("audit table unavailable"); },
+    decisionHandler: async (_request, response) => {
+      handlerCalls += 1;
+      response.json({ status: "verified" });
+    },
+  });
+});
+
+test("verification decision errors are recoverable instead of bare 500s", async () => {
+  const pool = makePool();
+  let attempts = 0;
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    await withServer(pool, admin, async base => {
+      const invalid = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "explode" },
+      });
+      assert.equal(invalid.status, 400);
+
+      const conflict = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(conflict.status, 409);
+      assert.match(conflict.body.error, /already updated|conflicts/i);
+
+      const failed = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(failed.status, 422);
+      assert.match(failed.body.error, /could not be saved/i);
+    }, {
+      decisionHandler: async () => {
+        attempts += 1;
+        if (attempts === 1) throw Object.assign(new Error("duplicate key"), { code: "23505" });
+        throw new Error("unexpected failure");
+      },
+    });
+  } finally {
+    console.error = previousError;
+  }
 });
 
 test("verification detail actions are delegated and follow the decision status", () => {

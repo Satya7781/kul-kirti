@@ -70,6 +70,21 @@ test("both tree pages and the build check load the shared renderer", () => {
   assert.match(read("locales/en.json"), /"treeHint"/);
 });
 
+test("admin verification review exposes a connected box-tree preview", () => {
+  const adminPage = read("admin.html");
+  const adminJs = read("public/js/admin-console.js");
+  const adminCss = read("public/css/admin-console.css");
+
+  assert.match(adminPage, /\/public\/js\/family-tree\.js/);
+  assert.match(adminJs, /"verification-preview": \["verification", "view"\]/);
+  assert.match(adminJs, /"verification-preview", id\)/);
+  assert.match(adminJs, /FamilyTree\.buildNodesFromParentMap\(members \|\| \[\]\)/);
+  assert.match(adminJs, /FamilyTree\.createView\(\{/);
+  assert.match(adminJs, /admin-tree-preview__canvas/);
+  assert.match(adminCss, /\.admin-tree-preview__canvas/);
+  assert.match(read("pages.css"), /\.family-tree-node__main/);
+});
+
 test("public child query supplies birth order and expandability metadata", () => {
   const source = read("lib/genealogy.js");
   assert.match(source, /p\.wife_name,\s*p\.member_type,\s*p\.birth_order/);

@@ -40,6 +40,7 @@
     loadToken: 0,
     dialogConfirm: null,
     lastTrigger: null,
+    treePreviewView: null,
   };
 
   async function api(url, options = {}) {
@@ -185,6 +186,7 @@
     "gotra-toggle": ["gotras", "edit"], "gotra-delete": ["gotras", "edit"],
     "tree-edit": ["trees", "edit"], "tree-archive": ["trees", "edit"], "tree-delete": ["trees", "edit"],
     "member-edit": ["members", "edit"], "member-branch": ["members", "edit"], "member-archive": ["members", "edit"],
+    "verification-preview": ["verification", "view"],
     "verification-assign": ["verification", "approve"], "verification-decision": ["verification", "approve"],
     "master-reverse": ["master", "approve", true],
     "branch-create": ["branches", "edit"], "branch-link": ["branches", "approve"], "branch-unlink": ["branches", "approve"],
@@ -283,6 +285,70 @@
 
   function closeDetail() {
     $("#admin-detail").hidden = true;
+    state.lastTrigger?.focus?.();
+  }
+
+  function treePreviewLabels() {
+    return {
+      connections: t("वंश वृक्ष की संबंध रेखाएँ", "Family tree relationships"),
+      wife: t("पत्नी", "Spouse"),
+      village: t("गांव", "Village"),
+      profile: t("प्रोफ़ाइल", "Profile"),
+      viewProfile: t("प्रोफ़ाइल देखें", "View profile"),
+      root: t("मूल व्यक्ति", "Root person"),
+      loading: t("लोड हो रहा है...", "Loading..."),
+      children: n => t(`${n} संतान`, `${n} children`),
+      generation: n => t(`पीढ़ी ${n}`, `Generation ${n}`),
+      expand: t("शाखाएँ फैलाएँ", "Expand branches"),
+      collapse: t("शाखाएँ संक्षिप्त करें", "Collapse branches"),
+    };
+  }
+
+  function collectExpandable(node, out) {
+    if (!node || !Array.isArray(node.children) || !node.children.length) return;
+    out.add(node.id);
+    node.children.forEach(child => collectExpandable(child, out));
+  }
+
+  function openTreePreview(title, members) {
+    const modal = $("#admin-tree-preview");
+    if (!modal) return;
+    $("#admin-tree-preview-title").textContent = title;
+    modal.hidden = false;
+
+    const inner = $("#admin-tree-preview-inner");
+    const nodes = window.FamilyTree
+      ? FamilyTree.buildNodesFromParentMap(members || [])
+      : [];
+    const expanded = new Set();
+    nodes.forEach(node => collectExpandable(node, expanded));
+
+    state.treePreviewView = window.FamilyTree
+      ? FamilyTree.createView({
+        inner,
+        nodes,
+        expanded,
+        labels: treePreviewLabels(),
+      })
+      : null;
+
+    if (state.treePreviewView) {
+      state.treePreviewView.render();
+      const canvas = $("#admin-tree-preview-canvas");
+      if (canvas) state.treePreviewView.fit(canvas.clientWidth);
+    } else {
+      inner.innerHTML = `<p class="admin-empty">${esc(t("वृक्ष रेंडरर उपलब्ध नहीं है।", "Tree renderer is unavailable."))}</p>`;
+    }
+    $("#admin-tree-preview-close")?.focus();
+  }
+
+  function closeTreePreview() {
+    const modal = $("#admin-tree-preview");
+    if (!modal) return;
+    modal.hidden = true;
+    state.treePreviewView = null;
+    const inner = $("#admin-tree-preview-inner");
+    if (inner) inner.innerHTML = "";
     state.lastTrigger?.focus?.();
   }
 
@@ -502,6 +568,7 @@
               { key: "status", label: t("स्थिति", "Status"), render: row => badge(row.status) },
             ], data.queue, row => `
               ${actionButton(t("समीक्षा", "Review"), "verification-review", row.id)}
+              ${actionButton(t("बॉक्स वृक्ष", "Box tree"), "verification-preview", row.id)}
               ${actionButton(t("असाइन", "Assign"), "verification-assign", row.id)}
               ${actionButton(t("मूल प्रवाह", "Original flow"), "verification-classic", row.id)}`)}
             ${pagination("verification", data.total)}
@@ -1003,6 +1070,7 @@
               [t("जमा", "Submitted"), fmtDate(data.tree.submittedAt)],
               [t("समीक्षक", "Reviewer"), esc(data.tree.reviewerEmail || "—")],
             ])}
+            <div class="admin-form-actions">${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}</div>
             <h4>${t("सदस्य", "Members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }], data.people, null)}
             <h4>${t("सत्यापन इतिहास", "Verification history")}</h4>${timeline(data.verifications, "decision", "createdAt")}
             <h4>${t("संस्करण इतिहास", "Revision history")}</h4>${timeline(data.revisions, "note", "createdAt")}`, trigger);
@@ -1120,10 +1188,20 @@
               [t("गांव", "Village"), esc(data.tree.village || "—")],
               [t("स्थिति", "Status"), badge(data.tree.status)],
             ])}
+            <div class="admin-form-actions">${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}</div>
             <h4>${t("प्रस्तावित सदस्य", "Proposed members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }], data.members, null)}
             <label>${t("सत्यापन नोट", "Verification note")}<textarea id="admin-verification-note" rows="3" maxlength="500"></textarea></label>
             <div class="admin-form-actions">${hasAccess("verification-decision") ? decisions.map(decision => `<button type="button" class="button ${decision === "approve" ? "button-maroon" : "button-outline-dark"}" data-admin-action="verification-decision" data-id="${esc(id)}" data-decision="${decision}">${esc(STATUS_LABELS[decision] ? STATUS_LABELS[decision][lang() === "hi" ? 0 : 1] : decision)}</button>`).join("") : ""}</div>
             <h4>${t("पिछले निर्णय", "Previous decisions")}</h4>${timeline(data.verifications, "decision", "createdAt")}`, trigger);
+          break;
+        }
+        case "verification-preview": {
+          state.lastTrigger = trigger;
+          const data = await api(`/api/admin/console/trees/${id}`);
+          openTreePreview(
+            t("प्रस्तावित वंश वृक्ष", "Proposed family tree"),
+            Array.isArray(data.members) ? data.members : []
+          );
           break;
         }
         case "verification-decision": {
@@ -1332,6 +1410,25 @@
         <div class="admin-dialog-card"><h3 id="admin-dialog-title"></h3><div id="admin-dialog-body"></div>
           <div class="admin-dialog-actions"><button id="admin-dialog-cancel" class="button button-outline-dark" type="button">${t("रद्द", "Cancel")}</button><button id="admin-dialog-confirm" class="button button-maroon" type="button">${t("सहेजें", "Save")}</button></div>
         </div>
+      </div>
+      <div id="admin-tree-preview" class="admin-tree-preview" hidden role="dialog" aria-modal="true" aria-labelledby="admin-tree-preview-title">
+        <div class="admin-tree-preview__card">
+          <div class="admin-tree-preview__head">
+            <h3 id="admin-tree-preview-title">${t("वंश वृक्ष", "Family tree")}</h3>
+            <button id="admin-tree-preview-close" class="admin-mini-btn" type="button" aria-label="${esc(t("बंद करें", "Close"))}">✕</button>
+          </div>
+          <p class="tree-hint">${esc(t("किसी बॉक्स पर क्लिक करें — उसके पुत्र और पुत्रियाँ खुल जाएँगे। रेखाएँ माता-पिता को संतान से जोड़ती हैं।", "Click a box to reveal that person's sons and daughters. Lines connect parents to children."))}</p>
+          <div class="tree-controls">
+            <button id="admin-tree-zoom-in" class="button button-outline-dark" type="button">＋ ${t("ज़ूम", "Zoom")}</button>
+            <button id="admin-tree-zoom-out" class="button button-outline-dark" type="button">－ ${t("ज़ूम", "Zoom")}</button>
+            <button id="admin-tree-zoom-fit" class="button button-outline-dark" type="button">${t("फ़िट", "Fit")}</button>
+            <button id="admin-tree-expand" class="button button-outline-dark" type="button">${t("फैलाएँ", "Expand")}</button>
+            <button id="admin-tree-collapse" class="button button-outline-dark" type="button">${t("संक्षिप्त", "Collapse")}</button>
+          </div>
+          <div id="admin-tree-preview-canvas" class="admin-tree-preview__canvas">
+            <div id="admin-tree-preview-inner" class="admin-tree-preview__inner"></div>
+          </div>
+        </div>
       </div>`;
 
     state.classicHost = document.createElement("section");
@@ -1350,6 +1447,15 @@
     });
     $("#admin-detail-close").addEventListener("click", closeDetail);
     $("#admin-dialog-cancel").addEventListener("click", closeDialog);
+    $("#admin-tree-preview-close")?.addEventListener("click", closeTreePreview);
+    $("#admin-tree-zoom-in")?.addEventListener("click", () => state.treePreviewView?.zoomBy(0.15));
+    $("#admin-tree-zoom-out")?.addEventListener("click", () => state.treePreviewView?.zoomBy(-0.15));
+    $("#admin-tree-zoom-fit")?.addEventListener("click", () => {
+      const canvas = $("#admin-tree-preview-canvas");
+      if (canvas) state.treePreviewView?.fit(canvas.clientWidth);
+    });
+    $("#admin-tree-expand")?.addEventListener("click", () => state.treePreviewView?.expandAll());
+    $("#admin-tree-collapse")?.addEventListener("click", () => state.treePreviewView?.collapseAll(true));
     $("#admin-dialog-confirm").addEventListener("click", async event => {
       const button = event.currentTarget;
       button.disabled = true;
@@ -1387,7 +1493,8 @@
     });
     document.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
-      if (!$("#admin-dialog").hidden) closeDialog();
+      if (!$("#admin-tree-preview")?.hidden) closeTreePreview();
+      else if (!$("#admin-dialog").hidden) closeDialog();
       else if (!$("#admin-detail").hidden) closeDetail();
     });
   }

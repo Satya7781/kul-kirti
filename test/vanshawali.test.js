@@ -69,6 +69,12 @@ test("duplicate member ids are rejected", () => {
   assert.equal(result.error, "duplicate_member_id");
 });
 
+test("corrupted revision entries are rejected without throwing", () => {
+  assert.equal(vsh.validateTreeMembers([root(), null]).error, "missing_name");
+  assert.equal(vsh.validateTreeMembers([null, root()]).error, "missing_name");
+  assert.equal(vsh.validateTreeMembers([42]).error, "missing_root");
+});
+
 test("no hardcoded generation limit — 40 levels of sons are accepted", () => {
   const members = [root()];
   let parent = "r";

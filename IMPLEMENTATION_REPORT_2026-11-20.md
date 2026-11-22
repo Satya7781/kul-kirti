@@ -123,12 +123,13 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **41 passed, 0 failed** |
+| `npm test` | **45 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
 | 17-module browser pass | 17/17 modules rendered; zero console errors, duplicate IDs, inline handlers, overflow, or broken internal links |
 | Family-tree browser pass | Box click expands sons/daughters, `Expand all` reaches the fourth generation, verified detail collapses cleanly; zero console errors |
+| Admin tree-preview browser pass | Verification review opens the connected box tree, approve moves the filter to `verified`; zero console errors |
 | HTML i18n check | 10 HTML files, 154 keys, no missing Hindi/English keys |
 | JS i18n check | Only the known dynamic `genealogy.*` concatenation false positives |
 | Sitemap check | 11 URLs, all local targets exist; `admin.html` excluded; no retired paths |
@@ -170,6 +171,16 @@ Targeted regression coverage was added for the delegated decision handler, statu
 - Regression tests cover relationship-based hierarchy building, cycle/daughter protection, editor parent-map hierarchy, script wiring, and query metadata.
 
 Local browser verification with seeded mock data confirmed: initial root + 3 children, box click reveals children, `Expand all` reveals the fourth generation, verified tree detail shows 8 boxes with 15 connector segments and collapses back to the root generation, and no console errors.
+
+### Admin verification preview and decision-error hardening (2026-11-22)
+
+- **Decision endpoint no longer collapses recoverable failures into a bare 500.** The admin console route now validates the decision before calling the shared handler, treats the console audit row as non-fatal (the shared handler still writes its own transaction audit), preserves explicit handler 4xx responses, and maps database conflicts to `409` and unexpected write failures to `422` with a user-readable message.
+- **Corrupted revision entries are handled as validation errors.** A `null` or primitive member inside `current_revision` used to throw during validation and become a 500; it now fails validation cleanly with a 400 instead of crashing the decision route.
+- **Admin review now has the same box-style tree preview.** Both **Tree details** and **Verification review** expose **View box tree**, which opens a large preview using the shared `public/js/family-tree.js` renderer. It uses the submitted `current_revision` members, so the reviewer sees the exact proposed parent-child hierarchy before approving.
+- The preview supports box-click expansion, zoom, fit, expand-all and collapse-all, and keeps daughters as dashed name-only leaves. `admin.html` loads the shared renderer; `public/css/admin-console.css` provides the modal/canvas layout.
+- Regression coverage now asserts that an audit-table failure does not block approval, that handler failures return `409`/`422` rather than `500`, and that the admin preview is wired to the shared renderer.
+
+Local browser verification against the admin mock confirmed: review opens, **View box tree** renders the proposed root + sons + daughter + grandchildren with 9 connector segments, the preview closes cleanly, approve shows `निर्णय सहेजा गया: verified।`, the verification filter moves to `verified`, and no console errors occur.
 
 ---
 
