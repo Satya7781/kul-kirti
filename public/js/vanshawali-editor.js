@@ -360,133 +360,106 @@
     }
   });
 
-  /* ── Visual preview (SVG connectors + zoom/fit/expand/collapse) ─────── */
-  const NODE_W = 180, NODE_H = 86, H_GAP = 24, V_GAP = 110;
+  /* ── Visual preview (shared SVG connectors + zoom/expand/collapse) ─── */
   let visualMembers = [];
-  let visualParent = new Map();
+  let visualTreeView = null;
 
-  function openVisual(visual) {
-    visualMembers = visual.people.map(p => ({
-      clientId: p.id, name: p.full_name, wifeName: p.wife_name,
-      village: p.village, memberType: p.member_type || "son", parentId: null,
-    }));
-    visualParent = new Map();
-    (visual.relationships || []).forEach(r => visualParent.set(r.child_id, r.parent_id));
-    visualMembers.forEach(m => { m.parentId = visualParent.get(m.clientId) || null; });
-    state.expanded = new Set(visualMembers.map(m => m.clientId));
-    state.zoom = 1;
-    state.readOnly = true;
-    setTokenControls(false);
-    els.stepGotra.hidden = true;
-    els.stepEditor.hidden = true;
-    els.stepPreview.hidden = false;
-    renderVisual();
+  function visualLabels() {
+    const t = (key, fallback, vars) =>
+      window.I18n && typeof I18n.t === "function" ? I18n.t(key, vars) : fallback;
+    return {
+      connections: t("genealogy.treeConnections", "वंश वृक्ष की संबंध रेखाएँ"),
+      wife: "पत्नी",
+      village: "गांव",
+      profile: t("genealogy.treeProfile", "प्रोफ़ाइल"),
+      viewProfile: t("genealogy.treeViewProfile", "प्रोफ़ाइल देखें"),
+      root: t("genealogy.treeRoot", "मूल व्यक्ति"),
+      loading: t("genealogy.treeLoading", "लोड हो रहा है..."),
+      children: n => t("genealogy.treeChildren", `${n} संतान`, { n }),
+      generation: n => `${t("genealogy.generation", "पीढ़ी")} ${n}`,
+      expand: t("genealogy.treeExpand", "विस्तार"),
+      collapse: t("genealogy.treeCollapse", "संक्षिप्त"),
+    };
+  }
+
+  function resetVisualExpanded(nodes) {
+    const all = new Set();
+    function walk(node) {
+      if (!node || !node.children || !node.children.length) return;
+      all.add(node.id);
+      node.children.forEach(walk);
+    }
+    nodes.forEach(walk);
+    state.expanded = all;
   }
 
   function renderVisual() {
-    const kidsOf = id => visualMembers.filter(m => m.parentId === id)
-      .sort((a, b) => (a.birthOrder || 0) - (b.birthOrder || 0));
-    const roots = visualMembers.filter(m => !m.parentId);
-    const positions = new Map();
-    let cursor = 0, maxDepth = 0;
-
-    function place(m, depth) {
-      maxDepth = Math.max(maxDepth, depth);
-      const kids = state.expanded.has(m.clientId) ? kidsOf(m.clientId) : [];
-      let x;
-      if (!kids.length) {
-        x = cursor;
-        cursor += NODE_W + H_GAP;
-      } else {
-        const childXs = kids.map(k => place(k, depth + 1));
-        x = (childXs[0] + childXs[childXs.length - 1]) / 2;
-      }
-      positions.set(m.clientId, { x, y: depth * (NODE_H + V_GAP), hasKids: kidsOf(m.clientId).length > 0 });
-      return x;
-    }
-    roots.forEach(r => place(r, 0));
-
-    const width = Math.max(cursor, 400);
-    const height = (maxDepth + 1) * (NODE_H + V_GAP);
-    const paths = [];
-    positions.forEach((pos, id) => {
-      const parentId = visualParent.get(id);
-      const parentPos = positions.get(parentId);
-      if (!parentPos) return;
-      const x1 = parentPos.x + NODE_W / 2, y1 = parentPos.y + NODE_H;
-      const x2 = pos.x + NODE_W / 2, y2 = pos.y;
-      const mid = (y1 + y2) / 2;
-      paths.push(`<path d="M ${x1},${y1} C ${x1},${mid} ${x2},${mid} ${x2},${y2}" />`);
+    if (!window.FamilyTree || !els.inner) return;
+    const nodes = FamilyTree.buildNodesFromParentMap(visualMembers);
+    visualTreeView = FamilyTree.createView({
+      inner: els.inner,
+      nodes,
+      expanded: state.expanded,
+      zoom: state.zoom,
+      labels: visualLabels(),
     });
-
-    els.inner.style.width = `${width}px`;
-    els.inner.style.height = `${height}px`;
-    els.inner.style.transform = `scale(${state.zoom})`;
-    els.inner.innerHTML =
-      /* The connector SVG is decorative — this text is its accessible equivalent. */
-      `<span class="visually-hidden">${tr("genealogy.treeConnections", "वंश वृक्ष की संबंध रेखाएँ")}</span>
-      <svg class="vsh-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"
-           aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2">${paths.join("")}</g></svg>
-      ${visualMembers.map(m => {
-        const pos = positions.get(m.clientId);
-        if (!pos) return "";
-        const daughter = m.memberType === "daughter";
-        const action = pos.hasKids
-          ? (state.expanded.has(m.clientId) ? "शाखाएँ संक्षिप्त करें" : "शाखाएँ फैलाएँ")
-          : "व्यक्ति";
-        const nodeLabel = `${m.name || "व्यक्ति"} — ${action}`;
-        return `<button type="button" class="vsh-vnode vsh-vnode--${daughter ? "daughter" : m.memberType}"
-                     style="left:${pos.x}px;top:${pos.y}px" data-vid="${esc(m.clientId)}"
-                     aria-label="${esc(nodeLabel)}">
-                 <strong>${esc(m.name)}</strong>
-                 ${daughter ? "" : `<span>पत्नी: ${esc(m.wifeName || "—")}</span><span>गांव: ${esc(m.village || "—")}</span>`}
-                 ${pos.hasKids ? `<small>${state.expanded.has(m.clientId) ? "− संक्षिप्त" : "+ फैलाएँ"}</small>` : ""}
-               </button>`;
-      }).join("")}`;
-    els.inner.querySelectorAll("[data-vid]").forEach(node =>
-      node.addEventListener("click", () => {
-        const id = node.dataset.vid;
-        if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
-        renderVisual();
-      }));
+    visualTreeView.render();
+    if (els.canvas) els.canvas.dataset.treeWidth = String(visualTreeView.getSize().width);
   }
 
-  $("vsh-preview-btn").addEventListener("click", () => {
-    const previewMembers = state.members.map(m => ({
-      clientId: m.clientId, name: m.name, wifeName: m.wifeName, village: m.village,
-      memberType: m.memberType, parentId: m.parentId, birthOrder: m.birthOrder,
-    }));
-    visualMembers = previewMembers;
-    visualParent = new Map(previewMembers.filter(m => m.parentId).map(m => [m.clientId, m.parentId]));
-    state.expanded = new Set(previewMembers.map(m => m.clientId));
+  function showVisual() {
+    resetVisualExpanded(FamilyTree.buildNodesFromParentMap(visualMembers));
     state.zoom = 1;
-    setTokenControls(false);
     els.stepGotra.hidden = true;
     els.stepEditor.hidden = true;
     els.stepPreview.hidden = false;
     renderVisual();
+  }
+
+  function openVisual(visual) {
+    visualMembers = (visual.people || []).map(p => ({
+      clientId: p.id,
+      name: p.full_name,
+      wifeName: p.wife_name,
+      village: p.village,
+      memberType: p.member_type || "son",
+      parentId: null,
+      birthOrder: p.birth_order ?? null,
+    }));
+    const parentOf = new Map((visual.relationships || []).map(r => [r.child_id, r.parent_id]));
+    visualMembers.forEach(m => { m.parentId = parentOf.get(m.clientId) || null; });
+    state.readOnly = true;
+    setTokenControls(false);
+    showVisual();
+  }
+
+  $("vsh-preview-btn").addEventListener("click", () => {
+    visualMembers = state.members.map(m => ({
+      clientId: m.clientId, name: m.name, wifeName: m.wifeName, village: m.village,
+      memberType: m.memberType, parentId: m.parentId, birthOrder: m.birthOrder,
+    }));
+    setTokenControls(false);
+    showVisual();
   });
+
   $("vsh-preview-close").addEventListener("click", () => {
     els.stepPreview.hidden = true;
     els.stepEditor.hidden = false;
     setTokenControls(!state.readOnly && !!state.token);
   });
-  $("vsh-zoom-in").addEventListener("click", () => { state.zoom = Math.min(2, state.zoom + 0.15); renderVisual(); });
-  $("vsh-zoom-out").addEventListener("click", () => { state.zoom = Math.max(0.4, state.zoom - 0.15); renderVisual(); });
+
+  $("vsh-zoom-in").addEventListener("click", () => {
+    state.zoom = visualTreeView?.zoomBy(0.15) ?? Math.min(2, state.zoom + 0.15);
+  });
+  $("vsh-zoom-out").addEventListener("click", () => {
+    state.zoom = visualTreeView?.zoomBy(-0.15) ?? Math.max(0.4, state.zoom - 0.15);
+  });
   $("vsh-zoom-fit").addEventListener("click", () => {
-    const contentWidth = Math.max(...[...visualMembers].map(m => {
-      const rel = visualMembers.filter(x => x.parentId === m.clientId);
-      return rel.length ? rel.length * (NODE_W + H_GAP) : NODE_W;
-    }), NODE_W);
-    state.zoom = Math.min(1, (els.canvas.clientWidth - 20) / contentWidth);
-    renderVisual();
+    if (!els.canvas || !visualTreeView) return;
+    state.zoom = visualTreeView.fit(els.canvas.clientWidth);
   });
-  $("vsh-expand").addEventListener("click", () => {
-    state.expanded = new Set(visualMembers.map(m => m.clientId)); renderVisual();
-  });
-  $("vsh-collapse").addEventListener("click", () => {
-    state.expanded = new Set(visualMembers.filter(m => !m.parentId).map(m => m.clientId)); renderVisual();
-  });
+  $("vsh-expand").addEventListener("click", () => visualTreeView?.expandAll());
+  $("vsh-collapse").addEventListener("click", () => visualTreeView?.collapseAll(true));
 
   els.gotraSearch.addEventListener("input", () => { clearTimeout(window._vshGotraTimer); window._vshGotraTimer = setTimeout(loadGotras, 250); });
   loadGotras();

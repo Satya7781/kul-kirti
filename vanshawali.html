@@ -151,6 +151,7 @@
           <!-- Interactive family tree (auto-shown below profile) -->
           <div id="person-tree-section" hidden>
             <h3 class="tree-section-title" data-i18n="genealogy.treeTitle">परिवार वृक्ष</h3>
+            <p class="tree-hint" data-i18n="genealogy.treeHint">किसी बॉक्स पर क्लिक करें — उसके पुत्र और पुत्रियाँ खुल जाएँगे। रेखाएँ माता-पिता को संतान से जोड़ती हैं।</p>
             <div id="family-tree-canvas" class="family-tree-canvas">
               <svg id="tree-svg" class="tree-svg" xmlns="http://www.w3.org/2000/svg"
                    role="img" data-i18n-aria-label="genealogy.treeConnections"
@@ -198,6 +199,7 @@
 
     <div id="shared-footer"></div>
     <script src="app.js"></script>
+    <script src="/public/js/family-tree.js"></script>
     <script src="/public/js/vanshawali-explorer.js"></script>
   </body>
 </html>

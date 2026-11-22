@@ -7,9 +7,11 @@ const JS_FILES = [
   "lib/db-config.js", "lib/http-security.js", "lib/genealogy.js", "lib/csv-parser.js",
   "lib/vanshawali.js", "lib/vanshawali-routes.js", "lib/admin-exports.js",
   "lib/migration-runner.js", "lib/admin-console-core.js", "lib/admin-console-routes.js",
-  "public/js/i18n.js", "public/js/vanshawali-explorer.js", "public/js/vanshawali-editor.js",
+  "public/js/i18n.js", "public/js/family-tree.js", "public/js/vanshawali-explorer.js",
+  "public/js/vanshawali-editor.js",
   "public/js/admin-login.js", "public/js/admin-vanshawali.js", "public/js/admin-console.js",
-  "test/vanshawali.test.js", "test/http-security.test.js", "test/api-integration.test.js",
+  "test/vanshawali.test.js", "test/family-tree.test.js", "test/http-security.test.js",
+  "test/api-integration.test.js",
   "test/admin-exports.test.js", "test/admin-console.test.js",
 ];
 for (const file of JS_FILES) {

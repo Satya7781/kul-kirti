@@ -22,6 +22,9 @@
     return Boolean(found?.permissions?.[action]);
   }
   function isSuperAdmin() { return state.meta?.admin?.role === "super_admin"; }
+  function rowStatus(id) {
+    return (state.cache.trees?.trees || []).find(item => item.id === id)?.status;
+  }
   function allow(module, action, needsSuper = false) {
     return can(module, action) && (!needsSuper || isSuperAdmin());
   }
@@ -438,7 +441,7 @@
               { key: "submittedAt", label: t("जमा", "Submitted"), render: row => fmtDate(row.submittedAt) },
             ], data.trees, row => `
               ${actionButton(t("विवरण", "Details"), "tree-detail", row.id)}
-              ${actionButton(t("संपादित", "Edit"), "tree-edit", row.id)}
+              ${actionButton(row.status === "verified" ? t("संशोधित", "Revise") : t("संपादित", "Edit"), "tree-edit", row.id, { data: row.status === "verified" ? { revision: "true" } : {} })}
               ${row.status === "verified" ? actionButton(t("संग्रहीत", "Archive"), "tree-archive", row.id, { danger: true }) : ""}
               ${actionButton(t("हटाएँ", "Delete"), "tree-delete", row.id, { danger: true })}`)}
             ${pagination("trees", data.total)}
@@ -467,7 +470,7 @@
               { key: "status", label: t("स्थिति", "Status"), render: row => badge(row.status) },
             ], data.members, row => `
               ${actionButton(t("विवरण", "Details"), "member-detail", row.id)}
-              ${actionButton(t("संपादित", "Edit"), "member-edit", row.id)}
+              ${actionButton(row.treeStatus === "verified" ? t("संशोधित", "Revise") : t("संपादित", "Edit"), "member-edit", row.id, { data: row.treeStatus === "verified" ? { revision: "true" } : {} })}
               ${actionButton(t("शाखा", "Branch"), "member-branch", row.id)}
               ${actionButton(t("आर्काइव", "Archive"), "member-archive", row.id, { danger: true })}`)}
             ${pagination("members", data.total)}
@@ -607,10 +610,12 @@
               <div><h4>${t("नाम बदलें", "Rename")}</h4>${inlineForm("village-rename", [
                 { name: "from", label: t("पुराना नाम", "Old name"), required: true },
                 { name: "to", label: t("नया नाम", "New name"), required: true },
+                { name: "revisionIntent", label: t("सत्यापित वृक्ष भी बदलें (पुनः सत्यापन)", "Change verified trees too (re-verification)"), type: "checkbox", value: false },
               ], t("नाम बदलें", "Rename"))}</div>
               <div><h4>${t("दो नाम मिलाएँ", "Merge two names")}</h4>${inlineForm("village-merge", [
                 { name: "from", label: t("मूल नाम", "Source name"), required: true },
                 { name: "to", label: t("लक्ष्य नाम", "Target name"), required: true },
+                { name: "revisionIntent", label: t("सत्यापित वृक्ष भी बदलें (पुनः सत्यापन)", "Change verified trees too (re-verification)"), type: "checkbox", value: false },
               ], t("मिलाएँ", "Merge"))}</div>
             </div>
           </div>
@@ -859,16 +864,22 @@
           message(t("शाखा जोड़ी गई।", "Branch created."));
           await reload();
           break;
-        case "village-rename":
-          await send("/api/admin/console/villages/rename", object);
-          message(t("गांव का नाम बदला गया।", "Village renamed."));
+        case "village-rename": {
+          const result = await send("/api/admin/console/villages/rename", object);
+          message(result.revisions
+            ? t(`गांव का नाम बदला गया; ${result.revisions} वृक्ष पुनः सत्यापन में भेजे गए।`, `Village renamed; ${result.revisions} trees sent for re-verification.`)
+            : t("गांव का नाम बदला गया।", "Village renamed."));
           await reload();
           break;
-        case "village-merge":
-          await send("/api/admin/console/villages/merge", object);
-          message(t("गांव मिलाए गए।", "Villages merged."));
+        }
+        case "village-merge": {
+          const result = await send("/api/admin/console/villages/merge", object);
+          message(result.revisions
+            ? t(`गांव मिलाए गए; ${result.revisions} वृक्ष पुनः सत्यापन में भेजे गए।`, `Villages merged; ${result.revisions} trees sent for re-verification.`)
+            : t("गांव मिलाए गए।", "Villages merged."));
           await reload();
           break;
+        }
         case "account-create":
           await send("/api/admin/console/accounts", object);
           message(t("खाता बनाया गया।", "Account created."));
@@ -998,13 +1009,16 @@
           break;
         }
         case "tree-edit": {
-          const [row, options] = await Promise.all([
+          const [row, options, detail] = await Promise.all([
             Promise.resolve((state.cache.trees?.trees || []).find(item => item.id === id) || {}),
             gotraOptions(),
+            api(`/api/admin/console/trees/${id}`).catch(() => ({ tree: {} })),
           ]);
-          const detail = await api(`/api/admin/console/trees/${id}`).catch(() => ({ tree: {} }));
+          const revising = trigger?.dataset?.revision === "true" || rowStatus(id) === "verified" || detail.tree.status === "verified";
           openForm({
-            title: t("वृक्ष संपादित करें", "Edit tree"),
+            title: revising
+              ? t("सत्यापित वृक्ष का नया संस्करण", "Create a verified-tree revision")
+              : t("वृक्ष संपादित करें", "Edit tree"),
             values: {
               gotraId: detail.tree.gotraId || "", village: row.village, district: row.district,
               state: row.state, submitterName: row.submitterName, reviewNotes: row.reviewNotes,
@@ -1016,7 +1030,13 @@
               { name: "note", label: t("परिवर्तन नोट", "Change note"), type: "textarea" },
               { name: "reviewNotes", label: t("समीक्षा नोट", "Review notes"), type: "textarea" },
             ],
-            onSubmit: async body => { await send(`/api/admin/console/trees/${id}`, body, "PATCH"); message(t("वृक्ष अद्यतन हुआ; नया संस्करण सहेजा गया।", "Tree updated; revision saved.")); await reload(); },
+            onSubmit: async body => {
+              await send(`/api/admin/console/trees/${id}`, { ...body, revisionIntent: revising }, "PATCH");
+              message(revising
+                ? t("नया संस्करण सहेजा गया; पुनः सत्यापन आवश्यक है।", "Revision saved; re-verification required.")
+                : t("वृक्ष अद्यतन हुआ; नया संस्करण सहेजा गया।", "Tree updated; revision saved."));
+              await reload();
+            },
           });
           break;
         }
@@ -1046,9 +1066,15 @@
           break;
         }
         case "member-edit": {
-          const row = (state.cache.members?.members || []).find(item => item.id === id) || {};
+          const [row, detail] = await Promise.all([
+            Promise.resolve((state.cache.members?.members || []).find(item => item.id === id) || {}),
+            api(`/api/admin/console/members/${id}`).catch(() => ({ person: {} })),
+          ]);
+          const revising = trigger?.dataset?.revision === "true" || row.treeStatus === "verified" || detail.person.treeStatus === "verified";
           openForm({
-            title: t("सदस्य संपादित करें", "Edit member"),
+            title: revising
+              ? t("सत्यापित सदस्य का नया संस्करण", "Create a verified-member revision")
+              : t("सदस्य संपादित करें", "Edit member"),
             values: { fullName: row.name, wifeName: row.wifeName, village: row.village, memberType: row.memberType, status: row.status, visibility: row.visibility },
             fields: [
               { name: "fullName", label: t("पूरा नाम", "Full name"), required: true },
@@ -1058,7 +1084,13 @@
               { name: "status", label: t("स्थिति", "Status"), type: "select", options: ["verified", "pending", "draft", "archived"].map(value => ({ value, label: value })) },
               { name: "visibility", label: t("दृश्यता", "Visibility"), type: "select", options: ["public", "members", "private"].map(value => ({ value, label: value })) },
             ],
-            onSubmit: async body => { await send(`/api/admin/console/members/${id}`, body, "PATCH"); message(t("सदस्य अद्यतन हुआ।", "Member updated.")); await reload(); },
+            onSubmit: async body => {
+              await send(`/api/admin/console/members/${id}`, { ...body, revisionIntent: revising }, "PATCH");
+              message(revising
+                ? t("संशोधन सहेजा गया; पुनः सत्यापन आवश्यक है।", "Revision saved; re-verification required.")
+                : t("सदस्य अद्यतन हुआ।", "Member updated."));
+              await reload();
+            },
           });
           break;
         }
@@ -1098,7 +1130,17 @@
           const decision = trigger.dataset.decision;
           const notes = $("#admin-verification-note")?.value || "";
           const body = { decision, notes };
-          const doIt = async () => { await send(`/api/admin/console/verification/${id}/decision`, body); closeDetail(); message(t("निर्णय सहेजा गया।", "Decision recorded.")); await reload(); };
+          const doIt = async () => {
+            const result = await send(`/api/admin/console/verification/${id}/decision`, body);
+            closeDetail();
+            /* Follow the tree into its new queue instead of leaving the old
+               pending view on screen after an approve / reject decision. */
+            const nextStatus = result?.status || decision;
+            state.filters.verification = { ...(state.filters.verification || {}), status: nextStatus };
+            state.pages.verification = { offset: 0 };
+            await reload();
+            message(t(`निर्णय सहेजा गया: ${nextStatus}।`, `Decision recorded: ${nextStatus}.`));
+          };
           if (decision === "reject" || decision === "approve") {
             openConfirm(t("निर्णय की पुष्टि", "Confirm decision"), `${t("निर्णय", "Decision")}: ${decision}. ${t("यह ऑडिट इतिहास में दर्ज होगा।", "This will be recorded in the audit history.")}`, t("पुष्टि", "Confirm"), doIt);
           } else await doIt();
@@ -1322,11 +1364,15 @@
       }
     });
 
-    const host = $("#admin-module-host");
-    host.addEventListener("click", event => {
+    const dispatchAction = event => {
       const button = event.target.closest("[data-admin-action]");
       if (button) void handleAction(button.dataset.adminAction, button.dataset.id, button);
-    });
+    };
+    const host = $("#admin-module-host");
+    host.addEventListener("click", dispatchAction);
+    /* Detail panels are siblings of the module host, so their action buttons
+       need the same delegated handler (verification decisions live here). */
+    $("#admin-detail-body").addEventListener("click", dispatchAction);
     host.addEventListener("submit", event => {
       const form = event.target.closest("form[data-admin-form]");
       if (!form) return;

@@ -66,6 +66,66 @@ function makePool() {
         db.notifications.push(notification);
         return { rows: [notification], rowCount: 1 };
       }
+      if (query.startsWith("SELECT * FROM family_trees WHERE id=$1 FOR UPDATE")) {
+        return {
+          rows: [{
+            id: params[0], status: "verified", tree_reference: "VSH-TEST",
+            village: "Old Village", current_revision: [], revision_number: 1,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (query.startsWith("SELECT revision_number FROM family_trees WHERE id=$1")) {
+        return { rows: [{ revision_number: 2 }], rowCount: 1 };
+      }
+      if (query.startsWith("SELECT DISTINCT t.id::text, t.tree_reference")) {
+        return {
+          rows: [{
+            id: GOTRA_A, tree_reference: "VSH-TEST", revision_number: 1,
+            current_revision: [
+              { clientId: "r", parentId: null, memberType: "root", name: "मूल", wifeName: "माता", village: "Old Village" },
+              { clientId: "d", parentId: "r", memberType: "daughter", name: "पुत्री" },
+            ],
+          }],
+          rowCount: 1,
+        };
+      }
+      if (query.startsWith("UPDATE family_trees SET")) {
+        db.treeUpdate = { sql: query, params: [...params] };
+        return {
+          rows: [{
+            id: params.at(-1),
+            status: query.includes("status = 'under_review'") ? "under_review" : "verified",
+            revisionNumber: 2,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (query.startsWith('SELECT id::text AS "clientId", full_name AS name')) {
+        return {
+          rows: [{
+            clientId: PERSON_A, name: "New Name", wifeName: "सीता",
+            village: "पिलानी", memberType: "root", birthOrder: null,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (query.startsWith('SELECT c.id::text AS "childId", p.id::text AS "parentId"')) {
+        return { rows: [], rowCount: 0 };
+      }
+      if (query.startsWith("SELECT p.*, t.id AS tree_id")) {
+        return {
+          rows: [{
+            id: params[0], full_name: "Old Name", family_tree_id: GOTRA_A,
+            tree_id: GOTRA_A, tree_status: "verified", current_revision: [], revision_number: 1,
+          }],
+          rowCount: 1,
+        };
+      }
+      if (query.startsWith("UPDATE people SET")) {
+        db.memberUpdate = { sql: query, params: [...params] };
+        return { rows: [{ id: params.at(-1), name: "New Name", status: "verified" }], rowCount: 1 };
+      }
       if (query.includes("SELECT id FROM gotras WHERE lower(btrim(name))")) {
         const rows = db.gotras.filter(gotra => lower(gotra.name) === lower(params[0]) && gotra.id !== params[1]);
         return { rows, rowCount: rows.length };
@@ -152,7 +212,7 @@ function makePool() {
   return pool;
 }
 
-async function withServer(pool, admin, callback) {
+async function withServer(pool, admin, callback, handlers = {}) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
   app.use((request, _response, next) => { request.admin = admin; next(); });
@@ -166,7 +226,8 @@ async function withServer(pool, admin, callback) {
     logAudit: async (client, adminId, action, entityType, entityId, changes) =>
       client.query("INSERT INTO genealogy_audit (admin_id, action, entity_type, entity_id, changes) VALUES ($1,$2,$3,$4,$5)",
         [adminId, action, entityType, entityId, changes]),
-    decisionHandler: async (request, response) => response.json({ decision: request.body.decision, reused: true }),
+    decisionHandler: handlers.decisionHandler ||
+      (async (request, response) => response.json({ decision: request.body.decision, reused: true })),
     linkHandler: async (_request, response) => response.json({ linked: true }),
     reverseLinkHandler: async (_request, response) => response.json({ reversed: true }),
     refreshTreeProjection: async () => {},
@@ -297,6 +358,80 @@ test("reports date filters use each table's own timestamp column", async () => {
     assert.match(pool.db.reportSql, /genealogy_contributions WHERE submitted_at >= \$1::timestamptz/i);
     assert.match(pool.db.reportSql, /genealogy_audit WHERE created_at >= \$3::timestamptz/i);
     assert.doesNotMatch(pool.db.reportSql, /genealogy_contributions WHERE created_at/i);
+  });
+});
+
+test("verification decisions reuse the shared handler and expose the new status", async () => {
+  const pool = makePool();
+  await withServer(pool, admin, async base => {
+    const response = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+      method: "POST", body: { decision: "approve", notes: "Shared ancestor verified" },
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.status, "verified");
+    assert.deepEqual(response.body.skipped, []);
+  }, {
+    decisionHandler: async (_request, response) =>
+      response.json({ status: "verified", skipped: [], message: "Decision saved." }),
+  });
+});
+
+test("verification detail actions are delegated and follow the decision status", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "public", "js", "admin-console.js"), "utf8");
+  assert.match(source, /#admin-detail-body"\)\.addEventListener\("click", dispatchAction\)/);
+  assert.match(source, /result\?\.status \|\| decision/);
+  assert.match(source, /state\.filters\.verification[\s\S]*status: nextStatus/);
+  assert.match(source, /revisionIntent: revising/);
+});
+
+test("bulk village changes require revision intent when verified trees are affected", async () => {
+  const pool = makePool();
+  await withServer(pool, admin, async base => {
+    const blocked = await call(base, "/api/admin/console/villages/rename", {
+      method: "POST", body: { from: "Old Village", to: "New Village" },
+    });
+    assert.equal(blocked.status, 409);
+    assert.match(blocked.body.error, /revisionIntent/i);
+    assert.equal(blocked.body.affectedTrees, 1);
+
+    const revised = await call(base, "/api/admin/console/villages/rename", {
+      method: "POST", body: { from: "Old Village", to: "New Village", revisionIntent: true },
+    });
+    assert.equal(revised.status, 200);
+    assert.equal(revised.body.revisions, 1);
+    assert.match(pool.db.treeUpdate.sql, /current_revision=\$2::jsonb/);
+    assert.match(pool.db.treeUpdate.params[1], /New Village/);
+  });
+});
+
+test("verified trees and members require an explicit revision intent", async () => {
+  const pool = makePool();
+  await withServer(pool, admin, async base => {
+    const treeUrl = `/api/admin/console/trees/${GOTRA_A}`;
+    const accidental = await call(base, treeUrl, { method: "PATCH", body: { village: "New Village" } });
+    assert.equal(accidental.status, 409);
+    assert.match(accidental.body.error, /revisionIntent/i);
+
+    const revised = await call(base, treeUrl, {
+      method: "PATCH", body: { village: "New Village", revisionIntent: true, note: "Corrected village" },
+    });
+    assert.equal(revised.status, 200);
+    assert.equal(revised.body.tree.status, "under_review");
+    assert.match(pool.db.treeUpdate.sql, /status = 'under_review'/);
+
+    const memberUrl = `/api/admin/console/members/${PERSON_A}`;
+    const memberBlocked = await call(base, memberUrl, { method: "PATCH", body: { fullName: "New Name" } });
+    assert.equal(memberBlocked.status, 409);
+    assert.match(memberBlocked.body.error, /revisionIntent/i);
+
+    const memberRevised = await call(base, memberUrl, {
+      method: "PATCH", body: { fullName: "New Name", revisionIntent: true },
+    });
+    assert.equal(memberRevised.status, 200);
+    assert.match(pool.db.treeUpdate.sql, /current_revision=\$2::jsonb/);
+    assert.match(pool.db.treeUpdate.sql, /revision_number=\$3/);
+    assert.match(pool.db.treeUpdate.sql, /status='under_review'/);
+    assert.match(pool.db.treeUpdate.params[1], /New Name/);
   });
 });
 

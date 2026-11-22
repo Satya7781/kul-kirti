@@ -123,11 +123,12 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **33 passed, 0 failed** |
+| `npm test` | **41 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
 | 17-module browser pass | 17/17 modules rendered; zero console errors, duplicate IDs, inline handlers, overflow, or broken internal links |
+| Family-tree browser pass | Box click expands sons/daughters, `Expand all` reaches the fourth generation, verified detail collapses cleanly; zero console errors |
 | HTML i18n check | 10 HTML files, 154 keys, no missing Hindi/English keys |
 | JS i18n check | Only the known dynamic `genealogy.*` concatenation false positives |
 | Sitemap check | 11 URLs, all local targets exist; `admin.html` excluded; no retired paths |
@@ -148,6 +149,27 @@ The browser and Lighthouse runs used the local mock server at `http://127.0.0.1:
 - `/api/admin/console/meta` is available to any authenticated admin so revoking `overview:view` cannot hide all remaining modules.
 - Permission seed corrected to match the documented and tested policy.
 - Accessibility fixes produce a clean Lighthouse accessibility audit.
+
+### Post-report verification defects (2026-11-21)
+
+- **Approve did not visibly persist:** decision buttons rendered in the detail panel were outside the delegated click handler. The same handler is now attached to `#admin-detail-body`, and after a decision the verification filter follows the returned status so an approved tree appears under **Verified** instead of staying on the stale pending queue.
+- **Message overwritten by reload:** the confirmation message is written after the queue reloads.
+- **Verified records were editable:** direct tree/member value edits now require `revisionIntent`; the original snapshot is preserved, a new revision is stored (rebuilt from canonical people and verified relationships for member edits), `current_revision` is updated to the proposed values, and the tree returns to `under_review` for re-verification.
+- **Bulk village rename bypass:** renames/merges touching verified trees now require `revisionIntent` and reopen each affected tree for re-verification.
+- UI edit buttons now read **Revise** for verified trees/members and open revision dialogs; server-side guards remain the final authority.
+
+Targeted regression coverage was added for the delegated decision handler, status handoff from the shared decision handler, verified tree/member revision intent, and verified-tree-aware village changes. The browser pass confirmed: approve → `verified` filter + message, no console errors, and revise labels/dialogs for verified trees and members. Lighthouse remained 1.00/1.00/1.00 with zero failures.
+
+### Family-tree visual fix (2026-11-22)
+
+- All three visual tree surfaces — the public person tree, the verified tree detail view, and the token-editor preview — now use one shared renderer (`public/js/family-tree.js`). This removes the previous divergence where one view expanded on box click, another only on a small `+` button, and each drew different connectors.
+- Clicking a person box reveals that person's verified sons and daughters. A separate `↗` link still opens the person profile from public/detailed trees.
+- Connector lines are drawn as orthogonal parent → sibling-bar → child paths, making each parent/child relationship visually traceable. Daughters remain dashed, name-only leaves; only sons and roots can branch.
+- `Expand all` now recursively lazy-loads every deeper generation in the public person tree instead of only expanding nodes already rendered. `Collapse all` keeps the root visible so the tree never disappears.
+- Child queries now return `wife_name`, `member_type`, `birth_order`, and a `child_count`, so boxes show the correct metadata and children in birth order.
+- Regression tests cover relationship-based hierarchy building, cycle/daughter protection, editor parent-map hierarchy, script wiring, and query metadata.
+
+Local browser verification with seeded mock data confirmed: initial root + 3 children, box click reveals children, `Expand all` reveals the fourth generation, verified tree detail shows 8 boxes with 15 connector segments and collapses back to the root generation, and no console errors.
 
 ---
 

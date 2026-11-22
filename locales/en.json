@@ -428,6 +428,10 @@
     "contribSuccess":    "Your contribution has been submitted for review.",
 
     "treeTitle":        "Family Tree",
+    "treeHint":         "Click any box to reveal that person's sons and daughters. Lines connect parents to their children.",
+    "treeChildren":     "{n} children",
+    "treeProfile":      "Profile",
+    "treeViewProfile":  "View profile",
     "expandAll":        "Expand All",
     "collapseAll":      "Collapse All",
     "printTree":        "Print",
