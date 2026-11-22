@@ -123,7 +123,7 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **48 passed, 0 failed** |
+| `npm test` | **49 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
@@ -176,7 +176,7 @@ Local browser verification with seeded mock data confirmed: initial root + 3 chi
 
 - **Decision endpoint no longer collapses recoverable failures into a bare 500.** The admin console route now validates the decision before calling the shared handler, treats the console audit row as non-fatal, preserves explicit handler 4xx responses, maps data conflicts to `409`, and maps unexpected write failures to `422` with a user-readable message.
 - **Audit writes inside the shared decision transaction are now non-fatal too.** `materialize()` and `decideTree()` wrap each genealogy audit insert in its own `SAVEPOINT`; a broken/outdated audit table is rolled back independently, logged, and never aborts the approval commit. This closes the remaining path by which an audit-only failure could surface as a `422` after the console-level fix.
-- **Schema drift is now self-diagnosing.** Missing columns/tables/functions (`42703`, `42P01`, `42883`, `42P10`, `42601`) return `503` with a "restart so migrations apply" instruction; transient capacity errors (`40001`, `40P01`, `57014`, `53300`) return `503` with a retry instruction. Every decision error response includes the DB `code`/`constraint` and a short `detail`, and the admin toast displays the message, so the next failure can be diagnosed without provider log access.
+- **Schema drift is now self-diagnosing.** Missing columns/tables/functions (`42703`, `42P01`, `42883`, `42P10`, `42601`) return `503` with a "restart so migrations apply" instruction; transient capacity errors (`40001`, `40P01`, `57014`, `53300`) return `503` with a retry instruction. A non-blocking `information_schema` probe names any missing materialisation column in the error response. Every decision error response includes the DB `code`/`constraint` and a short `detail`, and the admin toast displays the message, so the next failure can be diagnosed without provider log access.
 - **Corrupted revision entries are handled as validation errors.** A `null` or primitive member inside `current_revision` used to throw during validation and become a 500; it now fails validation cleanly with a 400 instead of crashing the decision route.
 - **Admin review now has the same box-style tree preview.** Both **Tree details** and **Verification review** expose **View box tree**, which opens a large preview using the shared `public/js/family-tree.js` renderer. It uses the submitted `current_revision` members, so the reviewer sees the exact proposed parent-child hierarchy before approving.
 - The preview supports box-click expansion, zoom, fit, expand-all and collapse-all, and keeps daughters as dashed name-only leaves. `admin.html` loads the shared renderer; `public/css/admin-console.css` provides the modal/canvas layout.

@@ -48,6 +48,19 @@ function makePool() {
       const query = flat(sql);
       if (["BEGIN", "COMMIT", "ROLLBACK"].includes(query)) return { rows: [], rowCount: 0 };
 
+      if (query.includes("FROM information_schema.columns")) {
+        return {
+          rows: [
+            "people.wife_name", "people.member_type", "people.birth_order", "people.family_tree_id",
+            "family_trees.current_revision", "family_trees.revision_number", "family_trees.root_person_id",
+          ].map(key => {
+            const [table_name, column_name] = key.split(".");
+            return { table_name, column_name };
+          }),
+          rowCount: 7,
+        };
+      }
+
       if (query.includes("AS allowed") && query.includes("FROM admin_permission_overrides")) {
         return { rows: [{ allowed: allowed(params[1], params[2]) }], rowCount: 1 };
       }
@@ -458,6 +471,31 @@ test("schema drift and transient decision failures are actionable", async () => 
           throw Object.assign(new Error("remaining connection slots reserved"), { code: "53300" });
         };
       })(),
+    });
+  } finally {
+    console.error = previousError;
+  }
+});
+
+test("decision errors name missing schema columns", async () => {
+  const pool = makePool();
+  const originalQuery = pool.query.bind(pool);
+  pool.query = async (sql, params) => {
+    if (flat(String(sql)).includes("FROM information_schema.columns")) return { rows: [], rowCount: 0 };
+    return originalQuery(sql, params);
+  };
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    await withServer(pool, admin, async base => {
+      const response = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(response.status, 422);
+      assert.match(response.body.error, /Missing DB columns/);
+      assert.match(response.body.schema, /people\.wife_name/);
+    }, {
+      decisionHandler: async () => { throw new Error("unexpected failure"); },
     });
   } finally {
     console.error = previousError;
