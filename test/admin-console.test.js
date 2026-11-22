@@ -477,6 +477,29 @@ test("schema drift and transient decision failures are actionable", async () => 
   }
 });
 
+test("integrity trigger errors explain the genealogy rule that was violated", async () => {
+  const pool = makePool();
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    await withServer(pool, admin, async base => {
+      const response = await call(base, `/api/admin/console/verification/${GOTRA_A}/decision`, {
+        method: "POST", body: { decision: "approve" },
+      });
+      assert.equal(response.status, 409);
+      assert.match(response.body.error, /integrity rules rejected this tree/i);
+      assert.match(response.body.error, /circular genealogy/i);
+      assert.equal(response.body.code, "P0001");
+    }, {
+      decisionHandler: async () => {
+        throw Object.assign(new Error("relationship would create a circular genealogy"), { code: "P0001" });
+      },
+    });
+  } finally {
+    console.error = previousError;
+  }
+});
+
 test("decision errors name missing schema columns", async () => {
   const pool = makePool();
   const originalQuery = pool.query.bind(pool);

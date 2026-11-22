@@ -23,11 +23,14 @@ const tree = {
 const clean = (value, max = 500) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const uuidOrNull = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "")) ? String(value) : null;
 
-function makeClient(queries) {
+function makeClient(queries, relationshipShouldFail) {
   return {
     async query(sql, params) {
       const flat = String(sql).replace(/\s+/g, " ").trim();
       queries.push(flat);
+      if (relationshipShouldFail && /^INSERT INTO person_relationships/i.test(flat)) {
+        throw Object.assign(new Error("relationship would create a circular genealogy"), { code: "P0001" });
+      }
       if (/SELECT \* FROM family_trees WHERE id = \$1 FOR UPDATE/i.test(flat)) return { rows: [tree] };
       if (/INSERT INTO people/i.test(flat)) return { rows: [{ id: `aaaaaaaa-0000-4000-8000-${String(queries.length).padStart(12, "0")}`, public_id: "PUB" }] };
       if (/SELECT id FROM people WHERE id IN/i.test(flat)) return { rows: [{ id: params[0] }, { id: params[1] }] };
@@ -38,10 +41,10 @@ function makeClient(queries) {
   };
 }
 
-function makeContext(queries, auditShouldFail) {
+function makeContext(queries, auditShouldFail, relationshipShouldFail) {
   const pool = {
-    async query(sql, params) { return makeClient(queries).query(sql, params); },
-    async connect() { return makeClient(queries); },
+    async query(sql, params) { return makeClient(queries, relationshipShouldFail).query(sql, params); },
+    async connect() { return makeClient(queries, relationshipShouldFail); },
   };
   return {
     pool,
@@ -97,6 +100,23 @@ test("audit failures inside the decision transaction do not block approval", asy
     assert.equal(result.body.status, "verified");
     assert.ok(queries.some(q => q === "SAVEPOINT kk_audit_write"));
     assert.ok(queries.some(q => q === "ROLLBACK TO SAVEPOINT kk_audit_write"));
+    assert.ok(queries.some(q => q === "COMMIT"));
+  } finally {
+    console.error = previousError;
+  }
+});
+
+test("a database integrity-trigger rejection skips the edge but still approves", async () => {
+  const queries = [];
+  const previousError = console.error;
+  console.error = () => {};
+  try {
+    const result = await postDecision(makeContext(queries, false, true));
+    assert.equal(result.status, 200);
+    assert.equal(result.body.status, "verified");
+    assert.equal(result.body.skipped.length, 1);
+    assert.match(result.body.skipped[0].reason, /relationship_rejected/);
+    assert.ok(queries.some(q => q === "ROLLBACK TO SAVEPOINT kk_relationship_write"));
     assert.ok(queries.some(q => q === "COMMIT"));
   } finally {
     console.error = previousError;

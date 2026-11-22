@@ -1465,6 +1465,16 @@
         if (state.dialogConfirm) await state.dialogConfirm(data);
       } catch (error) {
         message(error.message, true);
+        /* Keep the reason visible above the modal backdrop instead of hiding
+           it in a toast the reviewer cannot reach while the dialog is open. */
+        const body = $("#admin-dialog-body");
+        if (body && !body.querySelector(".admin-dialog-error")) {
+          const note = document.createElement("p");
+          note.className = "admin-dialog-error";
+          note.setAttribute("role", "alert");
+          note.textContent = error.message || "Request failed.";
+          body.appendChild(note);
+        }
       } finally {
         button.disabled = false;
       }
