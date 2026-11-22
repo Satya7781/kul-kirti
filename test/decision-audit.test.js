@@ -28,6 +28,15 @@ function makeClient(queries, relationshipShouldFail) {
     async query(sql, params) {
       const flat = String(sql).replace(/\s+/g, " ").trim();
       queries.push(flat);
+      /* Mirror pg's bind check so a placeholder/argument mismatch fails the
+         test exactly as it fails production (SQLSTATE 08P01). */
+      const placeholders = [...flat.matchAll(/\$(\d+)/g)].map(match => Number(match[1]));
+      const expected = placeholders.length ? Math.max(...placeholders) : 0;
+      if (expected && params && params.length !== expected) {
+        throw Object.assign(new Error(
+          `bind message supplies ${params.length} parameters, but prepared statement requires ${expected}`
+        ), { code: "08P01" });
+      }
       if (relationshipShouldFail && /^INSERT INTO person_relationships/i.test(flat)) {
         throw Object.assign(new Error("relationship would create a circular genealogy"), { code: "P0001" });
       }
