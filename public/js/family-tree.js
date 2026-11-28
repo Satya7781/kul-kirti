@@ -27,6 +27,7 @@
     village: "गांव",
     profile: "प्रोफ़ाइल",
     viewProfile: "प्रोफ़ाइल देखें",
+    edit: "संपादित करें",
     root: "मूल व्यक्ति",
     loading: "लोड हो रहा है...",
     children: n => `${n} संतान`,
@@ -290,6 +291,7 @@
         (daughter ? "daughter" : (node.memberType || "son"));
       if (pos.depth === 0) card.classList.add("family-tree-node--root");
       if (open) card.classList.add("is-open");
+      if (options.editable) card.classList.add("family-tree-node--editable");
       card.style.left = `${pos.x}px`;
       card.style.top = `${pos.y}px`;
       card.style.width = `${cfg.nodeWidth}px`;
@@ -347,6 +349,23 @@
         profile.setAttribute("aria-label", `${cfg.labels.viewProfile}: ${node.name || ""}`);
         profile.addEventListener("click", event => event.stopPropagation());
         card.appendChild(profile);
+      }
+
+      /* Admin edit affordance: expansion stays on the main box click, while
+         the pencil opens the details editor for this exact node. */
+      if (options.editable && typeof options.onEdit === "function") {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "family-tree-node__edit";
+        edit.textContent = "✎";
+        edit.title = cfg.labels.edit;
+        edit.setAttribute("aria-label", `${cfg.labels.edit}: ${node.name || ""}`);
+        edit.addEventListener("click", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          options.onEdit(node);
+        });
+        card.appendChild(edit);
       }
 
       return card;

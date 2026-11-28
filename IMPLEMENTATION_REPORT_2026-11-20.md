@@ -123,7 +123,7 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **57 passed, 0 failed** |
+| `npm test` | **59 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
@@ -197,6 +197,14 @@ Local browser verification against the admin mock confirmed: review opens, **Vie
 - **Wife's gotra can be recorded with the spouse.** An optional `wifeGotra` field is carried in the revision, stored in `people.wife_gotra` on verification, and shown in editor/preview/public visual cards.
 - **Daughter's married gotra is optional.** A `marriedGotra` field appears only on daughter boxes, is stored in `people.married_gotra`, and never makes a daughter branchable. Daughters remain name-only leaves except for this optional gotra note.
 - Additive migrations cover both changes; `db/schema.sql` also lists the two new `people` columns for fresh bootstrap. Schema-drift diagnostics now include `wife_gotra` and `married_gotra`.
+
+### Admin editing inside the box tree (2026-11-28)
+
+- **Editable box preview.** `family-tree.js` now accepts `editable` + `onEdit`; each box gains a pencil button while the main box click still expands sons/daughters and the SVG connectors remain unchanged. No edit affordance appears on public/read-only trees.
+- **Side-by-side member editor.** The admin tree preview has a docked editor beside the canvas. Selecting a box loads its name, spouse name/gotra, married gotra, village, role, parent and birth order. Applying a box change updates a local revision draft and immediately re-renders the connected boxes; nothing is persisted until **Save tree** is pressed.
+- **Child boxes and removal.** Admins can add a son or daughter under the selected box, move a member to a different parent with cycle/daughter checks, and remove a leaf box. Root role, daughters-as-leaves and the one-root rule are enforced in the UI and again by `vsh.validateTreeMembers` on the server.
+- **Existing save path reused.** **Save tree** PATCHes `/api/admin/console/trees/:id` with `currentRevision` and a change note; verified trees automatically send `revisionIntent: true`, so the existing revision snapshot + `under_review` + re-verification flow applies. The action is guarded by DB-backed `trees:edit` both in the UI and on the server.
+- **Entry points.** "Edit boxes" is available in the Trees table, tree details and verification review; the existing "Box tree" action becomes editable for admins who hold `trees:edit` and stays read-only for reviewers without it.
 
 ---
 

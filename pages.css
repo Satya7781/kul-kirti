@@ -2672,8 +2672,29 @@ html[lang="hi"] .result-card h3 {
   text-decoration: none;
 }
 .family-tree-node__profile:hover { background: var(--gold, #c49a45); color: #fff; }
+.family-tree-node__edit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .94);
+  color: var(--maroon, #6b1d2c);
+  box-shadow: 0 1px 4px rgba(60, 20, 20, .18);
+  font-size: 13px;
+  cursor: pointer;
+}
+.family-tree-node__edit:hover { background: var(--gold, #c49a45); color: #fff; }
+.family-tree-node--editable .family-tree-node__profile { right: 34px; }
 .family-tree-node__main:focus-visible,
-.family-tree-node__profile:focus-visible {
+.family-tree-node__profile:focus-visible,
+.family-tree-node__edit:focus-visible {
   outline: 2px solid var(--gold, #c49a45);
   outline-offset: 2px;
 }

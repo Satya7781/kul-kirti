@@ -92,11 +92,75 @@ test("admin verification review exposes a connected box-tree preview", () => {
   assert.match(adminPage, /\/public\/js\/family-tree\.js/);
   assert.match(adminJs, /"verification-preview": \["verification", "view"\]/);
   assert.match(adminJs, /"verification-preview", id\)/);
-  assert.match(adminJs, /FamilyTree\.buildNodesFromParentMap\(members \|\| \[\]\)/);
+  assert.match(adminJs, /FamilyTree\.buildNodesFromParentMap\(state\.treeDraft\)/);
   assert.match(adminJs, /FamilyTree\.createView\(\{/);
   assert.match(adminJs, /admin-tree-preview__canvas/);
   assert.match(adminCss, /\.admin-tree-preview__canvas/);
   assert.match(read("pages.css"), /\.family-tree-node__main/);
+});
+
+test("editable box tree exposes a pencil that opens the member editor", () => {
+  function fakeElement(tag) {
+    return {
+      tagName: tag, children: [], style: {}, dataset: {}, listeners: {}, attrs: {},
+      classList: {
+        names: [],
+        add(name) { this.names.push(name); },
+        contains(name) { return this.names.includes(name); },
+      },
+      setAttribute(name, value) { this.attrs[name] = value; },
+      addEventListener(type, callback) { this.listeners[type] = callback; },
+      appendChild(child) { this.children.push(child); return child; },
+      set innerHTML(value) { this._html = value; },
+      get innerHTML() { return this._html || ""; },
+      querySelector() { return null; },
+    };
+  }
+  const sandbox = { window: {}, document: { createElement: fakeElement } };
+  vm.createContext(sandbox);
+  vm.runInContext(read("public/js/family-tree.js"), sandbox);
+  const FamilyTree = sandbox.window.FamilyTree;
+  const nodes = FamilyTree.buildNodesFromParentMap([
+    { clientId: "r", name: "मूल", memberType: "root", village: "गांव", birthOrder: 0 },
+    { clientId: "s", name: "पुत्र", memberType: "son", parentId: "r", village: "गांव", birthOrder: 1 },
+  ]);
+  let edited = null;
+  const inner = fakeElement("div");
+  const view = FamilyTree.createView({
+    inner, nodes, expanded: ["r"], editable: true, onEdit: node => { edited = node.id; },
+  });
+  view.render();
+
+  const cards = inner.children;
+  const rootCard = cards.find(card => card.dataset.treeNodeId === "r");
+  assert.equal(cards.length, 2);
+  assert.ok(rootCard);
+  const pencil = rootCard.children.find(child => child.className === "family-tree-node__edit");
+  assert.ok(pencil, "editable box has an edit affordance");
+  pencil.listeners.click({ preventDefault() {}, stopPropagation() {} });
+  assert.equal(edited, "r");
+  assert.match(inner.innerHTML, /<path d="M /, "connectors are still rendered in edit mode");
+  assert.ok(rootCard.classList.contains("family-tree-node--editable"));
+
+  const readonly = fakeElement("div");
+  FamilyTree.createView({ inner: readonly, nodes, expanded: ["r"] }).render();
+  assert.equal(readonly.children.some(card => card.children.some(child => child.className === "family-tree-node__edit")), false);
+});
+
+test("admin box editor saves the edited revision with verified re-check intent", () => {
+  const adminJs = read("public/js/admin-console.js");
+  const adminCss = read("public/css/admin-console.css");
+  assert.match(adminJs, /"tree-box-edit": \["trees", "edit"\]/);
+  assert.match(adminJs, /onEdit: node => openTreeMemberEditor\(node\.id\)/);
+  assert.match(adminJs, /currentRevision: state\.treeDraft/);
+  assert.match(adminJs, /revisionIntent: meta\.status === "verified"/);
+  assert.match(adminJs, /\}, "PATCH"\);/);
+  assert.match(adminJs, /admin-tree-edit-name/);
+  assert.match(adminJs, /admin-tree-edit-parent/);
+  assert.match(adminJs, /admin-tree-edit-add-daughter/);
+  assert.match(adminCss, /\.admin-tree-preview\.is-editable \.admin-tree-preview__body/);
+  assert.match(adminCss, /\.admin-tree-editor__fields/);
+  assert.match(read("pages.css"), /\.family-tree-node__edit/);
 });
 
 test("public child query supplies birth order and expandability metadata", () => {

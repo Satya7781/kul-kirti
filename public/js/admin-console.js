@@ -41,6 +41,10 @@
     dialogConfirm: null,
     lastTrigger: null,
     treePreviewView: null,
+    treeDraft: [],
+    treePreviewMeta: null,
+    treeSelectedId: null,
+    treePreviewExpanded: null,
   };
 
   async function api(url, options = {}) {
@@ -185,6 +189,7 @@
     "gotra-create": ["gotras", "edit"], "gotra-edit": ["gotras", "edit"],
     "gotra-toggle": ["gotras", "edit"], "gotra-delete": ["gotras", "edit"],
     "tree-edit": ["trees", "edit"], "tree-archive": ["trees", "edit"], "tree-delete": ["trees", "edit"],
+    "tree-box-edit": ["trees", "edit"],
     "member-edit": ["members", "edit"], "member-branch": ["members", "edit"], "member-archive": ["members", "edit"],
     "verification-preview": ["verification", "view"],
     "verification-assign": ["verification", "approve"], "verification-decision": ["verification", "approve"],
@@ -345,18 +350,67 @@
     node.children.forEach(child => collectExpandable(child, out));
   }
 
-  function openTreePreview(title, members) {
+  function draftMember(id) {
+    return (state.treeDraft || []).find(item => (item.clientId || item.id) === id);
+  }
+
+  function childIds(id) {
+    return (state.treeDraft || [])
+      .filter(item => item.parentId === id)
+      .map(item => item.clientId || item.id);
+  }
+
+  function descendantIds(id) {
+    const found = new Set();
+    const queue = [id];
+    while (queue.length) {
+      const current = queue.shift();
+      childIds(current).forEach(child => {
+        if (!found.has(child)) { found.add(child); queue.push(child); }
+      });
+    }
+    return found;
+  }
+
+  function refreshTreePreview(focusId) {
+    const view = state.treePreviewView;
+    if (!view || !window.FamilyTree) return;
+    const nodes = FamilyTree.buildNodesFromParentMap(state.treeDraft);
+    const expanded = new Set();
+    nodes.forEach(node => collectExpandable(node, expanded));
+    state.treePreviewExpanded = expanded;
+    view.setNodes(nodes, expanded);
+    if (focusId) view.render(focusId);
+    const canvas = $("#admin-tree-preview-canvas");
+    if (canvas) view.fit(canvas.clientWidth);
+  }
+
+  function openTreePreview(title, members, options = {}) {
     const modal = $("#admin-tree-preview");
     if (!modal) return;
     $("#admin-tree-preview-title").textContent = title;
     modal.hidden = false;
 
+    /* Editable previews work on a copy of the revision so a reviewer can make
+       several box changes and persist them with one authorised save. */
+    const editable = Boolean(options.editable && hasAccess("tree-box-edit"));
+    state.treeDraft = (Array.isArray(members) ? members : []).map(item => ({ ...item }));
+    state.treePreviewMeta = {
+      treeId: options.treeId || null,
+      status: options.status || rowStatus(options.treeId) || "",
+      editable,
+    };
+    state.treeSelectedId = null;
+    state.treePreviewExpanded = null;
+    modal.classList.toggle("is-editable", editable);
+
     const inner = $("#admin-tree-preview-inner");
     const nodes = window.FamilyTree
-      ? FamilyTree.buildNodesFromParentMap(members || [])
+      ? FamilyTree.buildNodesFromParentMap(state.treeDraft)
       : [];
     const expanded = new Set();
     nodes.forEach(node => collectExpandable(node, expanded));
+    state.treePreviewExpanded = expanded;
 
     state.treePreviewView = window.FamilyTree
       ? FamilyTree.createView({
@@ -364,6 +418,9 @@
         nodes,
         expanded,
         labels: treePreviewLabels(),
+        editable,
+        onEdit: node => openTreeMemberEditor(node.id),
+        ...(editable ? { nodeWidth: 210, nodeHeight: 108 } : {}),
       })
       : null;
 
@@ -374,6 +431,16 @@
     } else {
       inner.innerHTML = `<p class="admin-empty">${esc(t("वृक्ष रेंडरर उपलब्ध नहीं है।", "Tree renderer is unavailable."))}</p>`;
     }
+
+    const editor = $("#admin-tree-editor");
+    if (editor) editor.hidden = !editable;
+    const saveBar = $("#admin-tree-preview-save");
+    if (saveBar) saveBar.hidden = !editable;
+    const note = $("#admin-tree-change-note");
+    if (note) note.value = "";
+    const verifyNote = $("#admin-tree-reverify-note");
+    if (verifyNote) verifyNote.hidden = state.treePreviewMeta.status !== "verified";
+    if (editable && nodes.length) openTreeMemberEditor(nodes[0].id);
     $("#admin-tree-preview-close")?.focus();
   }
 
@@ -381,10 +448,188 @@
     const modal = $("#admin-tree-preview");
     if (!modal) return;
     modal.hidden = true;
+    modal.classList.remove("is-editable");
     state.treePreviewView = null;
+    state.treeDraft = [];
+    state.treePreviewMeta = null;
+    state.treeSelectedId = null;
     const inner = $("#admin-tree-preview-inner");
     if (inner) inner.innerHTML = "";
     state.lastTrigger?.focus?.();
+  }
+
+  function openTreeMemberEditor(id) {
+    if (!state.treePreviewMeta?.editable) return;
+    const member = draftMember(id);
+    if (!member) return;
+    state.treeSelectedId = id;
+    const panel = $("#admin-tree-editor");
+    if (panel) panel.hidden = false;
+    const heading = $("#admin-tree-editor-title");
+    if (heading) heading.textContent = member.name || t("नया सदस्य", "New member");
+
+    const set = (selector, value) => {
+      const element = $(selector);
+      if (element) element.value = value ?? "";
+    };
+    set("#admin-tree-edit-name", member.name);
+    set("#admin-tree-edit-wife-name", member.wifeName);
+    set("#admin-tree-edit-wife-gotra", member.wifeGotra);
+    set("#admin-tree-edit-married-gotra", member.marriedGotra);
+    set("#admin-tree-edit-village", member.village);
+    set("#admin-tree-edit-birth-order", member.birthOrder ?? 0);
+
+    const isRoot = member.memberType === "root";
+    const isDaughter = member.memberType === "daughter";
+    const type = $("#admin-tree-edit-type");
+    if (type) type.value = member.memberType;
+
+    const parent = $("#admin-tree-edit-parent");
+    if (parent) {
+      const banned = descendantIds(id);
+      banned.add(id);
+      const choices = state.treeDraft
+        .filter(item => {
+          const key = item.clientId || item.id;
+          return !banned.has(key) && item.memberType !== "daughter";
+        })
+        .map(item => `<option value="${esc(item.clientId || item.id)}">${esc(item.name || "?")}</option>`)
+        .join("");
+      parent.innerHTML = `<option value="">${esc(t("कोई नहीं", "None"))}</option>${choices}`;
+      parent.value = member.parentId || "";
+      parent.disabled = isRoot;
+    }
+    for (const selector of ["#admin-tree-edit-wife-block", "#admin-tree-edit-wife-gotra-block"]) {
+      const block = $(selector);
+      if (block) block.hidden = isDaughter;
+    }
+    const marriedBlock = $("#admin-tree-edit-married-block");
+    if (marriedBlock) marriedBlock.hidden = !isDaughter;
+    const villageBlock = $("#admin-tree-edit-village-block");
+    if (villageBlock) villageBlock.hidden = isDaughter;
+    const addButtons = $("#admin-tree-edit-add");
+    if (addButtons) addButtons.hidden = isDaughter;
+    const remove = $("#admin-tree-edit-remove");
+    if (remove) remove.disabled = isRoot || childIds(id).length > 0;
+    $("#admin-tree-edit-name")?.focus();
+  }
+
+  function applyTreeMemberEdit() {
+    const key = state.treeSelectedId;
+    const member = draftMember(key);
+    if (!member) return;
+    const value = selector => ($(selector)?.value || "").trim();
+    const name = value("#admin-tree-edit-name");
+    if (!name) { message(t("नाम आवश्यक है।", "Name is required."), true); return; }
+
+    const memberType = value("#admin-tree-edit-type");
+    if (member.memberType === "root" && memberType !== "root") {
+      message(t("मूल पूर्वज का प्रकार बदला नहीं जा सकता।", "The root member's role cannot be changed."), true);
+      return;
+    }
+    if (member.memberType !== "root" && memberType === "root") {
+      message(t("एक वृक्ष में केवल एक मूल पूर्वज हो सकता है।", "A tree can have only one root."), true);
+      return;
+    }
+    if (memberType === "daughter" && childIds(key).length) {
+      message(t("पुत्री की शाखाएँ नहीं हो सकतीं; पहले उन्हें हटाएँ।", "A daughter cannot have descendants; remove them first."), true);
+      return;
+    }
+
+    const parentId = memberType === "root" ? null : (value("#admin-tree-edit-parent") || null);
+    if (memberType !== "root" && !parentId) {
+      message(t("मूल पूर्वज को छोड़कर हर सदस्य के माता-पिता आवश्यक हैं।", "Every member except the root needs a parent."), true);
+      return;
+    }
+    if (parentId && descendantIds(key).has(parentId)) {
+      message(t("माता-पिता चयन से चक्र बन जाएगा।", "That parent choice would create a cycle."), true);
+      return;
+    }
+    const parent = parentId ? draftMember(parentId) : null;
+    if (parentId && !parent) {
+      message(t("चुना हुआ माता-पिता वृक्ष में नहीं मिला।", "The selected parent is not in this tree."), true);
+      return;
+    }
+    if (parent && parent.memberType === "daughter") {
+      message(t("पुत्री के बच्चे दर्ज नहीं किए जा सकते।", "Children cannot be recorded under a daughter."), true);
+      return;
+    }
+
+    const village = memberType === "daughter" ? "" : value("#admin-tree-edit-village");
+    if (memberType !== "daughter" && !village) {
+      message(t("गांव आवश्यक है।", "Village is required."), true);
+      return;
+    }
+
+    Object.assign(member, {
+      name,
+      memberType,
+      parentId,
+      village,
+      wifeName: memberType === "daughter" ? "" : value("#admin-tree-edit-wife-name"),
+      wifeGotra: memberType === "daughter" ? "" : value("#admin-tree-edit-wife-gotra"),
+      marriedGotra: memberType === "daughter" ? value("#admin-tree-edit-married-gotra") : "",
+      birthOrder: Number(value("#admin-tree-edit-birth-order")) || 0,
+    });
+    refreshTreePreview(key);
+    openTreeMemberEditor(key);
+    message(t("बॉक्स अद्यतन हुआ; परिवर्तन सहेजने के लिए वृक्ष सहेजें दबाएँ।", "Box updated; save the tree to persist changes."));
+  }
+
+  function addTreeMember(memberType) {
+    const parent = draftMember(state.treeSelectedId);
+    if (!parent || parent.memberType === "daughter") return;
+    const key = `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const siblings = childIds(state.treeSelectedId).map(draftMember).filter(Boolean);
+    const birthOrder = siblings.reduce((max, item) => Math.max(max, Number(item.birthOrder) || 0), -1) + 1;
+    state.treeDraft.push({
+      clientId: key,
+      name: memberType === "daughter" ? t("नई पुत्री", "New daughter") : t("नया पुत्र", "New son"),
+      wifeName: "", wifeGotra: "", marriedGotra: "",
+      village: memberType === "daughter" ? "" : (parent.village || ""),
+      memberType, parentId: state.treeSelectedId, birthOrder,
+    });
+    refreshTreePreview(key);
+    openTreeMemberEditor(key);
+    $("#admin-tree-edit-name")?.select();
+    message(t("नया बॉक्स जोड़ा गया; विवरण भरें और वृक्ष सहेजें।", "New box added; fill in its details and save the tree."));
+  }
+
+  function removeTreeMember() {
+    const key = state.treeSelectedId;
+    const member = draftMember(key);
+    if (!member || member.memberType === "root") return;
+    if (childIds(key).length) {
+      message(t("पहले इस बॉक्स की शाखाएँ हटाएँ।", "Remove this box's branches first."), true);
+      return;
+    }
+    state.treeDraft = state.treeDraft.filter(item => (item.clientId || item.id) !== key);
+    state.treeSelectedId = null;
+    const editor = $("#admin-tree-editor");
+    if (editor) editor.hidden = true;
+    refreshTreePreview();
+    message(t("बॉक्स हटाया गया; परिवर्तन सहेजने के लिए वृक्ष सहेजें दबाएँ।", "Box removed; save the tree to persist changes."));
+  }
+
+  async function saveTreeFromPreview() {
+    const meta = state.treePreviewMeta;
+    if (!meta?.editable || !meta.treeId || !hasAccess("tree-box-edit")) return;
+    const button = $("#admin-tree-save");
+    if (button) button.disabled = true;
+    try {
+      const result = await send(`/api/admin/console/trees/${encodeURIComponent(meta.treeId)}`, {
+        currentRevision: state.treeDraft,
+        revisionIntent: meta.status === "verified",
+        note: ($("#admin-tree-change-note")?.value || "").trim(),
+      }, "PATCH");
+      closeTreePreview();
+      message(result?.message || t("वृक्ष सहेजा गया।", "Tree saved."));
+      await reload();
+    } catch (error) {
+      message(error.message, true);
+    } finally {
+      if (button) button.disabled = false;
+    }
   }
 
   function definitionList(pairs) {
@@ -542,6 +787,7 @@
               { key: "submittedAt", label: t("जमा", "Submitted"), render: row => fmtDate(row.submittedAt) },
             ], data.trees, row => `
               ${actionButton(t("विवरण", "Details"), "tree-detail", row.id)}
+              ${actionButton(t("बॉक्स संपादन", "Edit boxes"), "tree-box-edit", row.id)}
               ${actionButton(row.status === "verified" ? t("संशोधित", "Revise") : t("संपादित", "Edit"), "tree-edit", row.id, { data: row.status === "verified" ? { revision: "true" } : {} })}
               ${row.status === "verified" ? actionButton(t("संग्रहीत", "Archive"), "tree-archive", row.id, { danger: true }) : ""}
               ${actionButton(t("हटाएँ", "Delete"), "tree-delete", row.id, { danger: true })}`)}
@@ -1251,7 +1497,10 @@
               [t("जमा", "Submitted"), fmtDate(data.tree.submittedAt)],
               [t("समीक्षक", "Reviewer"), esc(data.tree.reviewerEmail || "—")],
             ])}
-            <div class="admin-form-actions">${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}</div>
+            <div class="admin-form-actions">
+              ${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}
+              ${actionButton(t("बॉक्स में संपादित", "Edit in box tree"), "tree-box-edit", id)}
+            </div>
             <h4>${t("सदस्य", "Members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }, { key: "wifeGotra", label: t("जीवनसाथी गोत्र", "Spouse gotra") }, { key: "marriedGotra", label: t("विवाहित गोत्र", "Married gotra") }], data.people, null)}
             <h4>${t("सत्यापन इतिहास", "Verification history")}</h4>${timeline(data.verifications, "decision", "createdAt")}
             <h4>${t("संस्करण इतिहास", "Revision history")}</h4>${timeline(data.revisions, "note", "createdAt")}`, trigger);
@@ -1374,7 +1623,10 @@
               [t("गांव", "Village"), esc(data.tree.village || "—")],
               [t("स्थिति", "Status"), badge(data.tree.status)],
             ])}
-            <div class="admin-form-actions">${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}</div>
+            <div class="admin-form-actions">
+              ${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}
+              ${actionButton(t("बॉक्स में संपादित", "Edit in box tree"), "tree-box-edit", id)}
+            </div>
             <h4>${t("प्रस्तावित सदस्य", "Proposed members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }], data.members, null)}
             <label>${t("सत्यापन नोट", "Verification note")}<textarea id="admin-verification-note" rows="3" maxlength="500"></textarea></label>
             <div class="admin-form-actions">${hasAccess("verification-decision") ? decisions.map(decision => `<button type="button" class="button ${decision === "approve" ? "button-maroon" : "button-outline-dark"}" data-admin-action="verification-decision" data-id="${esc(id)}" data-decision="${decision}">${esc(STATUS_LABELS[decision] ? STATUS_LABELS[decision][lang() === "hi" ? 0 : 1] : decision)}</button>`).join("") : ""}</div>
@@ -1386,7 +1638,18 @@
           const data = await api(`/api/admin/console/trees/${id}`);
           openTreePreview(
             t("प्रस्तावित वंश वृक्ष", "Proposed family tree"),
-            Array.isArray(data.members) ? data.members : []
+            Array.isArray(data.members) ? data.members : [],
+            { treeId: id, status: data.tree?.status || rowStatus(id), editable: hasAccess("tree-box-edit") }
+          );
+          break;
+        }
+        case "tree-box-edit": {
+          state.lastTrigger = trigger;
+          const data = await api(`/api/admin/console/trees/${id}`);
+          openTreePreview(
+            t("वृक्ष बॉक्स संपादक", "Tree box editor"),
+            Array.isArray(data.members) ? data.members : [],
+            { treeId: id, status: data.tree?.status || rowStatus(id), editable: true }
           );
           break;
         }
@@ -1604,6 +1867,7 @@
             <button id="admin-tree-preview-close" class="admin-mini-btn" type="button" aria-label="${esc(t("बंद करें", "Close"))}">✕</button>
           </div>
           <p class="tree-hint">${esc(t("किसी बॉक्स पर क्लिक करें — उसके पुत्र और पुत्रियाँ खुल जाएँगे। रेखाएँ माता-पिता को संतान से जोड़ती हैं।", "Click a box to reveal that person's sons and daughters. Lines connect parents to children."))}</p>
+          <p id="admin-tree-reverify-note" class="admin-tree-reverify-note" hidden>${esc(t("यह वृक्ष सत्यापित है। कोई भी संपादन नया संस्करण खोलेगा और पुनः सत्यापन आवश्यक होगा।", "This tree is verified. Any edit opens a revision and re-verification will be required."))}</p>
           <div class="tree-controls">
             <button id="admin-tree-zoom-in" class="button button-outline-dark" type="button">＋ ${t("ज़ूम", "Zoom")}</button>
             <button id="admin-tree-zoom-out" class="button button-outline-dark" type="button">－ ${t("ज़ूम", "Zoom")}</button>
@@ -1611,8 +1875,36 @@
             <button id="admin-tree-expand" class="button button-outline-dark" type="button">${t("फैलाएँ", "Expand")}</button>
             <button id="admin-tree-collapse" class="button button-outline-dark" type="button">${t("संक्षिप्त", "Collapse")}</button>
           </div>
-          <div id="admin-tree-preview-canvas" class="admin-tree-preview__canvas">
-            <div id="admin-tree-preview-inner" class="admin-tree-preview__inner"></div>
+          <div class="admin-tree-preview__body">
+            <div id="admin-tree-preview-canvas" class="admin-tree-preview__canvas">
+              <div id="admin-tree-preview-inner" class="admin-tree-preview__inner"></div>
+            </div>
+            <aside id="admin-tree-editor" class="admin-tree-editor" hidden aria-label="${esc(t("बॉक्स विवरण संपादक", "Box details editor"))}">
+              <h4 id="admin-tree-editor-title"></h4>
+              <p class="form-note">${esc(t("बॉक्स पर क्लिक करें या पेंसिल दबाएँ; बदलाव तब तक सहेजे नहीं जाते जब तक वृक्ष सहेजें न दबाएँ।", "Click a box or its pencil to select it. Changes stay local until you save the tree."))}</p>
+              <div class="admin-tree-editor__fields">
+                <label>${t("नाम *", "Name *")}<input id="admin-tree-edit-name" maxlength="120" /></label>
+                <label id="admin-tree-edit-wife-block">${t("पत्नी का नाम", "Spouse name")}<input id="admin-tree-edit-wife-name" maxlength="120" /></label>
+                <label id="admin-tree-edit-wife-gotra-block">${t("पत्नी का गोत्र", "Spouse gotra")}<input id="admin-tree-edit-wife-gotra" maxlength="120" /></label>
+                <label id="admin-tree-edit-married-block" hidden>${t("विवाहित गोत्र", "Married gotra")}<input id="admin-tree-edit-married-gotra" maxlength="120" /></label>
+                <label id="admin-tree-edit-village-block">${t("गांव *", "Village *")}<input id="admin-tree-edit-village" maxlength="120" /></label>
+                <label>${t("भूमिका", "Role")}<select id="admin-tree-edit-type"><option value="root">${t("मूल", "Root")}</option><option value="son">${t("पुत्र", "Son")}</option><option value="daughter">${t("पुत्री", "Daughter")}</option></select></label>
+                <label>${t("माता-पिता", "Parent")}<select id="admin-tree-edit-parent"></select></label>
+                <label>${t("जन्म क्रम", "Birth order")}<input id="admin-tree-edit-birth-order" type="number" step="1" /></label>
+              </div>
+              <div class="admin-tree-editor__actions">
+                <button id="admin-tree-edit-apply" class="button button-maroon" type="button">${t("बॉक्स लागू करें", "Apply box")}</button>
+                <span id="admin-tree-edit-add">
+                  <button id="admin-tree-edit-add-son" class="button button-outline-dark" type="button">＋ ${t("पुत्र", "Son")}</button>
+                  <button id="admin-tree-edit-add-daughter" class="button button-outline-dark" type="button">＋ ${t("पुत्री", "Daughter")}</button>
+                </span>
+                <button id="admin-tree-edit-remove" class="button button-outline-dark admin-danger" type="button">${t("बॉक्स हटाएँ", "Remove box")}</button>
+              </div>
+            </aside>
+          </div>
+          <div id="admin-tree-preview-save" class="admin-tree-preview__save" hidden>
+            <label>${t("परिवर्तन नोट", "Change note")}<input id="admin-tree-change-note" maxlength="300" /></label>
+            <button id="admin-tree-save" class="button button-maroon" type="button">${t("वृक्ष सहेजें", "Save tree")}</button>
           </div>
         </div>
       </div>`;
@@ -1642,6 +1934,24 @@
     });
     $("#admin-tree-expand")?.addEventListener("click", () => state.treePreviewView?.expandAll());
     $("#admin-tree-collapse")?.addEventListener("click", () => state.treePreviewView?.collapseAll(true));
+    $("#admin-tree-edit-type")?.addEventListener("change", event => {
+      const isDaughter = event.target.value === "daughter";
+      for (const selector of ["#admin-tree-edit-wife-block", "#admin-tree-edit-wife-gotra-block"]) {
+        const block = $(selector);
+        if (block) block.hidden = isDaughter;
+      }
+      const married = $("#admin-tree-edit-married-block");
+      if (married) married.hidden = !isDaughter;
+      const village = $("#admin-tree-edit-village-block");
+      if (village) village.hidden = isDaughter;
+      const add = $("#admin-tree-edit-add");
+      if (add) add.hidden = isDaughter;
+    });
+    $("#admin-tree-edit-apply")?.addEventListener("click", applyTreeMemberEdit);
+    $("#admin-tree-edit-add-son")?.addEventListener("click", () => addTreeMember("son"));
+    $("#admin-tree-edit-add-daughter")?.addEventListener("click", () => addTreeMember("daughter"));
+    $("#admin-tree-edit-remove")?.addEventListener("click", removeTreeMember);
+    $("#admin-tree-save")?.addEventListener("click", () => void saveTreeFromPreview());
     $("#admin-dialog-confirm").addEventListener("click", async event => {
       const button = event.currentTarget;
       button.disabled = true;
