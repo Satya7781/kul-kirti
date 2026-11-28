@@ -46,10 +46,21 @@ test("daughter is name-only and cannot have descendants", () => {
   assert.equal(child.error, "daughter_has_descendant");
 });
 
-test("root/son require name, wife name and village", () => {
-  assert.equal(vsh.validateTreeMembers([root("r", { wifeName: "" }) ]).error, "missing_wife_or_village");
-  assert.equal(vsh.validateTreeMembers([root(), son("s1", "r", { wifeName: "" }) ]).error, "missing_wife_or_village");
+test("root/son require name and village; wife details are optional", () => {
+  const unmarried = vsh.validateTreeMembers([root("r", { wifeName: "" }), son("s1", "r", { wifeName: "" })]);
+  assert.equal(unmarried.valid, true, unmarried.error);
   assert.equal(vsh.validateTreeMembers([root(), son("s1", "r", { name: "" }) ]).error, "missing_name");
+  assert.equal(vsh.validateTreeMembers([root("r", { village: "" }) ]).error, "missing_village");
+});
+
+test("wife gotra and a daughter's married gotra are preserved when supplied", () => {
+  const result = vsh.validateTreeMembers([
+    root("r", { wifeName: "माता", wifeGotra: "गेहलोत" }),
+    daughter("d1", "r", { marriedGotra: "जैन" }),
+  ]);
+  assert.equal(result.valid, true, result.error);
+  assert.equal(result.members[0].wifeGotra, "गेहलोत");
+  assert.equal(result.members[1].marriedGotra, "जैन");
 });
 
 test("structural integrity: one root, valid parents, no cycles, no unreachable members", () => {

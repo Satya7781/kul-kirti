@@ -176,6 +176,22 @@
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.admin-field-hint {
+  display: block;
+  margin-top: 4px;
+  color: #6b6470;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.admin-samiti-photo {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 40, 40, .18);
+  background: #f6f1f1;
+}
+.admin-samiti-no-photo { color: #948c94; }
 
 .admin-card {
   border: 1px solid rgba(120, 40, 40, .14);

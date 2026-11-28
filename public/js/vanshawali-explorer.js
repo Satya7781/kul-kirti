@@ -267,7 +267,12 @@ function _treeLabels() {
           <div class="gotra-member-grid">${people.slice(0, 200).map(p => `
             <div class="gotra-member-card">
               <strong>${escapeHtml(p.full_name)}</strong>
-              <div class="gmc-meta">${escapeHtml([p.wife_name && `पत्नी: ${p.wife_name}`, p.village, p.member_type].filter(Boolean).join(" · "))}</div>
+              <div class="gmc-meta">${escapeHtml([
+                p.wife_name && `पत्नी: ${p.wife_name}`,
+                p.wife_gotra && `पत्नी का गोत्र: ${p.wife_gotra}`,
+                p.married_gotra && `विवाहित गोत्र: ${p.married_gotra}`,
+                p.village, p.member_type,
+              ].filter(Boolean).join(" · "))}</div>
             </div>`).join("")}</div>
         </div>`;
       canvas.hidden = false;
@@ -512,6 +517,8 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
       publicId: id,
       name: child.full_name || child.fullName || "?",
       wifeName: child.wife_name || child.wifeName || "",
+      wifeGotra: child.wife_gotra || child.wifeGotra || "",
+      marriedGotra: child.married_gotra || child.marriedGotra || "",
       village: child.village || "",
       memberType: child.member_type || child.memberType || "son",
       birthOrder: child.birth_order ?? child.birthOrder ?? null,
@@ -544,6 +551,8 @@ function _initFamilyTree(rootPubId, rootName, rootVillage) {
       publicId: rootPubId,
       name: person.full_name || person.fullName || rootName || "?",
       wifeName: person.wife_name || person.wifeName || "",
+      wifeGotra: person.wife_gotra || person.wifeGotra || "",
+      marriedGotra: person.married_gotra || person.marriedGotra || "",
       village: person.village || rootVillage || "",
       memberType: person.member_type || "son",
       birthOrder: person.birth_order ?? null,

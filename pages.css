@@ -3395,3 +3395,53 @@ html[lang="hi"] .result-card h3 {
   .vsh-review-members { grid-template-columns: 1fr; }
   .vsh-preview-canvas { max-height: 60vh; }
 }
+
+/* Samiti directory */
+.samiti-directory { display: grid; gap: 34px; }
+.samiti-president { display: grid; justify-items: center; gap: 12px; }
+.samiti-president .eyebrow { margin: 0; color: var(--gold, #c49a45); letter-spacing: .16em; text-transform: uppercase; font-size: 12px; }
+.samiti-members > h2 { margin: 0 0 4px; font-family: var(--font-serif, Georgia, serif); font-size: 24px; }
+.samiti-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.samiti-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 18px;
+  border: 1px solid rgba(120, 40, 40, .15);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(63, 24, 31, .05);
+  text-align: center;
+}
+.samiti-card--president {
+  min-width: 250px;
+  padding: 28px 24px;
+  border: 2px solid var(--gold, #c49a45);
+  background: rgba(255, 252, 245, .95);
+}
+.samiti-card-photo,
+.samiti-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(196, 154, 69, .55);
+  background: #f6f1f1;
+}
+.samiti-card--president .samiti-card-photo,
+.samiti-card--president .samiti-avatar { width: 124px; height: 124px; }
+.samiti-avatar {
+  display: grid;
+  place-items: center;
+  color: var(--maroon, #6b1d2c);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 34px;
+}
+.samiti-card-body h3 { margin: 0; font-size: 18px; }
+.samiti-card-position { margin: 0; color: var(--muted, #6b6470); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+
+@media (max-width: 720px) {
+  .samiti-grid { grid-template-columns: 1fr; }
+  .samiti-card--president { min-width: 0; width: 100%; }
+}

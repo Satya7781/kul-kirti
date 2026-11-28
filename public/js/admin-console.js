@@ -192,6 +192,8 @@
     "branch-create": ["branches", "edit"], "branch-link": ["branches", "approve"], "branch-unlink": ["branches", "approve"],
     "duplicate-scan": ["duplicates", "edit"], "duplicate-review": ["duplicates", "approve"],
     "village-rename": ["villages", "edit"], "village-merge": ["villages", "edit"],
+    "samiti-create": ["samiti", "edit"], "samiti-edit": ["samiti", "edit"],
+    "samiti-toggle": ["samiti", "edit"], "samiti-delete": ["samiti", "edit"],
     "account-create": ["accounts", "edit", true], "account-edit": ["accounts", "edit", true],
     "account-password": ["accounts", "edit", true], "account-deactivate": ["accounts", "edit", true],
     "notification-create": ["notifications", "edit"], "notification-read": ["notifications", "edit"],
@@ -221,6 +223,7 @@
     const required = field.required ? "required" : "";
     const max = field.max || 160;
     const current = value === undefined ? (field.value ?? "") : value;
+    const hint = field.hint ? `<small class="admin-field-hint">${esc(field.hint)}</small>` : "";
     let control;
     if (field.type === "textarea") {
       control = `<textarea name="${name}" rows="${field.rows || 3}" maxlength="${max}" ${required}>${esc(current)}</textarea>`;
@@ -228,10 +231,40 @@
       control = `<select name="${name}" ${required}>${(field.options || []).map(option => `<option value="${esc(option.value)}" ${String(current) === String(option.value) ? "selected" : ""}>${esc(option.label)}</option>`).join("")}</select>`;
     } else if (field.type === "checkbox") {
       control = `<input type="hidden" name="${name}" value="false" /><input type="checkbox" name="${name}" value="true" ${current ? "checked" : ""} />`;
+    } else if (field.type === "file") {
+      control = `<input type="file" name="${name}" accept="${esc(field.accept || "image/png,image/jpeg,image/webp,image/gif")}" ${required} />`;
     } else {
       control = `<input type="${field.type || "text"}" name="${name}" value="${esc(current)}" maxlength="${max}" ${required} autocomplete="${field.autocomplete || "off"}" />`;
     }
-    return `<label>${label}${control}</label>`;
+    return `<label>${label}${control}${hint}</label>`;
+  }
+
+  /* File inputs cannot be JSON.stringify'd. Convert them to the same data URL
+     format the server validates, for both inline forms and dialog forms. */
+  async function readImageFile(file) {
+    if (!file || !file.size) return "";
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+      throw new Error(t(" फ़ोटो PNG, JPEG, WebP या GIF होनी चाहिए।", "Photo must be a PNG, JPEG, WebP or GIF image."));
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error(t(" फ़ोटो 2 MB से छोटी होनी चाहिए।", "Photo must be smaller than 2 MB."));
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error(t(" फ़ोटो पढ़ी नहीं जा सकी।", "The photo could not be read.")));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function formObject(form) {
+    const object = {};
+    for (const [key, value] of new FormData(form).entries()) {
+      object[key] = (typeof File !== "undefined" && value instanceof File)
+        ? await readImageFile(value)
+        : value;
+    }
+    return object;
   }
 
   function openDialog({ title, body, confirmLabel = t("सहेजें", "Save"), danger = false, onConfirm }) {
@@ -256,9 +289,9 @@
     const body = `<form class="admin-form admin-form-grid" id="admin-dialog-form">${fields.map(field => fieldHtml(field, values[field.name])).join("")}</form>`;
     openDialog({
       title, body, confirmLabel, danger,
-      onConfirm: async formData => {
-        const object = {};
-        for (const [key, value] of formData.entries()) object[key] = value;
+      onConfirm: async () => {
+        const form = $("#admin-dialog-form");
+        const object = form ? await formObject(form) : {};
         await onSubmit(object);
         closeDialog();
       },
@@ -529,6 +562,8 @@
             ${table([
               { key: "name", label: t("नाम", "Name"), render: row => `<strong>${esc(row.name)}</strong><small>${esc(row.publicId)}</small>` },
               { key: "memberType", label: t("भूमिका", "Role") },
+              { key: "wifeGotra", label: t("जीवनसाथी गोत्र", "Spouse gotra") },
+              { key: "marriedGotra", label: t("विवाहित गोत्र", "Married gotra") },
               { key: "gotra", label: t("गोत्र", "Gotra") },
               { key: "treeReference", label: t("वृक्ष", "Tree") },
               { key: "village", label: t("गांव", "Village") },
@@ -694,6 +729,41 @@
               { key: "treeCount", label: t("वृक्ष", "Trees") },
               { key: "gotraCount", label: t("गोत्र", "Gotras") },
             ], data.villages, null)}
+          </div>` };
+      },
+    },
+
+    samiti: {
+      load: async () => {
+        const data = await api("/api/admin/console/samiti");
+        const photoCell = row => row.photoUrl
+          ? `<img class="admin-samiti-photo" src="${esc(row.photoUrl)}" alt="" />`
+          : `<span class="admin-samiti-no-photo">—</span>`;
+        return { ...(typeof data === "undefined" ? {} : data), html: `
+          <div class="admin-card"><h3>${t("समिति सदस्य जोड़ें", "Add samiti member")}</h3>
+            ${inlineForm("samiti-create", [
+              { name: "name", label: t("नाम *", "Name *"), required: true },
+              { name: "position", label: t("पद", "Position"), value: "Member", max: 120 },
+              { name: "isPresident", label: t("अध्यक्ष", "President"), type: "checkbox", value: false },
+              { name: "photo", label: t("फ़ोटो", "Photo"), type: "file", hint: t("PNG, JPEG, WebP या GIF · अधिकतम 2 MB", "PNG, JPEG, WebP or GIF · max 2 MB") },
+              { name: "sortOrder", label: t("क्रमांक", "Sort order"), type: "number", value: 100 },
+              { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox", value: true },
+            ], t("सदस्य जोड़ें", "Add member"))}
+          </div>
+          <div class="admin-card"><h3>${t("समिति निर्देशिका", "Samiti directory")}</h3>
+            <p class="form-note">${t("जो सदस्य प्रकाशित हैं वे /samiti.html पर दिखते हैं। अध्यक्ष अलग से दिखाया जाता है।", "Published members appear on /samiti.html. The president is shown separately.")}</p>
+            ${table([
+              { key: "photoUrl", label: t("फ़ोटो", "Photo"), render: photoCell },
+              { key: "name", label: t("नाम", "Name"), render: row => `<strong>${esc(row.name)}</strong>` },
+              { key: "position", label: t("पद", "Position") },
+              { key: "isPresident", label: t("अध्यक्ष", "President"), render: row => row.isPresident ? `<span class="admin-badge admin-badge--green">${t("हाँ", "Yes")}</span>` : "—" },
+              { key: "sortOrder", label: t("क्रमांक", "Order") },
+              { key: "isActive", label: t("प्रकाशित", "Published"), render: row => fmt(row.isActive) },
+              { key: "createdAt", label: t("बना", "Created"), render: row => fmtDate(row.createdAt) },
+            ], data.members, row => `
+              ${actionButton(t("संपादित", "Edit"), "samiti-edit", row.id)}
+              ${actionButton(row.isActive ? t("अप्रकाशित", "Unpublish") : t("प्रकाशित", "Publish"), "samiti-toggle", row.id)}
+              ${actionButton(t("हटाएँ", "Delete"), "samiti-delete", row.id, { danger: true })}`)}
           </div>` };
       },
     },
@@ -913,8 +983,8 @@
   };
 
   async function handleForm(action, form) {
-    const object = Object.fromEntries(new FormData(form).entries());
     try {
+      const object = await formObject(form);
       if (!hasAccess(action)) throw new Error(t("इस ऑपरेशन की अनुमति नहीं है।", "You are not permitted to perform this operation."));
       switch (action) {
         case "filter-apply":
@@ -924,6 +994,11 @@
         case "gotra-create":
           await send("/api/admin/console/gotras", object);
           message(t("गोत्र जोड़ा गया।", "Gotra created."));
+          await reload();
+          break;
+        case "samiti-create":
+          await send("/api/admin/console/samiti", object);
+          message(t("समिति सदस्य जोड़ा गया।", "Samiti member created."));
           await reload();
           break;
         case "branch-create":
@@ -1058,6 +1133,43 @@
             await reload();
           });
           break;
+        case "samiti-toggle": {
+          const row = (state.cache.samiti?.members || []).find(item => item.id === id);
+          await send(`/api/admin/console/samiti/${id}`, { isActive: !row?.isActive }, "PATCH");
+          await reload();
+          break;
+        }
+        case "samiti-edit": {
+          const row = (state.cache.samiti?.members || []).find(item => item.id === id) || {};
+          openForm({
+            title: t("समिति सदस्य संपादित करें", "Edit samiti member"),
+            values: {
+              name: row.name, position: row.position, isPresident: row.isPresident,
+              sortOrder: row.sortOrder, isActive: row.isActive,
+            },
+            fields: [
+              { name: "name", label: t("नाम", "Name"), required: true },
+              { name: "position", label: t("पद", "Position"), max: 120 },
+              { name: "isPresident", label: t("अध्यक्ष", "President"), type: "checkbox" },
+              { name: "photo", label: t("नई फ़ोटो", "New photo"), type: "file", hint: t("खाली छोड़ें तो पुरानी फ़ोटो रहेगी।", "Leave empty to keep the current photo.") },
+              { name: "removePhoto", label: t("फ़ोटो हटाएँ", "Remove photo"), type: "checkbox", value: false },
+              { name: "sortOrder", label: t("क्रमांक", "Sort order"), type: "number" },
+              { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox" },
+            ],
+            onSubmit: async body => {
+              await send(`/api/admin/console/samiti/${id}`, body, "PATCH");
+              message(t("समिति सदस्य अद्यतन हुआ।", "Samiti member updated."));
+              await reload();
+            },
+          });
+          break;
+        }
+        case "samiti-delete":
+          openConfirm(t("समिति सदस्य हटाएँ", "Delete samiti member"), t("यह सदस्य समिति निर्देशिका से पूरी तर हटा दिया जाएगा।", "This member will be permanently removed from the samiti directory."), t("हटाएँ", "Delete"), async () => {
+            await api(`/api/admin/console/samiti/${id}`, { method: "DELETE" });
+            await reload();
+          });
+          break;
         case "tree-detail": {
           const data = await api(`/api/admin/console/trees/${id}`);
           openDetail(t("वृक्ष विवरण", "Tree details"), `
@@ -1071,7 +1183,7 @@
               [t("समीक्षक", "Reviewer"), esc(data.tree.reviewerEmail || "—")],
             ])}
             <div class="admin-form-actions">${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}</div>
-            <h4>${t("सदस्य", "Members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }], data.people, null)}
+            <h4>${t("सदस्य", "Members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }, { key: "wifeGotra", label: t("जीवनसाथी गोत्र", "Spouse gotra") }, { key: "marriedGotra", label: t("विवाहित गोत्र", "Married gotra") }], data.people, null)}
             <h4>${t("सत्यापन इतिहास", "Verification history")}</h4>${timeline(data.verifications, "decision", "createdAt")}
             <h4>${t("संस्करण इतिहास", "Revision history")}</h4>${timeline(data.revisions, "note", "createdAt")}`, trigger);
           break;
@@ -1125,7 +1237,10 @@
           openDetail(t("सदस्य विवरण", "Member details"), `
             ${definitionList([
               [t("नाम", "Name"), esc(data.person.full_name)], [t("पब्लिक आईडी", "Public ID"), esc(data.person.public_id)],
-              [t("भूमिका", "Role"), esc(data.person.member_type || "—")], [t("गांव", "Village"), esc(data.person.village || "—")],
+              [t("भूमिका", "Role"), esc(data.person.member_type || "—")],
+              [t("जीवनसाथी का गोत्र", "Spouse gotra"), esc(data.person.wife_gotra || "—")],
+              [t("विवाहित गोत्र", "Married gotra"), esc(data.person.married_gotra || "—")],
+              [t("गांव", "Village"), esc(data.person.village || "—")],
               [t("गोत्र", "Gotra"), esc(data.person.gotra || "—")], [t("स्थिति", "Status"), badge(data.person.status)],
             ])}
             <h4>${t("माता-पिता", "Parents")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "relationType", label: t("प्रकार", "Type") }], data.parents, null)}
@@ -1143,10 +1258,12 @@
             title: revising
               ? t("सत्यापित सदस्य का नया संस्करण", "Create a verified-member revision")
               : t("सदस्य संपादित करें", "Edit member"),
-            values: { fullName: row.name, wifeName: row.wifeName, village: row.village, memberType: row.memberType, status: row.status, visibility: row.visibility },
+            values: { fullName: row.name, wifeName: row.wifeName, wifeGotra: row.wifeGotra, marriedGotra: row.marriedGotra, village: row.village, memberType: row.memberType, status: row.status, visibility: row.visibility },
             fields: [
               { name: "fullName", label: t("पूरा नाम", "Full name"), required: true },
               { name: "wifeName", label: t("जीवनसाथी", "Spouse") },
+              { name: "wifeGotra", label: t("जीवनसाथी का गोत्र", "Spouse gotra") },
+              { name: "marriedGotra", label: t("विवाहित गोत्र", "Married gotra") },
               { name: "village", label: t("गांव", "Village") },
               { name: "memberType", label: t("भूमिका", "Role"), type: "select", options: ["root", "son", "daughter"].map(value => ({ value, label: value })) },
               { name: "status", label: t("स्थिति", "Status"), type: "select", options: ["verified", "pending", "draft", "archived"].map(value => ({ value, label: value })) },
@@ -1390,7 +1507,7 @@
     root.innerHTML = `
       <div class="admin-console">
         <aside class="admin-sidebar">
-          <h2 class="admin-sidebar-title">Admin Console<small>${t("16 प्रबंधन मॉड्यूल", "16 management modules")}</small></h2>
+          <h2 class="admin-sidebar-title">Admin Console<small>${t("17 प्रबंधन मॉड्यूल", "17 management modules")}</small></h2>
           <nav id="admin-module-nav" class="admin-module-nav" aria-label="${esc(t("एडमिन मॉड्यूल", "Admin modules"))}"></nav>
         </aside>
         <div class="admin-workspace">

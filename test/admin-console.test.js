@@ -31,7 +31,7 @@ function makePool() {
     grants[`super_admin:${permission.key}`] = true;
     grants[`admin:${permission.key}`] =
       permission.action === "view" ||
-      (permission.action === "edit" && ["gotras", "trees", "members", "verification", "master", "branches", "duplicates", "villages", "notifications", "reports", "exports", "activity"].includes(permission.module)) ||
+      (permission.action === "edit" && ["gotras", "trees", "members", "verification", "master", "branches", "duplicates", "villages", "samiti", "notifications", "reports", "exports", "activity"].includes(permission.module)) ||
       (permission.action === "approve" && ["verification", "master", "branches", "duplicates"].includes(permission.module));
   }
   const db = {
@@ -51,13 +51,14 @@ function makePool() {
       if (query.includes("FROM information_schema.columns")) {
         return {
           rows: [
-            "people.wife_name", "people.member_type", "people.birth_order", "people.family_tree_id",
+            "people.wife_name", "people.wife_gotra", "people.married_gotra",
+            "people.member_type", "people.birth_order", "people.family_tree_id",
             "family_trees.current_revision", "family_trees.revision_number", "family_trees.root_person_id",
           ].map(key => {
             const [table_name, column_name] = key.split(".");
             return { table_name, column_name };
           }),
-          rowCount: 7,
+          rowCount: 9,
         };
       }
 
@@ -269,18 +270,18 @@ async function call(base, path, options = {}) {
 const superAdmin = { id: ADMIN_ID, email: "super@example.com", role: "super_admin" };
 const admin = { id: ADMIN_ID, email: "admin@example.com", role: "admin" };
 
-test("console metadata lists 16 modules and denies revoked module access", async () => {
+test("console metadata lists 17 modules and denies revoked module access", async () => {
   const pool = makePool();
   await withServer(pool, admin, async base => {
     const ok = await call(base, "/api/admin/console/meta");
     assert.equal(ok.status, 200);
-    assert.equal(ok.body.modules.length, 16);
+    assert.equal(ok.body.modules.length, 17);
     assert.equal(ok.body.admin.role, "admin");
 
     pool.grants["admin:overview:view"] = false;
     const stillVisible = await call(base, "/api/admin/console/meta");
     assert.equal(stillVisible.status, 200);
-    assert.equal(stillVisible.body.modules.length, 16);
+    assert.equal(stillVisible.body.modules.length, 17);
     const overview = await call(base, "/api/admin/console/overview");
     assert.equal(overview.status, 403);
   });

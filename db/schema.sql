@@ -525,10 +525,13 @@ CREATE TABLE IF NOT EXISTS verification_records (
 );
 CREATE INDEX IF NOT EXISTS verification_records_tree_idx ON verification_records (family_tree_id, created_at DESC);
 
--- Canonical people carry their tree, role and spouse name.  Parent-child
--- edges stay in person_relationships (already cycle/duplicate protected).
+-- Canonical people carry their tree, role, optional spouse details and the
+-- gotra a daughter married into. Parent-child edges stay in
+-- person_relationships (already cycle/duplicate protected).
 ALTER TABLE people ADD COLUMN IF NOT EXISTS family_tree_id UUID REFERENCES family_trees(id) ON DELETE SET NULL;
 ALTER TABLE people ADD COLUMN IF NOT EXISTS wife_name TEXT;
+ALTER TABLE people ADD COLUMN IF NOT EXISTS wife_gotra TEXT;
+ALTER TABLE people ADD COLUMN IF NOT EXISTS married_gotra TEXT;
 ALTER TABLE people ADD COLUMN IF NOT EXISTS member_type TEXT
   CHECK (member_type IN ('root', 'son', 'daughter') OR member_type IS NULL);
 ALTER TABLE people ADD COLUMN IF NOT EXISTS birth_order INTEGER NOT NULL DEFAULT 0;

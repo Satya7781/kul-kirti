@@ -42,18 +42,22 @@
       </section>
 
       <section class="section">
-        <div class="shell empty-directory">
-          <span class="empty-icon" data-i18n="samiti.emptyIcon">⌂</span>
-          <h2 data-i18n="samiti.emptyH2">निर्देशिका निर्माणाधीन है</h2>
-          <p data-i18n="samiti.emptyBody">समितियों की जानकारी admin सत्यापन और अधिकृत सार्वजनिक विवरण मिलने के बाद यहां प्रकाशित की जाएगी।</p>
-          <a class="button button-maroon" href="/vanshawali-create.html">
-            <span data-i18n="samiti.btnSubmit">समिति का विवरण भेजें</span> <span>→</span>
-          </a>
+        <div class="shell">
+          <div id="samiti-empty" class="empty-directory">
+            <span class="empty-icon" data-i18n="samiti.emptyIcon">⌂</span>
+            <h2 data-i18n="samiti.emptyH2">निर्देशिका निर्माणाधीन है</h2>
+            <p data-i18n="samiti.emptyBody">समितियों की जानकारी admin सत्यापन और अधिकृत सार्वजनिक विवरण मिलने के बाद यहां प्रकाशित की जाएगी।</p>
+            <a class="button button-maroon" href="/vanshawali-create.html">
+              <span data-i18n="samiti.btnSubmit">समिति का विवरण भेजें</span> <span>→</span>
+            </a>
+          </div>
+          <div id="samiti-directory" class="samiti-directory" hidden></div>
         </div>
       </section>
     </main>
 
     <div id="shared-footer"></div>
     <script src="app.js"></script>
+    <script src="/public/js/samiti-directory.js"></script>
   </body>
 </html>

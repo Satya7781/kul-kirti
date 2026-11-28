@@ -58,6 +58,20 @@ test("editor hierarchy uses parentId links but never expands daughters", () => {
   assert.equal(root.children[0].children.length, 0);
   assert.equal(root.children[1].children.length, 0);
   assert.equal(root.children[1].wifeName, "");
+  assert.equal(root.children[1].wifeGotra, "");
+  assert.equal(root.children[0].marriedGotra, "");
+});
+
+test("verified visual payload carries optional spouse and married gotras into nodes", () => {
+  const FamilyTree = loadFamilyTree();
+  const [node] = FamilyTree.buildNodesFromVisual([
+    { id: "r", full_name: "मूल", member_type: "root", wife_name: "माता", wife_gotra: "गेहलोत" },
+    { id: "d", full_name: "पुत्री", member_type: "daughter", married_gotra: "जैन" },
+  ], [
+    { parent_id: "r", child_id: "d", relation_type: "biological" },
+  ]);
+  assert.equal(node.wifeGotra, "गेहलोत");
+  assert.equal(node.children[0].marriedGotra, "जैन");
 });
 
 test("both tree pages and the build check load the shared renderer", () => {
@@ -87,7 +101,7 @@ test("admin verification review exposes a connected box-tree preview", () => {
 
 test("public child query supplies birth order and expandability metadata", () => {
   const source = read("lib/genealogy.js");
-  assert.match(source, /p\.wife_name,\s*p\.member_type,\s*p\.birth_order/);
+  assert.match(source, /p\.wife_name,\s*p\.wife_gotra, p\.married_gotra, p\.member_type,\s*p\.birth_order/);
   assert.match(source, /AS child_count/);
   assert.match(source, /ORDER BY p\.birth_order NULLS LAST, p\.full_name/);
 });

@@ -21,6 +21,9 @@
   const DEFAULT_LABELS = {
     connections: "वंश वृक्ष में सदस्यों के बीच संबंध रेखाएँ",
     wife: "पत्नी",
+    wifeGotra: "पत्नी का गोत्र",
+    marriedGotra: "विवाहित गोत्र",
+    unmarried: "अविवाहित",
     village: "गांव",
     profile: "प्रोफ़ाइल",
     viewProfile: "प्रोफ़ाइल देखें",
@@ -95,6 +98,8 @@
         id: person.id,
         name: person.full_name || person.fullName || "?",
         wifeName: person.wife_name || person.wifeName || "",
+        wifeGotra: person.wife_gotra || person.wifeGotra || "",
+        marriedGotra: person.married_gotra || person.marriedGotra || "",
         village: person.village || "",
         memberType: person.member_type || person.memberType || "son",
         birthOrder: person.birth_order ?? person.birthOrder ?? null,
@@ -152,6 +157,8 @@
         id: member.clientId || member.id,
         name: member.name || "?",
         wifeName: member.wifeName || "",
+        wifeGotra: member.wifeGotra || "",
+        marriedGotra: member.marriedGotra || "",
         village: member.village || "",
         memberType: member.memberType || "son",
         birthOrder: member.birthOrder ?? null,
@@ -294,9 +301,19 @@
       if (expandable) main.setAttribute("aria-expanded", String(open));
       else main.setAttribute("aria-disabled", "true");
 
-      const meta = daughter ? "" :
-        `<span class="family-tree-node__meta">${cfg.labels.wife}: ${escapeHtml(node.wifeName || "—")}</span>` +
-        `<span class="family-tree-node__meta">${cfg.labels.village}: ${escapeHtml(node.village || "—")}</span>`;
+      const meta = daughter
+        ? (node.marriedGotra
+            ? `<span class="family-tree-node__meta">${cfg.labels.marriedGotra}: ${escapeHtml(node.marriedGotra)}</span>`
+            : "")
+        : [
+            node.wifeName
+              ? `${cfg.labels.wife}: ${escapeHtml(node.wifeName)}`
+              : cfg.labels.unmarried,
+            node.wifeGotra ? `${cfg.labels.wifeGotra}: ${escapeHtml(node.wifeGotra)}` : "",
+            node.village ? `${cfg.labels.village}: ${escapeHtml(node.village)}` : "",
+          ].filter(Boolean)
+            .map(text => `<span class="family-tree-node__meta">${text}</span>`)
+            .join("");
 
       main.innerHTML =
         `<span class="family-tree-node__name">${escapeHtml(node.name || "?")}</span>` +

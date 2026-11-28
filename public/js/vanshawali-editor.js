@@ -101,7 +101,7 @@
     state.expanded = new Set(state.members.map(m => m.clientId));
     state.editing = new Set();
     if (!state.members.length) {
-      const root = { clientId: newId(), name: "", wifeName: "", village: "", memberType: "root", parentId: null, birthOrder: 0 };
+      const root = { clientId: newId(), name: "", wifeName: "", wifeGotra: "", marriedGotra: "", village: "", memberType: "root", parentId: null, birthOrder: 0 };
       state.members.push(root);
       state.editing.add(root.clientId);
     }
@@ -126,8 +126,11 @@
     return `
       <div class="vsh-node-kind">${label}</div>
       <label>नाम *<input data-f="name" maxlength="120" value="${esc(m.name)}" /></label>
-      ${isDaughter ? "" : `
-        <label>पत्नी का नाम *<input data-f="wifeName" maxlength="120" value="${esc(m.wifeName)}" /></label>
+      ${isDaughter ? `
+        <label>विवाहित गोत्र (यदि विवाहित)<input data-f="marriedGotra" maxlength="120" value="${esc(m.marriedGotra)}" placeholder="जिस गोत्र में विवाह हुआ" /></label>`
+      : `
+        <label>पत्नी का नाम (अविवाहित हो तो खाली छोड़ें)<input data-f="wifeName" maxlength="120" value="${esc(m.wifeName)}" /></label>
+        <label>पत्नी का गोत्र (पत्नी दर्ज हो तो)<input data-f="wifeGotra" maxlength="120" value="${esc(m.wifeGotra)}" placeholder="पत्नी का गोत्र" /></label>
         <label>गांव *<input data-f="village" maxlength="120" value="${esc(m.village)}" /></label>`}
       <div class="vsh-node-actions">
         <button type="submit" class="button button-gold" data-act="save">सहेजें</button>
@@ -140,9 +143,12 @@
     const canExpand = m.memberType !== "daughter";
     return `
       <strong>${esc(m.name || "नाम दर्ज करें")}</strong>
-      ${isDaughter ? "" : `
-        <span>पत्नी: ${esc(m.wifeName || "—")}</span>
-        <span>गांव: ${esc(m.village || "—")}</span>`}
+      ${isDaughter
+        ? (m.marriedGotra ? `<span>विवाहित गोत्र: ${esc(m.marriedGotra)}</span>` : "")
+        : `
+          <span>पत्नी: ${esc(m.wifeName || "अविवाहित")}</span>
+          ${m.wifeGotra ? `<span>पत्नी का गोत्र: ${esc(m.wifeGotra)}</span>` : ""}
+          <span>गांव: ${esc(m.village || "—")}</span>`}
       <div class="vsh-node-actions">
         ${state.readOnly ? "" : `
           <button type="button" data-act="edit">संपादित</button>
@@ -205,7 +211,7 @@
     } else if (act === "add-son" || act === "add-daughter") {
       if (member.memberType === "daughter") return;
       const child = {
-        clientId: newId(), name: "", wifeName: "", village: "",
+        clientId: newId(), name: "", wifeName: "", wifeGotra: "", marriedGotra: "", village: "",
         memberType: act === "add-son" ? "son" : "daughter",
         parentId: id,
         birthOrder: Math.max(-1, ...state.members.map(m => m.birthOrder)) + 1,
@@ -248,7 +254,8 @@
   function payload() {
     return {
       members: state.members.map(m => ({
-        clientId: m.clientId, name: m.name, wifeName: m.wifeName, village: m.village,
+        clientId: m.clientId, name: m.name, wifeName: m.wifeName,
+        wifeGotra: m.wifeGotra, marriedGotra: m.marriedGotra, village: m.village,
         memberType: m.memberType, parentId: m.parentId, birthOrder: m.birthOrder,
       })),
       village: els.village.value.trim(), district: els.district.value.trim(), state: els.state.value.trim(),
@@ -421,6 +428,8 @@
       clientId: p.id,
       name: p.full_name,
       wifeName: p.wife_name,
+      wifeGotra: p.wife_gotra,
+      marriedGotra: p.married_gotra,
       village: p.village,
       memberType: p.member_type || "son",
       parentId: null,

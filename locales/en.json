@@ -221,7 +221,11 @@
     "emptyIcon":   "⌂",
     "emptyH2":     "Directory under construction",
     "emptyBody":   "Committee information will be published here after admin verification and receipt of authorised public details.",
-    "btnSubmit":   "Submit committee details"
+    "btnSubmit":   "Submit committee details",
+    "president":   "President",
+    "members":     "Other members",
+    "member":      "Member",
+    "loadError":   "The directory could not be loaded. Please try again later."
   },
 
   "admin": {

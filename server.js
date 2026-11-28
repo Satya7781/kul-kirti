@@ -69,7 +69,9 @@ app.use(helmet({
 }));
 const allowedCorsOrigin = process.env.FRONTEND_ORIGIN || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
 app.use(cors({ origin: allowedCorsOrigin, credentials: true }));
-app.use(express.json({ limit: "1mb" }));
+/* The samiti directory accepts small, validated base64 photos in JSON. Keep
+   the cap well below the decoded 2 MB per-photo limit enforced by the route. */
+app.use(express.json({ limit: "6mb" }));
 app.use(cookieParser());
 
 /* The legacy submission / parivar UI was retired.  Keep the routes from being
@@ -2194,7 +2196,7 @@ const vanshawaliContext = {
 };
 vanshawaliRoutes(app, vanshawaliContext);
 
-/* Unified 16-module admin console.  Registered after the central /api/admin
+/* Unified 17-module admin console.  Registered after the central /api/admin
    gate and after the Vanshawali module, so it reuses its decision/link logic. */
 registerAdminConsoleRoutes(app, {
   pool, requireRole, clean, uuidOrNull, msg, sendExport,

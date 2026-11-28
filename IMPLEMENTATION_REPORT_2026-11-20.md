@@ -96,10 +96,10 @@ Prior audit context is retained in `AUDIT_REPORT_2026-11-19.md` and `AUDIT_REPOR
 
 ### Permission seed
 
-16 modules × 3 actions = 48 permission keys:
+17 modules × 3 actions = 51 permission keys:
 
-- `super_admin`: all 48 permissions.
-- `admin`: all `view` permissions; `edit` on `gotras`, `trees`, `members`, `verification`, `master`, `branches`, `duplicates`, `villages`, `notifications`, `reports`, `exports`, `activity`; `approve` only on `verification`, `master`, `branches`, `duplicates`.
+- `super_admin`: all 51 permissions.
+- `admin`: all `view` permissions; `edit` on `gotras`, `trees`, `members`, `verification`, `master`, `branches`, `duplicates`, `villages`, `samiti`, `notifications`, `reports`, `exports`, `activity`; `approve` only on `verification`, `master`, `branches`, `duplicates`.
 - `accounts`, `roles`, and `backups` mutations remain Super Admin-only at the route layer.
 - A corrective `UPDATE` realigns role grants if an earlier build of the migration was already applied.
 
@@ -123,11 +123,11 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **51 passed, 0 failed** |
+| `npm test` | **56 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
-| 17-module browser pass | 17/17 modules rendered; zero console errors, duplicate IDs, inline handlers, overflow, or broken internal links |
+| Admin browser pass | 17 console modules plus the original verification flow rendered; zero console errors, duplicate IDs, inline handlers, overflow, or broken internal links |
 | Family-tree browser pass | Box click expands sons/daughters, `Expand all` reaches the fourth generation, verified detail collapses cleanly; zero console errors |
 | Admin tree-preview browser pass | Verification review opens the connected box tree, approve moves the filter to `verified`; zero console errors |
 | HTML i18n check | 10 HTML files, 154 keys, no missing Hindi/English keys |
@@ -186,6 +186,17 @@ Local browser verification with seeded mock data confirmed: initial root + 3 chi
 - Regression coverage now asserts that console- and transaction-level audit failures do not block approval, that handler failures return `409`/`422`/`503` rather than `500`, that the DB code is surfaced in the response, and that the admin preview is wired to the shared renderer.
 
 Local browser verification against the admin mock confirmed: review opens, **View box tree** renders the proposed root + sons + daughter + grandchildren with 9 connector segments, the preview closes cleanly, approve shows `निर्णय सहेजा गया: verified।`, the verification filter moves to `verified`, and no console errors occur.
+
+### Samiti directory and optional spouse fields (2026-11-28)
+
+- **New 17th DB-backed module: `samiti`.** `db/migrations/2026-11-28-samiti-directory.sql` creates `samiti_members` (name, position, president flag, validated photo, sort order, publish flag, audit columns), seeds `samiti:view|edit|approve`, grants admins `view`/`edit`, and enforces at most one published president.
+- **Full admin CRUD.** `GET/POST/PATCH/DELETE /api/admin/console/samiti` are guarded by `samiti:view`/`samiti:edit`; every write is recorded in `genealogy_audit`. Photos are accepted as validated PNG/JPEG/WebP/GIF data URLs (max 2 MB decoded, with magic-byte checks) and are never written to the audit log.
+- **Public page is live.** `GET /api/samiti` returns only published members; `samiti.html` now renders the president separately and the remaining members as cards with photos, with a safe empty/error fallback. No new storage bucket, secret or filesystem route was introduced.
+- **Uploads stay safe.** The admin form converts selected image files to data URLs client-side; the JSON limit was raised to 6 MB while the route enforces the smaller decoded-photo limit. Helmet's existing `img-src data:` policy covers the stored photos.
+- **Wife name is optional.** `root`/`son` validation no longer requires `wifeName`; only `name` and `village` remain mandatory. The editor says "अविवाहित हो तो खाली छोड़ें" and the box preview shows "अविवाहित" when no spouse is recorded.
+- **Wife's gotra can be recorded with the spouse.** An optional `wifeGotra` field is carried in the revision, stored in `people.wife_gotra` on verification, and shown in editor/preview/public visual cards.
+- **Daughter's married gotra is optional.** A `marriedGotra` field appears only on daughter boxes, is stored in `people.married_gotra`, and never makes a daughter branchable. Daughters remain name-only leaves except for this optional gotra note.
+- Additive migrations cover both changes; `db/schema.sql` also lists the two new `people` columns for fresh bootstrap. Schema-drift diagnostics now include `wife_gotra` and `married_gotra`.
 
 ---
 
