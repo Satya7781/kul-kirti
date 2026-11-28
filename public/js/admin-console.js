@@ -193,6 +193,7 @@
     "member-edit": ["members", "edit"], "member-branch": ["members", "edit"], "member-archive": ["members", "edit"],
     "verification-preview": ["verification", "view"],
     "verification-assign": ["verification", "approve"], "verification-decision": ["verification", "approve"],
+    "master-link": ["master", "approve", true],
     "master-reverse": ["master", "approve", true],
     "branch-create": ["branches", "edit"], "branch-link": ["branches", "approve"], "branch-unlink": ["branches", "approve"],
     "duplicate-scan": ["duplicates", "edit"], "duplicate-review": ["duplicates", "approve"],
@@ -595,6 +596,38 @@
     message(t("नया बॉक्स जोड़ा गया; विवरण भरें और वृक्ष सहेजें।", "New box added; fill in its details and save the tree."));
   }
 
+  /* Inserting a father/grandfather above the current root must keep exactly
+     one root: the new ancestor takes the root role and the old root becomes
+     its son. Repeating the action builds the next generation upwards. */
+  function addAncestor(levels = 1) {
+    const key = state.treeSelectedId;
+    const target = draftMember(key);
+    if (!target || target.memberType === "daughter") return;
+    let childKey = key;
+    for (let level = 0; level < levels; level += 1) {
+      const child = draftMember(childKey);
+      if (!child) break;
+      const wasRoot = child.memberType === "root";
+      const ancestorKey = `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      state.treeDraft.push({
+        clientId: ancestorKey,
+        name: t("नया पूर्वज", "New ancestor"),
+        wifeName: "", wifeGotra: "", marriedGotra: "",
+        village: child.village || "",
+        memberType: wasRoot ? "root" : "son",
+        parentId: wasRoot ? null : (child.parentId || null),
+        birthOrder: 0,
+      });
+      child.parentId = ancestorKey;
+      if (wasRoot) child.memberType = "son";
+      childKey = ancestorKey;
+    }
+    refreshTreePreview(childKey);
+    openTreeMemberEditor(childKey);
+    $("#admin-tree-edit-name")?.select();
+    message(t("पूर्वज जोड़े गए; नाम व गांव भरें और वृक्ष सहेजें।", "Ancestor added; fill in the details and save the tree."));
+  }
+
   function removeTreeMember() {
     const key = state.treeSelectedId;
     const member = draftMember(key);
@@ -874,7 +907,7 @@
               { key: "village", label: t("गांव", "Village") },
               { key: "memberCount", label: t("सदस्य", "Members") },
               { key: "linkCount", label: t("लिंक", "Links") },
-            ], index.trees, row => row.rootPersonId ? actionButton(t("पूर्वज देखें", "Ancestors"), "master-ancestors", row.rootPersonId) : "")}
+            ], index.trees, row => `${actionButton(t("वृक्ष जोड़ें", "Link tree"), "master-link", row.id)}${row.rootPersonId ? actionButton(t("पूर्वज देखें", "Ancestors"), "master-ancestors", row.rootPersonId) : ""}`)}
           </div>
           <div class="admin-card"><h3>${t("वृक्षों की तुलना", "Compare trees")}</h3>
             ${inlineForm("master-compare", [
@@ -1500,6 +1533,7 @@
             <div class="admin-form-actions">
               ${actionButton(t("बॉक्स वृक्ष देखें", "View box tree"), "verification-preview", id)}
               ${actionButton(t("बॉक्स में संपादित", "Edit in box tree"), "tree-box-edit", id)}
+              ${actionButton(t("वृक्ष से जोड़ें", "Link to another tree"), "master-link", id)}
             </div>
             <h4>${t("सदस्य", "Members")}</h4>${table([{ key: "name", label: t("नाम", "Name") }, { key: "memberType", label: t("भूमिका", "Role") }, { key: "wifeName", label: t("जीवनसाथी", "Spouse") }, { key: "wifeGotra", label: t("जीवनसाथी गोत्र", "Spouse gotra") }, { key: "marriedGotra", label: t("विवाहित गोत्र", "Married gotra") }], data.people, null)}
             <h4>${t("सत्यापन इतिहास", "Verification history")}</h4>${timeline(data.verifications, "decision", "createdAt")}
@@ -1694,6 +1728,77 @@
           openDetail(t("पूर्वज शृंखला", "Ancestor chain"), table([
             { key: "id", label: "ID" }, { key: "name", label: t("नाम", "Name") }, { key: "depth", label: t("स्तर", "Depth") },
           ], data.ancestors, null), trigger);
+          break;
+        }
+        case "master-link": {
+          state.lastTrigger = trigger;
+          const [index, sourceHierarchy] = await Promise.all([
+            api("/api/admin/console/master/tree-index"),
+            api(`/api/admin/console/master/hierarchy?treeId=${encodeURIComponent(id)}`),
+          ]);
+          const source = (index.trees || []).find(item => item.id === id);
+          if (!source) {
+            message(t("लिंक केवल सत्यापित वृक्षों के बीच हो सकता है।", "Linking requires verified trees."), true);
+            return;
+          }
+          const targets = (index.trees || []).filter(item =>
+            item.id !== id && (!source.gotraId || item.gotraId === source.gotraId));
+          if (!targets.length || !(sourceHierarchy.nodes || []).length) {
+            message(t("लिंक के लिए दूसरा सत्यापित वृक्ष और सदस्य आवश्यक हैं।", "Linking needs another verified tree with members."), true);
+            return;
+          }
+          const anchorOptions = sourceHierarchy.nodes.map(node =>
+            `<option value="${esc(node.id)}" ${node.id === source.rootPersonId ? "selected" : ""}>${esc(node.name || "?")}</option>`).join("");
+          const targetOptions = targets.map(row =>
+            `<option value="${esc(row.id)}">${esc(row.treeReference)}${row.rootName ? ` · ${esc(row.rootName)}` : ""}</option>`).join("");
+          openDialog({
+            title: t("वृक्षों को जोड़ें", "Link family trees"),
+            body: `<form class="admin-form admin-form-grid" id="admin-dialog-form">
+              <label>${t("लक्ष्य वृक्ष", "Target tree")}<select id="admin-link-target" name="targetTreeId" required>
+                <option value="">${esc(t("चुनें", "Select"))}</option>${targetOptions}
+              </select></label>
+              <label>${t("स्रोत वृक्ष का बच्चा", "Child in source tree")}<select name="sourceAnchorPersonId" required>${anchorOptions}</select>
+                <small class="admin-field-hint">${esc(t("यह सदस्य लक्ष्य पूर्वज का पुत्र बनेगा; इसके पहले से कोई सत्यापित पिता नहीं होना चाहिए।", "This person becomes the ancestor's child and must not already have a verified father."))}</small></label>
+              <label>${t("लक्ष्य वृक्ष का साझा पूर्वज", "Common ancestor in target tree")}<select id="admin-link-ancestor" name="commonAncestorPersonId" required>
+                <option value="">${esc(t("चुनें", "Select"))}</option>
+              </select><small class="admin-field-hint">${esc(t("पहले लक्ष्य वृक्ष चुनें।", "Choose a target tree first."))}</small></label>
+              <label>${t("नोट", "Notes")}<textarea name="notes" rows="3" maxlength="500"></textarea></label>
+            </form>`,
+            confirmLabel: t("लिंक करें", "Link trees"),
+            onConfirm: async formData => {
+              const body = {
+                targetTreeId: String(formData.get("targetTreeId") || ""),
+                sourceAnchorPersonId: String(formData.get("sourceAnchorPersonId") || ""),
+                commonAncestorPersonId: String(formData.get("commonAncestorPersonId") || ""),
+                notes: String(formData.get("notes") || ""),
+              };
+              if (!body.targetTreeId || !body.sourceAnchorPersonId || !body.commonAncestorPersonId) {
+                throw new Error(t("कृपया लक्ष्य वृक्ष, बच्चा और पूर्वज चुनें।", "Choose a target tree, child and ancestor."));
+              }
+              await send(`/api/admin/console/master/link/${encodeURIComponent(id)}`, body);
+              message(t("वृक्ष लिंक हो गया; परिवर्तन सहेजा गया।", "Trees linked and the change was saved."));
+              closeDialog();
+              await reload();
+            },
+          });
+          const targetSelect = $("#admin-link-target");
+          const ancestorSelect = $("#admin-link-ancestor");
+          async function loadAncestorOptions(treeId) {
+            if (!ancestorSelect) return;
+            const placeholder = `<option value="">${esc(t("चुनें", "Select"))}</option>`;
+            ancestorSelect.innerHTML = placeholder;
+            if (!treeId) return;
+            try {
+              const hierarchy = await api(`/api/admin/console/master/hierarchy?treeId=${encodeURIComponent(treeId)}`);
+              ancestorSelect.innerHTML = placeholder + (hierarchy.nodes || []).map(node =>
+                `<option value="${esc(node.id)}">${esc(node.name || "?")}</option>`).join("");
+            } catch (error) { message(error.message, true); }
+          }
+          targetSelect?.addEventListener("change", () => void loadAncestorOptions(targetSelect.value));
+          if (targets.length === 1 && targetSelect) {
+            targetSelect.value = targets[0].id;
+            void loadAncestorOptions(targets[0].id);
+          }
           break;
         }
         case "master-reverse":
@@ -1897,6 +2002,8 @@
                 <span id="admin-tree-edit-add">
                   <button id="admin-tree-edit-add-son" class="button button-outline-dark" type="button">＋ ${t("पुत्र", "Son")}</button>
                   <button id="admin-tree-edit-add-daughter" class="button button-outline-dark" type="button">＋ ${t("पुत्री", "Daughter")}</button>
+                  <button id="admin-tree-edit-add-father" class="button button-outline-dark" type="button">＋ ${t("पिता (ऊपर)", "Father above")}</button>
+                  <button id="admin-tree-edit-add-grandfather" class="button button-outline-dark" type="button">＋ ${t("दादा (ऊपर)", "Grandfather above")}</button>
                 </span>
                 <button id="admin-tree-edit-remove" class="button button-outline-dark admin-danger" type="button">${t("बॉक्स हटाएँ", "Remove box")}</button>
               </div>
@@ -1950,6 +2057,8 @@
     $("#admin-tree-edit-apply")?.addEventListener("click", applyTreeMemberEdit);
     $("#admin-tree-edit-add-son")?.addEventListener("click", () => addTreeMember("son"));
     $("#admin-tree-edit-add-daughter")?.addEventListener("click", () => addTreeMember("daughter"));
+    $("#admin-tree-edit-add-father")?.addEventListener("click", () => addAncestor(1));
+    $("#admin-tree-edit-add-grandfather")?.addEventListener("click", () => addAncestor(2));
     $("#admin-tree-edit-remove")?.addEventListener("click", removeTreeMember);
     $("#admin-tree-save")?.addEventListener("click", () => void saveTreeFromPreview());
     $("#admin-dialog-confirm").addEventListener("click", async event => {

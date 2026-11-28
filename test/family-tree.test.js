@@ -158,9 +158,22 @@ test("admin box editor saves the edited revision with verified re-check intent",
   assert.match(adminJs, /admin-tree-edit-name/);
   assert.match(adminJs, /admin-tree-edit-parent/);
   assert.match(adminJs, /admin-tree-edit-add-daughter/);
+  assert.match(adminJs, /admin-tree-edit-add-father/);
+  assert.match(adminJs, /admin-tree-edit-add-grandfather/);
+  assert.match(adminJs, /memberType: wasRoot \? "root" : "son"/);
   assert.match(adminCss, /\.admin-tree-preview\.is-editable \.admin-tree-preview__body/);
   assert.match(adminCss, /\.admin-tree-editor__fields/);
   assert.match(read("pages.css"), /\.family-tree-node__edit/);
+});
+
+test("admin link-tree form posts the ancestor and anchor person IDs", () => {
+  const adminJs = read("public/js/admin-console.js");
+  assert.match(adminJs, /"master-link": \["master", "approve", true\]/);
+  assert.match(adminJs, /"master-link", row\.id/);
+  assert.match(adminJs, /master\/link\/\$\{encodeURIComponent\(id\)\}/);
+  assert.match(adminJs, /sourceAnchorPersonId: String\(formData\.get/);
+  assert.match(adminJs, /commonAncestorPersonId: String\(formData\.get/);
+  assert.match(adminJs, /master\/hierarchy\?treeId=/);
 });
 
 test("public child query supplies birth order and expandability metadata", () => {
