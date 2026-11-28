@@ -225,6 +225,9 @@
     "president":   "President",
     "members":     "Other members",
     "member":      "Member",
+    "samitis":     "Committees",
+    "description": "Description",
+    "noMembers":   "Members will be published here soon.",
     "loadError":   "The directory could not be loaded. Please try again later."
   },
 

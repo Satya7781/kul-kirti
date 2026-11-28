@@ -26,7 +26,8 @@ const REQUIRED_FILES = [
   "styles.css", "pages.css", "public/css/admin-console.css", "neon.ts",
   "db/schema.sql", "db/migrations/2026-11-20-admin-console.sql",
   "db/migrations/2026-11-28-family-spouse-gotra.sql",
-  "db/migrations/2026-11-28-samiti-directory.sql", "sitemap.xml",
+  "db/migrations/2026-11-28-samiti-directory.sql",
+  "db/migrations/2026-11-28-samiti-groups.sql", "sitemap.xml",
   ".env.example", "render.yaml",
 ];
 for (const file of REQUIRED_FILES) if (!fs.existsSync(file)) throw new Error(`Missing required file: ${file}`);

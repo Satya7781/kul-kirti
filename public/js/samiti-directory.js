@@ -5,7 +5,7 @@
   const empty = document.getElementById("samiti-empty");
   if (!host) return;
 
-  let members = [];
+  let samitis = [];
 
   function t(key, fallback) {
     try {
@@ -39,24 +39,33 @@
     </article>`;
   }
 
+  function section(group) {
+    const members = Array.isArray(group.members) ? group.members : [];
+    const president = members.find(member => member.isPresident);
+    const others = members.filter(member => !member.isPresident);
+    return `<section class="samiti-group">
+      <h2>${esc(group.name)}</h2>
+      ${group.description ? `<p class="samiti-group-description">${esc(group.description)}</p>` : ""}
+      ${president ? `<div class="samiti-president">
+        <p class="eyebrow">${t("samiti.president", "President")}</p>
+        ${card(president, true)}
+      </div>` : ""}
+      ${others.length ? `<div class="samiti-members">
+        <h3>${t("samiti.members", "Other members")}</h3>
+        <div class="samiti-grid">${others.map(member => card(member, false)).join("")}</div>
+      </div>` : ""}
+      ${!president && !others.length ? `<p class="samiti-group-empty">${t("samiti.noMembers", "Members will be published here soon.")}</p>` : ""}
+    </section>`;
+  }
+
   function render() {
-    if (!members.length) {
+    if (!samitis.length) {
       host.hidden = true;
       host.innerHTML = "";
       if (empty) empty.hidden = false;
       return;
     }
-    const president = members.find(member => member.isPresident);
-    const others = members.filter(member => !member.isPresident);
-    host.innerHTML = `
-      ${president ? `<section class="samiti-president">
-        <p class="eyebrow">${t("samiti.president", "President")}</p>
-        ${card(president, true)}
-      </section>` : ""}
-      ${others.length ? `<section class="samiti-members">
-        <h2>${t("samiti.members", "Other members")}</h2>
-        <div class="samiti-grid">${others.map(member => card(member, false)).join("")}</div>
-      </section>` : ""}`;
+    host.innerHTML = samitis.map(section).join("");
     host.hidden = false;
     if (empty) empty.hidden = true;
   }
@@ -66,7 +75,7 @@
       const response = await fetch("/api/samiti", { credentials: "omit" });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
-      members = Array.isArray(data.members) ? data.members : [];
+      samitis = Array.isArray(data.samitis) ? data.samitis : [];
       render();
     } catch (_) {
       host.hidden = true;

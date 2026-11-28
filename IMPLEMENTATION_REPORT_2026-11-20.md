@@ -123,7 +123,7 @@ Retired endpoints (`/api/submissions`, `/api/admin/submissions`, `/api/admin/fam
 
 | Check | Result |
 |---|---|
-| `npm test` | **56 passed, 0 failed** |
+| `npm test` | **57 passed, 0 failed** |
 | `npm run build` | Passed; all required files and syntax checks present |
 | `git diff --check` | No whitespace errors; only LF→CRLF notices on pre-existing Windows-normalized files |
 | Lighthouse on local admin mock | Accessibility **1.00**, Best Practices **1.00**, SEO **1.00**, zero failures |
@@ -189,9 +189,9 @@ Local browser verification against the admin mock confirmed: review opens, **Vie
 
 ### Samiti directory and optional spouse fields (2026-11-28)
 
-- **New 17th DB-backed module: `samiti`.** `db/migrations/2026-11-28-samiti-directory.sql` creates `samiti_members` (name, position, president flag, validated photo, sort order, publish flag, audit columns), seeds `samiti:view|edit|approve`, grants admins `view`/`edit`, and enforces at most one published president.
-- **Full admin CRUD.** `GET/POST/PATCH/DELETE /api/admin/console/samiti` are guarded by `samiti:view`/`samiti:edit`; every write is recorded in `genealogy_audit`. Photos are accepted as validated PNG/JPEG/WebP/GIF data URLs (max 2 MB decoded, with magic-byte checks) and are never written to the audit log.
-- **Public page is live.** `GET /api/samiti` returns only published members; `samiti.html` now renders the president separately and the remaining members as cards with photos, with a safe empty/error fallback. No new storage bucket, secret or filesystem route was introduced.
+- **New 17th DB-backed module: `samiti`.** `db/migrations/2026-11-28-samiti-directory.sql` creates `samiti_members`, seeds `samiti:view|edit|approve`, and grants admins `view`/`edit`. `db/migrations/2026-11-28-samiti-groups.sql` adds the `samitis` table (name, description, publish flag, sort order), backfills existing members into a default samiti, and scopes the one-active-president rule per samiti. Any number of samitis can now coexist, each with its own president and members.
+- **Full admin CRUD for samitis and their members.** `GET/POST/PATCH/DELETE /api/admin/console/samiti` manages samiti groups; nested `/api/admin/console/samiti/:samitiId/members[/:memberId]` routes manage each group's members, including moving a member to another samiti. All routes are guarded by `samiti:view`/`samiti:edit`, and every write is recorded in `genealogy_audit`. Photos are accepted as validated PNG/JPEG/WebP/GIF data URLs (max 2 MB decoded, with magic-byte checks) and are never written to the audit log. Deleting a samiti cascades to its members.
+- **Public page is live.** `GET /api/samiti` returns published samitis with only their published members; `samiti.html` renders one section per samiti, with that samiti's president shown separately and the remaining members as cards with photos, plus a safe empty/error fallback. No new storage bucket, secret or filesystem route was introduced.
 - **Uploads stay safe.** The admin form converts selected image files to data URLs client-side; the JSON limit was raised to 6 MB while the route enforces the smaller decoded-photo limit. Helmet's existing `img-src data:` policy covers the stored photos.
 - **Wife name is optional.** `root`/`son` validation no longer requires `wifeName`; only `name` and `village` remain mandatory. The editor says "अविवाहित हो तो खाली छोड़ें" and the box preview shows "अविवाहित" when no spouse is recorded.
 - **Wife's gotra can be recorded with the spouse.** An optional `wifeGotra` field is carried in the revision, stored in `people.wife_gotra` on verification, and shown in editor/preview/public visual cards.

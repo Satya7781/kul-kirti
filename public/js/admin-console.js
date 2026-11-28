@@ -194,6 +194,8 @@
     "village-rename": ["villages", "edit"], "village-merge": ["villages", "edit"],
     "samiti-create": ["samiti", "edit"], "samiti-edit": ["samiti", "edit"],
     "samiti-toggle": ["samiti", "edit"], "samiti-delete": ["samiti", "edit"],
+    "samiti-member-create": ["samiti", "edit"], "samiti-member-edit": ["samiti", "edit"],
+    "samiti-member-toggle": ["samiti", "edit"], "samiti-member-delete": ["samiti", "edit"],
     "account-create": ["accounts", "edit", true], "account-edit": ["accounts", "edit", true],
     "account-password": ["accounts", "edit", true], "account-deactivate": ["accounts", "edit", true],
     "notification-create": ["notifications", "edit"], "notification-read": ["notifications", "edit"],
@@ -736,12 +738,37 @@
     samiti: {
       load: async () => {
         const data = await api("/api/admin/console/samiti");
+        const samitis = Array.isArray(data.samitis) ? data.samitis : [];
+        const members = Array.isArray(data.members) ? data.members : [];
+        const nameOf = id => samitis.find(item => item.id === id)?.name || "—";
+        const samitiOptions = samitis.map(item => ({ value: item.id, label: item.name }));
         const photoCell = row => row.photoUrl
           ? `<img class="admin-samiti-photo" src="${esc(row.photoUrl)}" alt="" />`
           : `<span class="admin-samiti-no-photo">—</span>`;
-        return { ...(typeof data === "undefined" ? {} : data), html: `
-          <div class="admin-card"><h3>${t("समिति सदस्य जोड़ें", "Add samiti member")}</h3>
+        return { ...data, html: `
+          <div class="admin-card"><h3>${t("समिति जोड़ें", "Add samiti")}</h3>
             ${inlineForm("samiti-create", [
+              { name: "name", label: t("समिति का नाम *", "Samiti name *"), required: true, max: 160 },
+              { name: "description", label: t("विवरण", "Description"), type: "textarea", max: 500 },
+              { name: "sortOrder", label: t("क्रमांक", "Sort order"), type: "number", value: 100 },
+              { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox", value: true },
+            ], t("समिति जोड़ें", "Add samiti"))}
+          </div>
+          <div class="admin-card"><h3>${t("समितियाँ", "Samitis")}</h3>
+            ${table([
+              { key: "name", label: t("नाम", "Name"), render: row => `<strong>${esc(row.name)}</strong>` },
+              { key: "description", label: t("विवरण", "Description") },
+              { key: "memberCount", label: t("सदस्य", "Members"), render: row => members.filter(member => member.samitiId === row.id).length },
+              { key: "sortOrder", label: t("क्रमांक", "Order") },
+              { key: "isActive", label: t("प्रकाशित", "Published"), render: row => fmt(row.isActive) },
+            ], samitis, row => `
+              ${actionButton(t("संपादित", "Edit"), "samiti-edit", row.id)}
+              ${actionButton(row.isActive ? t("अप्रकाशित", "Unpublish") : t("प्रकाशित", "Publish"), "samiti-toggle", row.id)}
+              ${actionButton(t("हटाएँ", "Delete"), "samiti-delete", row.id, { danger: true })}`)}
+          </div>
+          ${samitis.length ? `<div class="admin-card"><h3>${t("समिति सदस्य जोड़ें", "Add samiti member")}</h3>
+            ${inlineForm("samiti-member-create", [
+              { name: "samitiId", label: t("समिति *", "Samiti *"), type: "select", options: samitiOptions, value: samitis[0].id, required: true },
               { name: "name", label: t("नाम *", "Name *"), required: true },
               { name: "position", label: t("पद", "Position"), value: "Member", max: 120 },
               { name: "isPresident", label: t("अध्यक्ष", "President"), type: "checkbox", value: false },
@@ -749,21 +776,21 @@
               { name: "sortOrder", label: t("क्रमांक", "Sort order"), type: "number", value: 100 },
               { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox", value: true },
             ], t("सदस्य जोड़ें", "Add member"))}
-          </div>
+          </div>` : ""}
           <div class="admin-card"><h3>${t("समिति निर्देशिका", "Samiti directory")}</h3>
-            <p class="form-note">${t("जो सदस्य प्रकाशित हैं वे /samiti.html पर दिखते हैं। अध्यक्ष अलग से दिखाया जाता है।", "Published members appear on /samiti.html. The president is shown separately.")}</p>
+            <p class="form-note">${t("हर समिति का अपना अध्यक्ष और सदस्य हो सकते हैं; प्रकाशित सब /samiti.html पर दिखते हैं।", "Each samiti can have its own president and members; published entries appear on /samiti.html.")}</p>
             ${table([
               { key: "photoUrl", label: t("फ़ोटो", "Photo"), render: photoCell },
+              { key: "samitiId", label: t("समिति", "Samiti"), render: row => esc(nameOf(row.samitiId)) },
               { key: "name", label: t("नाम", "Name"), render: row => `<strong>${esc(row.name)}</strong>` },
               { key: "position", label: t("पद", "Position") },
               { key: "isPresident", label: t("अध्यक्ष", "President"), render: row => row.isPresident ? `<span class="admin-badge admin-badge--green">${t("हाँ", "Yes")}</span>` : "—" },
               { key: "sortOrder", label: t("क्रमांक", "Order") },
               { key: "isActive", label: t("प्रकाशित", "Published"), render: row => fmt(row.isActive) },
-              { key: "createdAt", label: t("बना", "Created"), render: row => fmtDate(row.createdAt) },
-            ], data.members, row => `
-              ${actionButton(t("संपादित", "Edit"), "samiti-edit", row.id)}
-              ${actionButton(row.isActive ? t("अप्रकाशित", "Unpublish") : t("प्रकाशित", "Publish"), "samiti-toggle", row.id)}
-              ${actionButton(t("हटाएँ", "Delete"), "samiti-delete", row.id, { danger: true })}`)}
+            ], members, row => `
+              ${actionButton(t("संपादित", "Edit"), "samiti-member-edit", row.id)}
+              ${actionButton(row.isActive ? t("अप्रकाशित", "Unpublish") : t("प्रकाशित", "Publish"), "samiti-member-toggle", row.id)}
+              ${actionButton(t("हटाएँ", "Delete"), "samiti-member-delete", row.id, { danger: true })}`)}
           </div>` };
       },
     },
@@ -998,6 +1025,11 @@
           break;
         case "samiti-create":
           await send("/api/admin/console/samiti", object);
+          message(t("समिति जोड़ी गई।", "Samiti created."));
+          await reload();
+          break;
+        case "samiti-member-create":
+          await send(`/api/admin/console/samiti/${encodeURIComponent(object.samitiId)}/members`, object);
           message(t("समिति सदस्य जोड़ा गया।", "Samiti member created."));
           await reload();
           break;
@@ -1134,20 +1166,56 @@
           });
           break;
         case "samiti-toggle": {
-          const row = (state.cache.samiti?.members || []).find(item => item.id === id);
+          const row = (state.cache.samiti?.samitis || []).find(item => item.id === id);
           await send(`/api/admin/console/samiti/${id}`, { isActive: !row?.isActive }, "PATCH");
           await reload();
           break;
         }
         case "samiti-edit": {
-          const row = (state.cache.samiti?.members || []).find(item => item.id === id) || {};
+          const row = (state.cache.samiti?.samitis || []).find(item => item.id === id) || {};
           openForm({
-            title: t("समिति सदस्य संपादित करें", "Edit samiti member"),
+            title: t("समिति संपादित करें", "Edit samiti"),
             values: {
-              name: row.name, position: row.position, isPresident: row.isPresident,
+              name: row.name, description: row.description,
               sortOrder: row.sortOrder, isActive: row.isActive,
             },
             fields: [
+              { name: "name", label: t("समिति का नाम", "Samiti name"), required: true, max: 160 },
+              { name: "description", label: t("विवरण", "Description"), type: "textarea", max: 500 },
+              { name: "sortOrder", label: t("क्रमांक", "Sort order"), type: "number" },
+              { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox" },
+            ],
+            onSubmit: async body => {
+              await send(`/api/admin/console/samiti/${id}`, body, "PATCH");
+              message(t("समिति अद्यतन हुई।", "Samiti updated."));
+              await reload();
+            },
+          });
+          break;
+        }
+        case "samiti-delete":
+          openConfirm(t("समिति हटाएँ", "Delete samiti"), t("यह समिति और उसके सभी सदस्य स्थायी रूप से हटा दिए जाएँगे।", "This samiti and all its members will be permanently removed."), t("हटाएँ", "Delete"), async () => {
+            await api(`/api/admin/console/samiti/${id}`, { method: "DELETE" });
+            await reload();
+          });
+          break;
+        case "samiti-member-toggle": {
+          const row = (state.cache.samiti?.members || []).find(item => item.id === id);
+          await send(`/api/admin/console/samiti/${row?.samitiId}/members/${id}`, { isActive: !row?.isActive }, "PATCH");
+          await reload();
+          break;
+        }
+        case "samiti-member-edit": {
+          const row = (state.cache.samiti?.members || []).find(item => item.id === id) || {};
+          const options = (state.cache.samiti?.samitis || []).map(item => ({ value: item.id, label: item.name }));
+          openForm({
+            title: t("समिति सदस्य संपादित करें", "Edit samiti member"),
+            values: {
+              samitiId: row.samitiId, name: row.name, position: row.position,
+              isPresident: row.isPresident, sortOrder: row.sortOrder, isActive: row.isActive,
+            },
+            fields: [
+              { name: "samitiId", label: t("समिति", "Samiti"), type: "select", options, required: true },
               { name: "name", label: t("नाम", "Name"), required: true },
               { name: "position", label: t("पद", "Position"), max: 120 },
               { name: "isPresident", label: t("अध्यक्ष", "President"), type: "checkbox" },
@@ -1157,16 +1225,17 @@
               { name: "isActive", label: t("प्रकाशित", "Published"), type: "checkbox" },
             ],
             onSubmit: async body => {
-              await send(`/api/admin/console/samiti/${id}`, body, "PATCH");
+              await send(`/api/admin/console/samiti/${row.samitiId}/members/${id}`, body, "PATCH");
               message(t("समिति सदस्य अद्यतन हुआ।", "Samiti member updated."));
               await reload();
             },
           });
           break;
         }
-        case "samiti-delete":
+        case "samiti-member-delete":
           openConfirm(t("समिति सदस्य हटाएँ", "Delete samiti member"), t("यह सदस्य समिति निर्देशिका से पूरी तर हटा दिया जाएगा।", "This member will be permanently removed from the samiti directory."), t("हटाएँ", "Delete"), async () => {
-            await api(`/api/admin/console/samiti/${id}`, { method: "DELETE" });
+            const row = (state.cache.samiti?.members || []).find(item => item.id === id) || {};
+            await api(`/api/admin/console/samiti/${row.samitiId}/members/${id}`, { method: "DELETE" });
             await reload();
           });
           break;
